@@ -1,0 +1,117 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+      - newapi
+    types: [opened, synchronize, reopened]
+
+jobs:
+  pr-validation:
+    name: PR Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout PR code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for better diff analysis
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Cache NuGet packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.nuget/packages
+        key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-nuget-
+
+    - name: Restore dependencies
+      run: dotnet restore TutoriaApi.sln
+
+    - name: Build solution (Debug)
+      run: dotnet build TutoriaApi.sln --configuration Debug --no-restore
+
+    - name: Build solution (Release)
+      run: dotnet build TutoriaApi.sln --configuration Release --no-restore
+
+    - name: Run unit tests with coverage
+      run: dotnet test TutoriaApi.sln --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger "trx;LogFileName=test-results.trx"
+      continue-on-error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: pr-test-results-${{ github.event.pull_request.number }}
+        path: |
+          **/test-results.trx
+          **/coverage.cobertura.xml
+        retention-days: 14
+
+    # TODO: Enable test reporter after adding write permissions
+    # Requires: permissions.checks: write
+    # - name: Test Report
+    #   if: always()
+    #   uses: dorny/test-reporter@v1
+    #   with:
+    #     name: Test Results
+    #     path: '**/test-results.trx'
+    #     reporter: dotnet-trx
+    #     fail-on-error: true
+
+    # TODO: Enable PR comments after adding write permissions
+    # Requires: permissions.pull-requests: write
+    # - name: PR Comment - Test Summary
+    #   if: always() && github.event_name == 'pull_request'
+    #   uses: actions/github-script@v7
+    #   with:
+    #     script: |
+    #       const fs = require('fs');
+    #       const testResults = `### Test Results
+    #
+    #       ✅ Build completed successfully
+    #       📊 Unit tests executed
+    #
+    #       Check the Actions tab for detailed results.`;
+    #
+    #       github.rest.issues.createComment({
+    #         issue_number: context.issue.number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: testResults
+    #       });
+
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore TutoriaApi.sln
+
+    - name: Security vulnerability scan
+      run: dotnet list package --vulnerable --include-transitive 2>&1 | tee security-scan.txt
+      continue-on-error: true
+
+    - name: Upload security scan results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-scan-results
+        path: security-scan.txt
+        retention-days: 30
