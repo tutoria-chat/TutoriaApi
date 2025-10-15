@@ -57,35 +57,28 @@ public class CoursesController : ControllerBase
         }
 
         var total = await query.CountAsync();
-        var courses = await query
+
+        // Use projection to avoid N+1 queries - count related entities in single query
+        var items = await query
             .Include(c => c.University)
             .OrderBy(c => c.Id)
             .Skip((page - 1) * size)
             .Take(size)
-            .ToListAsync();
-
-        var items = new List<CourseDetailDto>();
-        foreach (var course in courses)
-        {
-            var modulesCount = await _context.Modules.CountAsync(m => m.CourseId == course.Id);
-            var professorsCount = await _context.ProfessorCourses.CountAsync(pc => pc.CourseId == course.Id);
-            var studentsCount = await _context.Students.CountAsync(s => s.CourseId == course.Id);
-
-            items.Add(new CourseDetailDto
+            .Select(c => new CourseDetailDto
             {
-                Id = course.Id,
-                Name = course.Name,
-                Code = course.Code,
-                Description = course.Description,
-                UniversityId = course.UniversityId,
-                UniversityName = course.University?.Name,
-                ModulesCount = modulesCount,
-                ProfessorsCount = professorsCount,
-                StudentsCount = studentsCount,
-                CreatedAt = course.CreatedAt,
-                UpdatedAt = course.UpdatedAt
-            });
-        }
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                Description = c.Description,
+                UniversityId = c.UniversityId,
+                UniversityName = c.University != null ? c.University.Name : null,
+                ModulesCount = _context.Modules.Count(m => m.CourseId == c.Id),
+                ProfessorsCount = _context.ProfessorCourses.Count(pc => pc.CourseId == c.Id),
+                StudentsCount = _context.Users.Count(u => u.UserType == "student" && u.CourseId == c.Id),
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt
+            })
+            .ToListAsync();
 
         return Ok(new PaginatedResponse<CourseDetailDto>
         {
@@ -100,53 +93,53 @@ public class CoursesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<CourseWithDetailsDto>> GetCourse(int id)
     {
-        var course = await _context.Courses
-            .Include(c => c.University)
-            .Include(c => c.Modules)
-            .Include(c => c.Students)
-            .FirstOrDefaultAsync(c => c.Id == id);
+        // Use projection with Users table instead of legacy Students table
+        var dto = await _context.Courses
+            .Where(c => c.Id == id)
+            .Select(c => new CourseWithDetailsDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                Description = c.Description,
+                UniversityId = c.UniversityId,
+                University = c.University != null ? new UniversityDto
+                {
+                    Id = c.University.Id,
+                    Name = c.University.Name,
+                    Code = c.University.Code,
+                    Description = c.University.Description,
+                    CreatedAt = c.University.CreatedAt,
+                    UpdatedAt = c.University.UpdatedAt
+                } : null,
+                Modules = c.Modules.Select(m => new ModuleDto
+                {
+                    Id = m.Id,
+                    Name = m.Name,
+                    Code = m.Code,
+                    Description = m.Description,
+                    Semester = m.Semester,
+                    Year = m.Year
+                }).ToList(),
+                Students = _context.Users
+                    .Where(u => u.UserType == "student" && u.CourseId == c.Id)
+                    .Select(u => new StudentDto
+                    {
+                        Id = u.UserId,
+                        Username = u.Username,
+                        Email = u.Email,
+                        FirstName = u.FirstName,
+                        LastName = u.LastName
+                    }).ToList(),
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt
+            })
+            .FirstOrDefaultAsync();
 
-        if (course == null)
+        if (dto == null)
         {
             return NotFound(new { message = "Course not found" });
         }
-
-        var dto = new CourseWithDetailsDto
-        {
-            Id = course.Id,
-            Name = course.Name,
-            Code = course.Code,
-            Description = course.Description,
-            UniversityId = course.UniversityId,
-            University = course.University != null ? new UniversityDto
-            {
-                Id = course.University.Id,
-                Name = course.University.Name,
-                Code = course.University.Code,
-                Description = course.University.Description,
-                CreatedAt = course.University.CreatedAt,
-                UpdatedAt = course.University.UpdatedAt
-            } : null,
-            Modules = course.Modules.Select(m => new ModuleDto
-            {
-                Id = m.Id,
-                Name = m.Name,
-                Code = m.Code,
-                Description = m.Description,
-                Semester = m.Semester,
-                Year = m.Year
-            }).ToList(),
-            Students = course.Students.Select(s => new StudentDto
-            {
-                Id = s.Id,
-                Username = s.Username,
-                Email = s.Email,
-                FirstName = s.FirstName,
-                LastName = s.LastName
-            }).ToList(),
-            CreatedAt = course.CreatedAt,
-            UpdatedAt = course.UpdatedAt
-        };
 
         return Ok(dto);
     }
@@ -247,22 +240,26 @@ public class CoursesController : ControllerBase
 
         _logger.LogInformation("Updated course {Name} with ID {Id}", course.Name, course.Id);
 
-        var university = await _universityRepository.GetByIdAsync(course.UniversityId);
+        // Use single query with projection to avoid multiple roundtrips
+        var dto = await _context.Courses
+            .Where(c => c.Id == course.Id)
+            .Select(c => new CourseDetailDto
+            {
+                Id = c.Id,
+                Name = c.Name,
+                Code = c.Code,
+                Description = c.Description,
+                UniversityId = c.UniversityId,
+                UniversityName = c.University != null ? c.University.Name : null,
+                ModulesCount = _context.Modules.Count(m => m.CourseId == c.Id),
+                ProfessorsCount = _context.ProfessorCourses.Count(pc => pc.CourseId == c.Id),
+                StudentsCount = _context.Users.Count(u => u.UserType == "student" && u.CourseId == c.Id),
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt
+            })
+            .FirstOrDefaultAsync();
 
-        return Ok(new CourseDetailDto
-        {
-            Id = course.Id,
-            Name = course.Name,
-            Code = course.Code,
-            Description = course.Description,
-            UniversityId = course.UniversityId,
-            UniversityName = university?.Name,
-            ModulesCount = await _context.Modules.CountAsync(m => m.CourseId == course.Id),
-            ProfessorsCount = await _context.ProfessorCourses.CountAsync(pc => pc.CourseId == course.Id),
-            StudentsCount = await _context.Students.CountAsync(s => s.CourseId == course.Id),
-            CreatedAt = course.CreatedAt,
-            UpdatedAt = course.UpdatedAt
-        });
+        return Ok(dto);
     }
 
     [HttpDelete("{id}")]

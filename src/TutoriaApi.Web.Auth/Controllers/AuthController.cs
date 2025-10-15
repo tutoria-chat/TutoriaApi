@@ -151,12 +151,20 @@ public class AuthController : ControllerBase
             };
         }
 
-        // Generate JWT token
-        var token = _jwtService.GenerateToken(
+        // Generate JWT access token
+        var accessToken = _jwtService.GenerateToken(
             subject: user.UserId.ToString(),
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
+            additionalClaims: additionalClaims
+        );
+
+        // Generate refresh token
+        var refreshToken = _jwtService.GenerateRefreshToken(
+            subject: user.UserId.ToString(),
+            type: user.UserType,
+            scopes: scopes,
             additionalClaims: additionalClaims
         );
 
@@ -168,7 +176,8 @@ public class AuthController : ControllerBase
 
         return Ok(new LoginResponse
         {
-            AccessToken = token,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800, // 8 hours in seconds
             User = new UserDto
@@ -243,12 +252,19 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Student registered: {Username}", student.Username);
 
-        // Generate JWT token for immediate login
-        var token = _jwtService.GenerateToken(
+        // Generate JWT access token for immediate login
+        var accessToken = _jwtService.GenerateToken(
             subject: student.UserId.ToString(),
             type: "student",
             scopes: new[] { "api.read" },
             expiresInMinutes: 480
+        );
+
+        // Generate refresh token
+        var refreshToken = _jwtService.GenerateRefreshToken(
+            subject: student.UserId.ToString(),
+            type: "student",
+            scopes: new[] { "api.read" }
         );
 
         // Update last login timestamp
@@ -257,7 +273,8 @@ public class AuthController : ControllerBase
 
         return CreatedAtAction(nameof(Login), new LoginResponse
         {
-            AccessToken = token,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800,
             User = new UserDto
@@ -351,5 +368,102 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Password reset successful for user {UserId}", user.UserId);
 
         return Ok(new { message = "Password has been reset successfully" });
+    }
+
+    [HttpPost("refresh")]
+    public async Task<ActionResult<RefreshTokenResponse>> RefreshToken([FromBody] RefreshTokenRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Validate the refresh token
+        var principal = _jwtService.ValidateToken(request.RefreshToken, validateLifetime: true);
+
+        if (principal == null)
+        {
+            _logger.LogWarning("Token refresh failed: Invalid or expired refresh token");
+            return Unauthorized(new { message = "Invalid or expired refresh token" });
+        }
+
+        // Check if it's a refresh token (has token_type claim)
+        var tokenType = principal.FindFirst("token_type")?.Value;
+        if (tokenType != "refresh")
+        {
+            _logger.LogWarning("Token refresh failed: Not a refresh token");
+            return Unauthorized(new { message = "Invalid token type" });
+        }
+
+        // Extract user info from token
+        var userIdClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userType = principal.FindFirst("type")?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(userType))
+        {
+            _logger.LogWarning("Token refresh failed: Invalid token claims");
+            return Unauthorized(new { message = "Invalid token claims" });
+        }
+
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            _logger.LogWarning("Token refresh failed: Invalid user ID");
+            return Unauthorized(new { message = "Invalid user ID" });
+        }
+
+        // Verify user still exists and is active
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null || !user.IsActive || user.UserType != userType)
+        {
+            _logger.LogWarning("Token refresh failed: User not found or inactive {UserId}", userId);
+            return Unauthorized(new { message = "User not found or inactive" });
+        }
+
+        // Determine scopes based on user type
+        string[] scopes = user.UserType switch
+        {
+            "super_admin" => new[] { "api.read", "api.write", "api.admin" },
+            "professor" when user.IsAdmin == true => new[] { "api.read", "api.write", "api.manage" },
+            "professor" => new[] { "api.read", "api.write" },
+            "student" => new[] { "api.read" },
+            _ => Array.Empty<string>()
+        };
+
+        // Add additional claims for professors
+        Dictionary<string, string>? additionalClaims = null;
+        if (user.UserType == "professor" && user.IsAdmin.HasValue)
+        {
+            additionalClaims = new Dictionary<string, string>
+            {
+                { "isAdmin", user.IsAdmin.Value.ToString().ToLower() }
+            };
+        }
+
+        // Generate new access token
+        var newAccessToken = _jwtService.GenerateToken(
+            subject: user.UserId.ToString(),
+            type: user.UserType,
+            scopes: scopes,
+            expiresInMinutes: 480, // 8 hours
+            additionalClaims: additionalClaims
+        );
+
+        // Generate new refresh token
+        var newRefreshToken = _jwtService.GenerateRefreshToken(
+            subject: user.UserId.ToString(),
+            type: user.UserType,
+            scopes: scopes,
+            additionalClaims: additionalClaims
+        );
+
+        _logger.LogInformation("Token refreshed successfully for user {UserId}", user.UserId);
+
+        return Ok(new RefreshTokenResponse
+        {
+            AccessToken = newAccessToken,
+            RefreshToken = newRefreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = 28800 // 8 hours in seconds
+        });
     }
 }

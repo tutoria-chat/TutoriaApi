@@ -13,9 +13,10 @@ public class TutoriaDbContext : DbContext
     public DbSet<University> Universities { get; set; }
     public DbSet<Course> Courses { get; set; }
     public DbSet<Module> Modules { get; set; }
-    public DbSet<Professor> Professors { get; set; }
-    public DbSet<Student> Students { get; set; }
-    public DbSet<SuperAdmin> SuperAdmins { get; set; }
+    // Legacy tables removed - using unified Users table instead
+    // public DbSet<Professor> Professors { get; set; }
+    // public DbSet<Student> Students { get; set; }
+    // public DbSet<SuperAdmin> SuperAdmins { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<FileEntity> Files { get; set; }
     public DbSet<ModuleAccessToken> ModuleAccessTokens { get; set; }
@@ -91,93 +92,10 @@ public class TutoriaDbContext : DbContext
             entity.HasCheckConstraint("CK_Modules_Year", "[Year] BETWEEN 2020 AND 2050");
         });
 
-        // Professor configuration
-        modelBuilder.Entity<Professor>(entity =>
-        {
-            entity.ToTable("Professors");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.Username).HasColumnName("Username").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Email).HasColumnName("Email").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FirstName).HasColumnName("FirstName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.LastName).HasColumnName("LastName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.HashedPassword).HasColumnName("HashedPassword").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.IsAdmin).HasColumnName("IsAdmin").HasDefaultValue(false);
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
-            entity.Property(e => e.LastLoginAt).HasColumnName("LastLoginAt");
-            entity.Property(e => e.PasswordResetToken).HasColumnName("PasswordResetToken").HasMaxLength(255);
-            entity.Property(e => e.PasswordResetExpires).HasColumnName("PasswordResetExpires");
-            entity.Property(e => e.ThemePreference).HasColumnName("ThemePreference").HasMaxLength(20).HasDefaultValue("system");
-            entity.Property(e => e.LanguagePreference).HasColumnName("LanguagePreference").HasMaxLength(10).HasDefaultValue("pt-br");
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+        // Legacy entity configurations removed - using unified Users table instead
+        // Professors, Students, SuperAdmins tables are deprecated
 
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.IsActive);
-
-            entity.HasOne(e => e.University)
-                .WithMany(u => u.Professors)
-                .HasForeignKey(e => e.UniversityId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // Student configuration
-        modelBuilder.Entity<Student>(entity =>
-        {
-            entity.ToTable("Students");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.Username).HasColumnName("Username").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Email).HasColumnName("Email").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FirstName).HasColumnName("FirstName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.LastName).HasColumnName("LastName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.HashedPassword).HasColumnName("HashedPassword").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.CourseId).HasColumnName("CourseId");
-            entity.Property(e => e.LastLoginAt).HasColumnName("LastLoginAt");
-            entity.Property(e => e.PasswordResetToken).HasColumnName("PasswordResetToken").HasMaxLength(255);
-            entity.Property(e => e.PasswordResetExpires).HasColumnName("PasswordResetExpires");
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
-
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.IsActive);
-
-            entity.HasOne(e => e.Course)
-                .WithMany(c => c.Students)
-                .HasForeignKey(e => e.CourseId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // SuperAdmin configuration
-        modelBuilder.Entity<SuperAdmin>(entity =>
-        {
-            entity.ToTable("SuperAdmins");
-            entity.HasKey(e => e.SuperAdminId);
-            entity.Property(e => e.SuperAdminId).HasColumnName("SuperAdminId");
-            entity.Property(e => e.Username).HasColumnName("Username").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Email).HasColumnName("Email").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.FirstName).HasColumnName("FirstName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.LastName).HasColumnName("LastName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.HashedPassword).HasColumnName("HashedPassword").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
-            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
-            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
-            entity.Property(e => e.LastLoginAt).HasColumnName("LastLoginAt");
-            entity.Property(e => e.PasswordResetToken).HasColumnName("PasswordResetToken").HasMaxLength(255);
-            entity.Property(e => e.PasswordResetExpires).HasColumnName("PasswordResetExpires");
-            entity.Property(e => e.ThemePreference).HasColumnName("ThemePreference").HasMaxLength(20).HasDefaultValue("system");
-            entity.Property(e => e.LanguagePreference).HasColumnName("LanguagePreference").HasMaxLength(10).HasDefaultValue("pt-br");
-
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.HasIndex(e => e.IsActive);
-        });
-
-        // User configuration (Unified table)
+        // User configuration (Unified table for all user types: professor, student, super_admin)
         modelBuilder.Entity<User>(entity =>
         {
             entity.ToTable("Users");
@@ -187,7 +105,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Email).HasColumnName("Email").HasMaxLength(255).IsRequired();
             entity.Property(e => e.FirstName).HasColumnName("FirstName").HasMaxLength(100).IsRequired();
             entity.Property(e => e.LastName).HasColumnName("LastName").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.HashedPassword).HasColumnName("HashedPassword").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.HashedPassword).HasColumnName("HashedPassword").HasMaxLength(255); // Nullable - students don't have passwords!
             entity.Property(e => e.UserType).HasColumnName("UserType").HasMaxLength(20).IsRequired();
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");

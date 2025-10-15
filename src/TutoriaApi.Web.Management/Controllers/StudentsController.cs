@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.Management.DTOs;
-using BCrypt.Net;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
@@ -153,7 +152,7 @@ public class StudentsController : ControllerBase
             Email = request.Email,
             FirstName = request.FirstName,
             LastName = request.LastName,
-            HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            HashedPassword = null, // Students don't have passwords - they don't login
             UserType = "student",
             CourseId = request.CourseId,
             IsActive = true
@@ -291,29 +290,6 @@ public class StudentsController : ControllerBase
         return Ok(new { message = "Student deleted successfully" });
     }
 
-    [HttpPut("{id}/password")]
-    public async Task<ActionResult> ChangePassword(int id, [FromBody] ChangePasswordRequest request)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (student == null)
-        {
-            return NotFound(new { message = "Student not found" });
-        }
-
-        student.HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        student.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Changed password for student {Username} with ID {Id}", student.Username, student.UserId);
-
-        return Ok(new { message = "Password changed successfully" });
-    }
+    // Students don't have passwords - they don't login
+    // Password management is not available for student user type
 }

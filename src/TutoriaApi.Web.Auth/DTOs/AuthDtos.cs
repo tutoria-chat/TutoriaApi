@@ -15,6 +15,7 @@ public class LoginRequest
 public class LoginResponse
 {
     public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
     public string TokenType { get; set; } = "Bearer";
     public int ExpiresIn { get; set; }
     public UserDto User { get; set; } = null!;
@@ -111,4 +112,18 @@ public class ChangePasswordRequest
     [Required(ErrorMessage = "New password is required")]
     [PasswordComplexity(minLength: 8)]
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public class RefreshTokenRequest
+{
+    [Required(ErrorMessage = "Refresh token is required")]
+    public string RefreshToken { get; set; } = string.Empty;
+}
+
+public class RefreshTokenResponse
+{
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+    public string TokenType { get; set; } = "Bearer";
+    public int ExpiresIn { get; set; }
 }

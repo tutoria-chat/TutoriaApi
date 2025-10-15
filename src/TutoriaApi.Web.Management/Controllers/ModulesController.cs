@@ -68,34 +68,28 @@ public class ModulesController : ControllerBase
         }
 
         var total = await query.CountAsync();
-        var modules = await query
+
+        // Use projection to avoid N+1 queries - count related entities in single query
+        var items = await query
             .OrderBy(m => m.Id)
             .Skip((page - 1) * size)
             .Take(size)
-            .ToListAsync();
-
-        var items = new List<ModuleListDto>();
-        foreach (var module in modules)
-        {
-            var filesCount = await _context.Files.CountAsync(f => f.ModuleId == module.Id);
-            var tokensCount = await _context.ModuleAccessTokens.CountAsync(t => t.ModuleId == module.Id);
-
-            items.Add(new ModuleListDto
+            .Select(m => new ModuleListDto
             {
-                Id = module.Id,
-                Name = module.Name,
-                Code = module.Code,
-                Description = module.Description,
-                Semester = module.Semester,
-                Year = module.Year,
-                CourseId = module.CourseId,
-                CourseName = module.Course?.Name,
-                FilesCount = filesCount,
-                TokensCount = tokensCount,
-                CreatedAt = module.CreatedAt,
-                UpdatedAt = module.UpdatedAt
-            });
-        }
+                Id = m.Id,
+                Name = m.Name,
+                Code = m.Code,
+                Description = m.Description,
+                Semester = m.Semester,
+                Year = m.Year,
+                CourseId = m.CourseId,
+                CourseName = m.Course != null ? m.Course.Name : null,
+                FilesCount = _context.Files.Count(f => f.ModuleId == m.Id),
+                TokensCount = _context.ModuleAccessTokens.Count(t => t.ModuleId == m.Id),
+                CreatedAt = m.CreatedAt,
+                UpdatedAt = m.UpdatedAt
+            })
+            .ToListAsync();
 
         return Ok(new PaginatedResponse<ModuleListDto>
         {

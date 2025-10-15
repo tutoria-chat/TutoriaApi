@@ -84,16 +84,13 @@ public class CourseService : ICourseService
             throw new KeyNotFoundException("Course not found");
         }
 
-        // Check if professor exists
-        var professor = await _context.Professors.FindAsync(professorId);
+        // Check if professor exists in Users table
+        var professor = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserId == professorId && u.UserType == "professor");
+
         if (professor == null)
         {
-            // Try Users table
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == professorId && u.UserType == "professor");
-            if (user == null)
-            {
-                throw new KeyNotFoundException("Professor not found");
-            }
+            throw new KeyNotFoundException("Professor not found");
         }
 
         // Check if assignment already exists

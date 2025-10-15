@@ -31,6 +31,7 @@ TutoriaApi/
 - **API Endpoints**: `/api/[controller]` pattern with standard HTTP verbs
 - **NO snake_case**: The old tutoria-api used snake_case, we are migrating away from that
 - **NO API Versioning**: No `/v1/` or `/v2/` in routes - treating as a whole new life, clean slate
+- **Slang**: "unies" = unit tests (XUnit)
 
 ### DTOs and Mapping
 - **Always use DTOs** for API requests and responses (never expose entities directly)
@@ -76,6 +77,49 @@ This API handles:
 - EF Core with Repository pattern instead of direct DB access
 - Service layer for business logic
 - Onion architecture with clear separation of concerns
+
+## Important Architecture Decisions
+
+### Student User Type - NO LOGIN REQUIRED
+**CRITICAL:** Students in the `Users` table (with `UserType = "student"`) are **data-only records** for analytics and tracking purposes.
+
+**Key points:**
+- ✅ Students are created to link chat interactions to real student identities
+- ✅ Used for collecting data and analytics for professors
+- ✅ Track which students are asking which questions
+- ❌ Students **DO NOT** log into the Tutoria platform
+- ❌ Students **DO NOT** need passwords
+- ❌ No student authentication flows exist
+
+**Implementation:**
+- `User.HashedPassword` should be **nullable** for students
+- Student records can be created via Excel import (username, email, studentId, etc.)
+- Widget chat uses `student_id` parameter to link anonymous chat sessions to student records
+- Professors see analytics per student without students ever logging in
+
+**Example use case:**
+1. Professor uploads Excel with student list (name, email, student_id)
+2. Students are created in `Users` table with `UserType = "student"` and `HashedPassword = null`
+3. Professor shares widget URL with `?module_token=XYZ&student_id=S123456`
+4. Student uses widget (no login required)
+5. Chat messages are linked to Student record via `student_id`
+6. Professor sees analytics: "João Silva asked 15 questions about Chapter 3"
+
+### Unified Users Table Strategy
+**Decision:** Use ONLY the `Users` table for all user types (student, professor, super_admin)
+
+**Legacy tables to be removed:**
+- `Students` table (DbSet<Student>)
+- `Professors` table (DbSet<Professor>)
+- `SuperAdmins` table (DbSet<SuperAdmin>)
+
+**Rationale:**
+- Single source of truth prevents data inconsistency
+- Simpler codebase and maintenance
+- Easier to add new user types in future
+- Follows DDD principles with discriminator pattern
+
+**Current state:** Legacy tables still exist in DbContext but should not be used in new code.
 
 ## Documentation Guidelines
 

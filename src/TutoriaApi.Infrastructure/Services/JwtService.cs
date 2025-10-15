@@ -59,7 +59,23 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public bool ValidateToken(string token)
+    public string GenerateRefreshToken(string subject, string type, string[] scopes, IDictionary<string, string>? additionalClaims = null)
+    {
+        // Refresh tokens are long-lived (7 days) and include a token_type claim
+        var refreshClaims = new Dictionary<string, string> { { "token_type", "refresh" } };
+
+        if (additionalClaims != null)
+        {
+            foreach (var (key, value) in additionalClaims)
+            {
+                refreshClaims[key] = value;
+            }
+        }
+
+        return GenerateToken(subject, type, scopes, expiresInMinutes: 10080, additionalClaims: refreshClaims); // 7 days
+    }
+
+    public ClaimsPrincipal? ValidateToken(string token, bool validateLifetime = true)
     {
         var jwtSettings = _configuration.GetSection("Jwt");
         var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
@@ -71,7 +87,7 @@ public class JwtService : IJwtService
 
         try
         {
-            tokenHandler.ValidateToken(token, new TokenValidationParameters
+            var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
@@ -79,15 +95,20 @@ public class JwtService : IJwtService
                 ValidIssuer = issuer,
                 ValidateAudience = true,
                 ValidAudience = audience,
-                ValidateLifetime = true,
+                ValidateLifetime = validateLifetime,
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);
 
-            return true;
+            return principal;
         }
         catch
         {
-            return false;
+            return null;
         }
+    }
+
+    public bool ValidateTokenSimple(string token)
+    {
+        return ValidateToken(token, validateLifetime: true) != null;
     }
 }

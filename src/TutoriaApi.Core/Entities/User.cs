@@ -10,7 +10,7 @@ public class User
     public required string Email { get; set; }
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
-    public required string HashedPassword { get; set; }
+    public string? HashedPassword { get; set; } // Nullable - students don't have passwords!
     public required string UserType { get; set; } // 'professor', 'super_admin', 'student'
     public bool IsActive { get; set; } = true;
 
