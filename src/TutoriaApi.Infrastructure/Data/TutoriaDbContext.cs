@@ -130,6 +130,7 @@ public class TutoriaDbContext : DbContext
             entity.HasIndex(e => e.Email).IsUnique();
             entity.HasIndex(e => e.UserType);
             entity.HasIndex(e => e.IsActive);
+            entity.HasIndex(e => e.PasswordResetToken);
 
             entity.HasOne(e => e.University)
                 .WithMany()

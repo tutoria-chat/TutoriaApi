@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using TutoriaApi.Core.Interfaces;
 
@@ -10,10 +11,12 @@ namespace TutoriaApi.Infrastructure.Services;
 public class JwtService : IJwtService
 {
     private readonly IConfiguration _configuration;
+    private readonly ILogger<JwtService> _logger;
 
-    public JwtService(IConfiguration configuration)
+    public JwtService(IConfiguration configuration, ILogger<JwtService> logger)
     {
         _configuration = configuration;
+        _logger = logger;
     }
 
     public string GenerateToken(string subject, string type, string[] scopes, int expiresInMinutes = 60, IDictionary<string, string>? additionalClaims = null)
@@ -61,7 +64,7 @@ public class JwtService : IJwtService
 
     public string GenerateRefreshToken(string subject, string type, string[] scopes, IDictionary<string, string>? additionalClaims = null)
     {
-        // Refresh tokens are long-lived (7 days) and include a token_type claim
+        // Refresh tokens are long-lived (30 days) and include a token_type claim
         var refreshClaims = new Dictionary<string, string> { { "token_type", "refresh" } };
 
         if (additionalClaims != null)
@@ -72,7 +75,7 @@ public class JwtService : IJwtService
             }
         }
 
-        return GenerateToken(subject, type, scopes, expiresInMinutes: 10080, additionalClaims: refreshClaims); // 7 days
+        return GenerateToken(subject, type, scopes, expiresInMinutes: 43200, additionalClaims: refreshClaims); // 30 days
     }
 
     public ClaimsPrincipal? ValidateToken(string token, bool validateLifetime = true)
@@ -101,8 +104,24 @@ public class JwtService : IJwtService
 
             return principal;
         }
-        catch
+        catch (SecurityTokenExpiredException ex)
         {
+            _logger.LogDebug("Token validation failed: Token expired. {Message}", ex.Message);
+            return null;
+        }
+        catch (SecurityTokenInvalidSignatureException ex)
+        {
+            _logger.LogWarning("Token validation failed: Invalid signature. {Message}", ex.Message);
+            return null;
+        }
+        catch (SecurityTokenException ex)
+        {
+            _logger.LogWarning("Token validation failed: {Message}", ex.Message);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during token validation");
             return null;
         }
     }

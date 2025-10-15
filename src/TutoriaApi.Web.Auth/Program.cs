@@ -2,6 +2,9 @@ using TutoriaApi.Infrastructure;
 using TutoriaApi.Infrastructure.Middleware;
 using AspNetCoreRateLimit;
 using Serilog;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
@@ -72,21 +75,65 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// Add JWT Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    var jwtSecretKey = builder.Configuration["Jwt:SecretKey"];
+    if (string.IsNullOrEmpty(jwtSecretKey))
+    {
+        throw new InvalidOperationException("JWT SecretKey is not configured. Please set it in user secrets or environment variables.");
+    }
+
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey)),
+        ValidateIssuer = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        ValidateLifetime = true,
+        ClockSkew = TimeSpan.Zero
+    };
+});
+
 // Add Infrastructure services (DbContext, Repositories, Services) - automatically registered!
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // Add seeder service for development data
 builder.Services.AddScoped<TutoriaApi.Infrastructure.Services.DbSeederService>();
 
-// Add CORS if needed
+// Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    if (builder.Environment.IsDevelopment())
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
+        // Development: Allow all origins for easier testing
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        });
+    }
+    else
+    {
+        // Production: Restrict to specific origins
+        options.AddDefaultPolicy(policy =>
+        {
+            policy.WithOrigins(
+                      builder.Configuration.GetSection("AllowedOrigins").Get<string[]>()
+                      ?? new[] { "https://tutoria.example.com" })
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        });
+    }
 });
 
 var app = builder.Build();
@@ -114,7 +161,11 @@ app.UseGlobalExceptionHandler();
 
 app.UseRequestResponseLogging();
 app.UseIpRateLimiting();
+
+// Authentication must come before Authorization
+app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 // Map health check endpoints

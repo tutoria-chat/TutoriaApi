@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
@@ -29,17 +28,20 @@ namespace TutoriaApi.Web.Auth.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IApiClientRepository _apiClientRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IJwtService _jwtService;
-    private readonly TutoriaDbContext _context;
+    private readonly TutoriaDbContext _context; // Still needed for Courses.FindAsync in RegisterStudent
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IApiClientRepository apiClientRepository,
+        IUserRepository userRepository,
         IJwtService jwtService,
         TutoriaDbContext context,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
+        _userRepository = userRepository;
         _jwtService = jwtService;
         _context = context;
         _logger = logger;
@@ -174,10 +176,7 @@ public class AuthController : ControllerBase
         }
 
         // Find user by username
-        var user = await _context.Users
-            .Include(u => u.University)
-            .Include(u => u.Course)
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
+        var user = await _userRepository.GetByUsernameWithIncludesAsync(request.Username);
 
         if (user == null)
         {
@@ -192,8 +191,9 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Account is inactive" });
         }
 
-        // Verify password
-        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.HashedPassword))
+        // Verify password (students might not have passwords set)
+        if (string.IsNullOrEmpty(user.HashedPassword) ||
+            !BCrypt.Net.BCrypt.Verify(request.Password, user.HashedPassword))
         {
             _logger.LogWarning("Login failed: Invalid password for {Username}", request.Username);
             return Unauthorized(new { message = "Invalid username or password" });
@@ -238,7 +238,7 @@ public class AuthController : ControllerBase
 
         // Update last login timestamp
         user.LastLoginAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("User {Username} logged in successfully", user.Username);
 
@@ -314,18 +314,12 @@ public class AuthController : ControllerBase
         }
 
         // Check if username or email already exists
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
-
-        if (existingByUsername != null)
+        if (await _userRepository.ExistsByUsernameAsync(request.Username))
         {
             return BadRequest(new { message = "Username already exists" });
         }
 
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-        if (existingByEmail != null)
+        if (await _userRepository.ExistsByEmailAsync(request.Email))
         {
             return BadRequest(new { message = "Email already exists" });
         }
@@ -343,8 +337,7 @@ public class AuthController : ControllerBase
             IsActive = true
         };
 
-        _context.Users.Add(student);
-        await _context.SaveChangesAsync();
+        student = await _userRepository.AddAsync(student);
 
         _logger.LogInformation("Student registered: {Username}", student.Username);
 
@@ -365,7 +358,7 @@ public class AuthController : ControllerBase
 
         // Update last login timestamp
         student.LastLoginAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         return CreatedAtAction(nameof(Login), new LoginResponse
         {
@@ -421,8 +414,7 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
+        var user = await _userRepository.GetByEmailAsync(request.Email);
 
         // Always return success to prevent email enumeration
         if (user == null)
@@ -442,7 +434,7 @@ public class AuthController : ControllerBase
         // Set token and expiration (1 hour)
         user.PasswordResetToken = resetToken;
         user.PasswordResetExpires = DateTime.UtcNow.AddHours(1);
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("Password reset token generated for user {UserId}", user.UserId);
 
@@ -484,8 +476,7 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var user = await _context.Users
-            .FirstOrDefaultAsync(u => u.PasswordResetToken == request.Token);
+        var user = await _userRepository.GetByPasswordResetTokenAsync(request.Token);
 
         if (user == null)
         {
@@ -503,7 +494,7 @@ public class AuthController : ControllerBase
         user.PasswordResetToken = null;
         user.PasswordResetExpires = null;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("Password reset successful for user {UserId}", user.UserId);
 
@@ -579,7 +570,7 @@ public class AuthController : ControllerBase
         }
 
         // Verify user still exists and is active
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _userRepository.GetByIdAsync(userId);
         if (user == null || !user.IsActive || user.UserType != userType)
         {
             _logger.LogWarning("Token refresh failed: User not found or inactive {UserId}", userId);
@@ -672,10 +663,7 @@ public class AuthController : ControllerBase
         }
 
         // Fetch user with related data
-        var user = await _context.Users
-            .Include(u => u.University)
-            .Include(u => u.Course)
-            .FirstOrDefaultAsync(u => u.UserId == userId);
+        var user = await _userRepository.GetByIdWithIncludesAsync(userId);
 
         if (user == null)
         {
@@ -760,7 +748,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Invalid user ID" });
         }
 
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _userRepository.GetByIdAsync(userId);
 
         if (user == null)
         {
@@ -788,10 +776,7 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.Email))
         {
             // Check if email is already taken by another user
-            var existingUser = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == request.Email && u.UserId != userId);
-
-            if (existingUser != null)
+            if (await _userRepository.ExistsByEmailExcludingUserAsync(request.Email, userId))
             {
                 return BadRequest(new { message = "Email is already taken by another user" });
             }
@@ -810,15 +795,12 @@ public class AuthController : ControllerBase
         }
 
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("User profile updated for {UserId}", userId);
 
         // Reload user with related data
-        var updatedUser = await _context.Users
-            .Include(u => u.University)
-            .Include(u => u.Course)
-            .FirstOrDefaultAsync(u => u.UserId == userId);
+        var updatedUser = await _userRepository.GetByIdWithIncludesAsync(userId);
 
         return Ok(new UserDto
         {
@@ -890,7 +872,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Invalid user ID" });
         }
 
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _userRepository.GetByIdAsync(userId);
 
         if (user == null)
         {
@@ -914,7 +896,7 @@ public class AuthController : ControllerBase
         // Update password
         user.HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("Password changed successfully for user {UserId}", userId);
 

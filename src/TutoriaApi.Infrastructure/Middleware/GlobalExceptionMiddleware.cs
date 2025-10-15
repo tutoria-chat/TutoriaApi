@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
@@ -12,11 +14,13 @@ public class GlobalExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionMiddleware> _logger;
+    private readonly IWebHostEnvironment _environment;
 
-    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
+    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger, IWebHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
+        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -72,7 +76,7 @@ public class GlobalExceptionMiddleware
             {
                 StatusCode = (int)HttpStatusCode.InternalServerError,
                 Message = "An error occurred while processing your request",
-                Detail = context.Request.Host.Host.Contains("localhost")
+                Detail = _environment.IsDevelopment()
                     ? exception.Message // Show details in development
                     : "Please contact support if the problem persists" // Hide details in production
             }
@@ -83,7 +87,7 @@ public class GlobalExceptionMiddleware
         var options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = context.Request.Host.Host.Contains("localhost") // Pretty print in development
+            WriteIndented = _environment.IsDevelopment() // Pretty print in development
         };
 
         var json = JsonSerializer.Serialize(response, options);
