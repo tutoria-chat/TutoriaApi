@@ -54,34 +54,38 @@ jobs:
           **/coverage.cobertura.xml
         retention-days: 14
 
-    - name: Test Report
-      if: always()
-      uses: dorny/test-reporter@v1
-      with:
-        name: Test Results
-        path: '**/test-results.trx'
-        reporter: dotnet-trx
-        fail-on-error: true
+    # TODO: Enable test reporter after adding write permissions
+    # Requires: permissions.checks: write
+    # - name: Test Report
+    #   if: always()
+    #   uses: dorny/test-reporter@v1
+    #   with:
+    #     name: Test Results
+    #     path: '**/test-results.trx'
+    #     reporter: dotnet-trx
+    #     fail-on-error: true
 
-    - name: PR Comment - Test Summary
-      if: always() && github.event_name == 'pull_request'
-      uses: actions/github-script@v7
-      with:
-        script: |
-          const fs = require('fs');
-          const testResults = `### Test Results
-
-          ✅ Build completed successfully
-          📊 Unit tests executed
-
-          Check the Actions tab for detailed results.`;
-
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: testResults
-          });
+    # TODO: Enable PR comments after adding write permissions
+    # Requires: permissions.pull-requests: write
+    # - name: PR Comment - Test Summary
+    #   if: always() && github.event_name == 'pull_request'
+    #   uses: actions/github-script@v7
+    #   with:
+    #     script: |
+    #       const fs = require('fs');
+    #       const testResults = `### Test Results
+    #
+    #       ✅ Build completed successfully
+    #       📊 Unit tests executed
+    #
+    #       Check the Actions tab for detailed results.`;
+    #
+    #       github.rest.issues.createComment({
+    #         issue_number: context.issue.number,
+    #         owner: context.repo.owner,
+    #         repo: context.repo.repo,
+    #         body: testResults
+    #       });
 
   security-scan:
     name: Security Scan
