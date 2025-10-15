@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -14,9 +13,9 @@ public class GlobalExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionMiddleware> _logger;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IHostEnvironment _environment;
 
-    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger, IWebHostEnvironment environment)
+    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger, IHostEnvironment environment)
     {
         _next = next;
         _logger = logger;
