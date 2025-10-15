@@ -103,6 +103,11 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Management API for Tutoria educational platform - Universities, Courses, Modules, Professors, Students"
     });
 
+    // Include XML comments for enhanced documentation
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    options.IncludeXmlComments(xmlPath);
+
     // Add OAuth2 security definition
     options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
     {
@@ -174,7 +179,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors();
-app.UseMiddleware<RequestResponseLoggingMiddleware>();
+
+// Add global exception handler (should be early in the pipeline)
+app.UseGlobalExceptionHandler();
+
+app.UseRequestResponseLogging();
 app.UseIpRateLimiting();
 app.UseAuthentication();
 app.UseAuthorization();

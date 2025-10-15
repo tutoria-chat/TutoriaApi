@@ -10,7 +10,11 @@
       "Bash(dotnet build)",
       "Bash(dotnet build:*)",
       "Bash(timeout 5 echo:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(dotnet run:*)",
+      "Bash(timeout:*)",
+      "Bash(powershell:*)",
+      "Bash(dotnet test:*)"
     ],
     "deny": [],
     "ask": []

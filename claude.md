@@ -21,7 +21,7 @@ TutoriaApi/
 ### Design Patterns
 - **Service Pattern**: Business logic in services (NOT CQRS/MediatR)
 - **Repository Pattern**: Data access abstraction for database operations
-- **Dependency Injection**: Standard .NET DI container
+- **Dependency Injection**: Standard .NET DI container with automatic registration (see below)
 
 ## Code Standards
 
@@ -54,6 +54,51 @@ public class University
 - **Core**: Domain entities, domain services, repository interfaces, service interfaces
 - **Infrastructure**: EF Core DbContext, repository implementations, external service integrations
 - **Web Projects**: Controllers, DTOs, middleware, configuration
+
+### Automatic Dependency Injection
+**IMPORTANT**: This project uses **automatic DI registration** for repositories and services.
+
+**How it works:**
+- All repository interfaces (`I*Repository`) in `Core.Interfaces` are automatically registered
+- All service interfaces (`I*Service`) in `Core.Interfaces` are automatically registered
+- Implementations are auto-discovered from `Infrastructure.Repositories` and `Infrastructure.Services`
+- Matching is done by interface name (e.g., `IAIModelRepository` → `AIModelRepository`)
+- All registered as Scoped lifetime
+
+**Benefits:**
+- No manual registration needed in `Program.cs`
+- Just create `IMyRepository` interface + `MyRepository` implementation and it's auto-wired
+- Reduces boilerplate and ensures consistency
+- Console logs show what was registered on startup
+
+**Implementation:** See `TutoriaApi.Infrastructure/DependencyInjection.cs`
+
+**Example:**
+```csharp
+// 1. Create interface in Core
+public interface IAIModelRepository : IRepository<AIModel>
+{
+    Task<AIModel?> GetByModelNameAsync(string modelName);
+}
+
+// 2. Create implementation in Infrastructure
+public class AIModelRepository : Repository<AIModel>, IAIModelRepository
+{
+    public async Task<AIModel?> GetByModelNameAsync(string modelName)
+    {
+        return await _dbSet.FirstOrDefaultAsync(a => a.ModelName == modelName);
+    }
+}
+
+// 3. That's it! No Program.cs changes needed
+// On startup you'll see:
+// ✓ Registered: IAIModelRepository → AIModelRepository
+```
+
+**Adding new repositories:**
+1. Create interface in `TutoriaApi.Core/Interfaces/I*Repository.cs`
+2. Create implementation in `TutoriaApi.Infrastructure/Repositories/*Repository.cs`
+3. Done! Auto-registered via reflection
 
 ## Migration Strategy
 

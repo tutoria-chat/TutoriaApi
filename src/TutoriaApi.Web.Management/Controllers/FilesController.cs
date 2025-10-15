@@ -8,9 +8,29 @@ using FileEntity = TutoriaApi.Core.Entities.File;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
+/// <summary>
+/// Manages file uploads and storage for module content.
+/// </summary>
+/// <remarks>
+/// Handles file operations for module learning materials, including upload to Azure Blob Storage
+/// and integration with OpenAI's file API for vector store attachments.
+///
+/// **Authorization**: All endpoints require ProfessorOrAbove policy.
+///
+/// **Storage**:
+/// - Files are stored in Azure Blob Storage
+/// - Database tracks metadata and OpenAI file associations
+/// - Files are organized by: university/course/module hierarchy
+///
+/// **File Statuses**:
+/// - `pending`: Uploaded but not yet processed by OpenAI
+/// - `processing`: Being processed by OpenAI
+/// - `completed`: Successfully processed and attached to vector store
+/// - `failed`: Processing failed (see ErrorMessage for details)
+/// </remarks>
 [ApiController]
 [Route("api/files")]
-[Authorize(Policy = "ProfessorOrAbove")] // Require ProfessorOrAbove for all file operations
+[Authorize(Policy = "ProfessorOrAbove")]
 public class FilesController : ControllerBase
 {
     private readonly TutoriaDbContext _context;

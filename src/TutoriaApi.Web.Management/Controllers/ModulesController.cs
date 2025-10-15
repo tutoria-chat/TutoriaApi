@@ -8,6 +8,22 @@ using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
+/// <summary>
+/// Manages academic modules (course units) and their configuration.
+/// </summary>
+/// <remarks>
+/// Modules are individual units within a course (e.g., "Introduction to Python", "Calculus I").
+/// Each module has an associated OpenAI Assistant and vector store for AI tutoring functionality.
+///
+/// **Authorization**: All endpoints require authentication. Write operations require ProfessorOrAbove policy.
+///
+/// **Key Features**:
+/// - Module creation with system prompt and language configuration
+/// - OpenAI Assistant and Vector Store integration
+/// - File attachments for module content
+/// - Module Access Tokens for widget integration
+/// - Prompt improvement tracking
+/// </remarks>
 [ApiController]
 [Route("api/modules")]
 [Authorize]
@@ -84,6 +100,8 @@ public class ModulesController : ControllerBase
                 Year = m.Year,
                 CourseId = m.CourseId,
                 CourseName = m.Course != null ? m.Course.Name : null,
+                AIModelId = m.AIModelId,
+                AIModelDisplayName = m.AIModel != null ? m.AIModel.DisplayName : null,
                 FilesCount = _context.Files.Count(f => f.ModuleId == m.Id),
                 TokensCount = _context.ModuleAccessTokens.Count(t => t.ModuleId == m.Id),
                 CreatedAt = m.CreatedAt,
@@ -108,6 +126,7 @@ public class ModulesController : ControllerBase
             .Include(m => m.Course)
                 .ThenInclude(c => c.University)
             .Include(m => m.Files)
+            .Include(m => m.AIModel)
             .FirstOrDefaultAsync(m => m.Id == id);
 
         if (module == null)
@@ -131,6 +150,19 @@ public class ModulesController : ControllerBase
                 Name = module.Course.Name,
                 Code = module.Course.Code,
                 Description = module.Course.Description
+            } : null,
+            AIModelId = module.AIModelId,
+            AIModel = module.AIModel != null ? new AIModelDto
+            {
+                Id = module.AIModel.Id,
+                ModelName = module.AIModel.ModelName,
+                DisplayName = module.AIModel.DisplayName,
+                Provider = module.AIModel.Provider,
+                MaxTokens = module.AIModel.MaxTokens,
+                SupportsVision = module.AIModel.SupportsVision,
+                SupportsFunctionCalling = module.AIModel.SupportsFunctionCalling,
+                IsActive = module.AIModel.IsActive,
+                IsDeprecated = module.AIModel.IsDeprecated
             } : null,
             OpenAIAssistantId = module.OpenAIAssistantId,
             OpenAIVectorStoreId = module.OpenAIVectorStoreId,
@@ -189,6 +221,7 @@ public class ModulesController : ControllerBase
             Semester = request.Semester,
             Year = request.Year,
             CourseId = request.CourseId,
+            AIModelId = request.AIModelId,
             TutorLanguage = request.TutorLanguage,
             PromptImprovementCount = 0
         };
@@ -272,6 +305,11 @@ public class ModulesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.TutorLanguage))
         {
             module.TutorLanguage = request.TutorLanguage;
+        }
+
+        if (request.AIModelId.HasValue)
+        {
+            module.AIModelId = request.AIModelId;
         }
 
         await _moduleRepository.UpdateAsync(module);

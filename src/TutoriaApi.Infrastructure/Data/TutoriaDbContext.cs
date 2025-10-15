@@ -13,6 +13,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<University> Universities { get; set; }
     public DbSet<Course> Courses { get; set; }
     public DbSet<Module> Modules { get; set; }
+    public DbSet<AIModel> AIModels { get; set; }
     // Legacy tables removed - using unified Users table instead
     // public DbSet<Professor> Professors { get; set; }
     // public DbSet<Student> Students { get; set; }
@@ -80,6 +81,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.LastPromptImprovedAt).HasColumnName("LastPromptImprovedAt");
             entity.Property(e => e.PromptImprovementCount).HasColumnName("PromptImprovementCount").HasDefaultValue(0);
             entity.Property(e => e.TutorLanguage).HasColumnName("TutorLanguage").HasMaxLength(10).HasDefaultValue("pt-br");
+            entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -87,6 +89,11 @@ public class TutoriaDbContext : DbContext
                 .WithMany(c => c.Modules)
                 .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AIModel)
+                .WithMany(a => a.Modules)
+                .HasForeignKey(e => e.AIModelId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasCheckConstraint("CK_Modules_Semester", "[Semester] BETWEEN 1 AND 8");
             entity.HasCheckConstraint("CK_Modules_Year", "[Year] BETWEEN 2020 AND 2050");
@@ -229,6 +236,32 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.ClientId).IsUnique();
+        });
+
+        // AIModel configuration
+        modelBuilder.Entity<AIModel>(entity =>
+        {
+            entity.ToTable("AIModels");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModelName).HasColumnName("ModelName").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DisplayName).HasColumnName("DisplayName").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Provider).HasColumnName("Provider").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.MaxTokens).HasColumnName("MaxTokens");
+            entity.Property(e => e.SupportsVision).HasColumnName("SupportsVision").HasDefaultValue(false);
+            entity.Property(e => e.SupportsFunctionCalling).HasColumnName("SupportsFunctionCalling").HasDefaultValue(false);
+            entity.Property(e => e.InputCostPer1M).HasColumnName("InputCostPer1M").HasColumnType("decimal(10,4)");
+            entity.Property(e => e.OutputCostPer1M).HasColumnName("OutputCostPer1M").HasColumnType("decimal(10,4)");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.IsDeprecated).HasColumnName("IsDeprecated").HasDefaultValue(false);
+            entity.Property(e => e.DeprecationDate).HasColumnName("DeprecationDate");
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.RecommendedFor).HasColumnName("RecommendedFor").HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.ModelName).IsUnique();
+            entity.HasCheckConstraint("CK_AIModels_Provider", "[Provider] IN ('openai', 'anthropic')");
         });
     }
 }

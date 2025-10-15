@@ -8,9 +8,30 @@ using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
+/// <summary>
+/// Manages access tokens for module widgets and external integrations.
+/// </summary>
+/// <remarks>
+/// Module Access Tokens provide secure, scoped access to specific modules for embedding
+/// AI tutors in external applications (e.g., LMS widgets, mobile apps, websites).
+///
+/// **Authorization**: All endpoints require ProfessorOrAbove policy.
+///
+/// **Token Features**:
+/// - Secure random generation (32 bytes, URL-safe Base64)
+/// - Configurable expiration dates
+/// - Permission scopes: AllowChat, AllowFileAccess
+/// - Usage tracking: UsageCount, LastUsedAt
+/// - Active/inactive status for easy revocation
+///
+/// **Use Cases**:
+/// - Embed AI tutor widgets in external LMS (Canvas, Moodle)
+/// - Provide API access to mobile applications
+/// - Create temporary guest access for specific modules
+/// </remarks>
 [ApiController]
 [Route("api/module-access-tokens")]
-[Authorize(Policy = "ProfessorOrAbove")] // Require ProfessorOrAbove for all module access token operations
+[Authorize(Policy = "ProfessorOrAbove")]
 public class ModuleAccessTokensController : ControllerBase
 {
     private readonly TutoriaDbContext _context;

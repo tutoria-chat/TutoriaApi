@@ -8,6 +8,21 @@ using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
+/// <summary>
+/// Manages academic courses within universities.
+/// </summary>
+/// <remarks>
+/// Courses are programs of study offered by universities. Each course belongs to one university
+/// and can have multiple modules, students, and professors assigned to it.
+///
+/// **Authorization**: All endpoints require authentication. Write operations require AdminOrAbove policy.
+///
+/// **Related Entities**:
+/// - University (parent)
+/// - Modules (children)
+/// - Students (many-to-one)
+/// - Professors (many-to-many via ProfessorCourses)
+/// </remarks>
 [ApiController]
 [Route("api/courses")]
 [Authorize]
@@ -33,7 +48,26 @@ public class CoursesController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Get paginated list of courses with filtering.
+    /// </summary>
+    /// <param name="page">Page number (default: 1)</param>
+    /// <param name="size">Page size (default: 10, max: 100)</param>
+    /// <param name="universityId">Filter by university ID (optional)</param>
+    /// <param name="search">Search by course name or code (optional)</param>
+    /// <returns>Paginated list of courses with university info and entity counts.</returns>
+    /// <remarks>
+    /// Returns a paginated list of courses with related entity counts (modules, professors, students).
+    ///
+    /// **Filtering**:
+    /// - universityId: Return only courses from specified university
+    /// - search: Partial match on course name or code
+    ///
+    /// **Performance**: Uses single query with projections to avoid N+1 queries.
+    /// </remarks>
+    /// <response code="200">Returns paginated course list.</response>
     [HttpGet]
+    [ProducesResponseType(typeof(PaginatedResponse<CourseDetailDto>), StatusCodes.Status200OK)]
     public async Task<ActionResult<PaginatedResponse<CourseDetailDto>>> GetCourses(
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,

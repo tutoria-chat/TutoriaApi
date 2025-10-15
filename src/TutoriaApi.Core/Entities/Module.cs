@@ -14,9 +14,11 @@ public class Module : BaseEntity
     public DateTime? LastPromptImprovedAt { get; set; }
     public int PromptImprovementCount { get; set; } = 0;
     public string TutorLanguage { get; set; } = "pt-br";
+    public int? AIModelId { get; set; }
 
     // Navigation properties
     public Course Course { get; set; } = null!;
+    public AIModel? AIModel { get; set; }
     public ICollection<File> Files { get; set; } = new List<File>();
     public ICollection<ModuleAccessToken> ModuleAccessTokens { get; set; } = new List<ModuleAccessToken>();
 }

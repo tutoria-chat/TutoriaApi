@@ -12,6 +12,8 @@ public class ModuleListDto
     public int? Year { get; set; }
     public int CourseId { get; set; }
     public string? CourseName { get; set; }
+    public int? AIModelId { get; set; }
+    public string? AIModelDisplayName { get; set; }
     public int FilesCount { get; set; }
     public int TokensCount { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -29,6 +31,8 @@ public class ModuleDetailDto
     public int? Year { get; set; }
     public int CourseId { get; set; }
     public CourseDto? Course { get; set; }
+    public int? AIModelId { get; set; }
+    public AIModelDto? AIModel { get; set; }
     public string? OpenAIAssistantId { get; set; }
     public string? OpenAIVectorStoreId { get; set; }
     public DateTime? LastPromptImprovedAt { get; set; }
@@ -63,6 +67,8 @@ public class ModuleCreateRequest
     [Required(ErrorMessage = "Course ID is required")]
     public int CourseId { get; set; }
 
+    public int? AIModelId { get; set; }
+
     [MaxLength(10)]
     public string TutorLanguage { get; set; } = "pt-br";
 }
@@ -84,6 +90,8 @@ public class ModuleUpdateRequest
 
     [Range(2020, 2050, ErrorMessage = "Year must be between 2020 and 2050")]
     public int? Year { get; set; }
+
+    public int? AIModelId { get; set; }
 
     [MaxLength(10)]
     public string? TutorLanguage { get; set; }
