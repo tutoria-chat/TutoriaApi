@@ -53,14 +53,16 @@ jobs:
         path: './TestResults/**/*.trx'
         retention-days: 30
 
-    - name: Test Report
-      if: always()
-      uses: dorny/test-reporter@v1
-      with:
-        name: Test Results
-        path: './TestResults/**/*.trx'
-        reporter: dotnet-trx
-        fail-on-error: true
+    # TODO: Enable test reporter after adding write permissions to workflow
+    # Requires: permissions.checks: write and permissions.pull-requests: write
+    # - name: Test Report
+    #   if: always()
+    #   uses: dorny/test-reporter@v1
+    #   with:
+    #     name: Test Results
+    #     path: './TestResults/**/*.trx'
+    #     reporter: dotnet-trx
+    #     fail-on-error: true
 
   code-quality:
     name: Code Quality Checks
