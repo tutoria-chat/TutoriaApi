@@ -175,8 +175,8 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Find user by username
-        var user = await _userRepository.GetByUsernameWithIncludesAsync(request.Username);
+        // Find user by username or email
+        var user = await _userRepository.GetByUsernameOrEmailAsync(request.Username);
 
         if (user == null)
         {
@@ -242,6 +242,13 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("User {Username} logged in successfully", user.Username);
 
+        // Get student course IDs if user is a student
+        List<int>? studentCourseIds = null;
+        if (user.UserType == "student")
+        {
+            studentCourseIds = user.StudentCourses?.Select(sc => sc.CourseId).ToList();
+        }
+
         return Ok(new LoginResponse
         {
             AccessToken = accessToken,
@@ -260,8 +267,7 @@ public class AuthController : ControllerBase
                 UniversityId = user.UniversityId,
                 UniversityName = user.University?.Name,
                 IsAdmin = user.IsAdmin,
-                CourseId = user.CourseId,
-                CourseName = user.Course?.Name,
+                StudentCourseIds = studentCourseIds,
                 LastLoginAt = user.LastLoginAt,
                 CreatedAt = user.CreatedAt,
                 ThemePreference = user.ThemePreference,
@@ -273,7 +279,7 @@ public class AuthController : ControllerBase
     /// <summary>
     /// Student registration endpoint for new account creation.
     /// </summary>
-    /// <param name="request">Student registration details including username, email, password, and course.</param>
+    /// <param name="request">Student registration details including username, email, password, and courses.</param>
     /// <returns>JWT tokens and new student user details.</returns>
     /// <remarks>
     /// Creates a new student account and automatically logs them in.
@@ -281,7 +287,7 @@ public class AuthController : ControllerBase
     /// **Requirements**:
     /// - Unique username (case-sensitive)
     /// - Unique email address
-    /// - Valid course ID
+    /// - Valid course IDs (optional, can be empty list)
     /// - Password meeting complexity requirements
     ///
     /// **Validation**:
@@ -289,28 +295,20 @@ public class AuthController : ControllerBase
     /// - Email: Required, valid email format, max 255 characters
     /// - Password: Required, minimum 8 characters with complexity rules
     /// - FirstName, LastName: Required, max 100 characters
+    /// - CourseIds: Optional list of course IDs to enroll student in
     ///
     /// **Auto-Login**: Returns JWT tokens for immediate authentication after registration.
     /// </remarks>
     /// <response code="201">Student created successfully with JWT tokens.</response>
     /// <response code="400">Validation failed or username/email already exists.</response>
-    /// <response code="404">Course not found.</response>
     [HttpPost("register/student")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoginResponse>> RegisterStudent([FromBody] RegisterStudentRequest request)
     {
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
-        }
-
-        // Check if course exists
-        var course = await _context.Courses.FindAsync(request.CourseId);
-        if (course == null)
-        {
-            return NotFound(new { message = "Course not found" });
         }
 
         // Check if username or email already exists
@@ -333,13 +331,25 @@ public class AuthController : ControllerBase
             LastName = request.LastName,
             HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
             UserType = "student",
-            CourseId = request.CourseId,
             IsActive = true
         };
 
         student = await _userRepository.AddAsync(student);
 
-        _logger.LogInformation("Student registered: {Username}", student.Username);
+        // Create StudentCourse entries for each course
+        foreach (var courseId in request.CourseIds)
+        {
+            var studentCourse = new StudentCourse
+            {
+                StudentId = student.UserId,
+                CourseId = courseId
+            };
+            _context.StudentCourses.Add(studentCourse);
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Student registered: {Username} with {CourseCount} courses", student.Username, request.CourseIds.Count);
 
         // Generate JWT access token for immediate login
         var accessToken = _jwtService.GenerateToken(
@@ -375,8 +385,7 @@ public class AuthController : ControllerBase
                 LastName = student.LastName,
                 UserType = student.UserType,
                 IsActive = student.IsActive,
-                CourseId = student.CourseId,
-                CourseName = course.Name,
+                StudentCourseIds = request.CourseIds,
                 LastLoginAt = student.LastLoginAt,
                 CreatedAt = student.CreatedAt,
                 ThemePreference = student.ThemePreference,
@@ -677,6 +686,13 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Account is inactive" });
         }
 
+        // Get student course IDs if user is a student
+        List<int>? studentCourseIds = null;
+        if (user.UserType == "student")
+        {
+            studentCourseIds = user.StudentCourses?.Select(sc => sc.CourseId).ToList();
+        }
+
         return Ok(new UserDto
         {
             UserId = user.UserId,
@@ -689,8 +705,7 @@ public class AuthController : ControllerBase
             UniversityId = user.UniversityId,
             UniversityName = user.University?.Name,
             IsAdmin = user.IsAdmin,
-            CourseId = user.CourseId,
-            CourseName = user.Course?.Name,
+            StudentCourseIds = studentCourseIds,
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt,
             ThemePreference = user.ThemePreference,
@@ -802,9 +817,16 @@ public class AuthController : ControllerBase
         // Reload user with related data
         var updatedUser = await _userRepository.GetByIdWithIncludesAsync(userId);
 
+        // Get student course IDs if user is a student
+        List<int>? studentCourseIds = null;
+        if (updatedUser!.UserType == "student")
+        {
+            studentCourseIds = updatedUser.StudentCourses?.Select(sc => sc.CourseId).ToList();
+        }
+
         return Ok(new UserDto
         {
-            UserId = updatedUser!.UserId,
+            UserId = updatedUser.UserId,
             Username = updatedUser.Username,
             Email = updatedUser.Email,
             FirstName = updatedUser.FirstName,
@@ -814,8 +836,7 @@ public class AuthController : ControllerBase
             UniversityId = updatedUser.UniversityId,
             UniversityName = updatedUser.University?.Name,
             IsAdmin = updatedUser.IsAdmin,
-            CourseId = updatedUser.CourseId,
-            CourseName = updatedUser.Course?.Name,
+            StudentCourseIds = studentCourseIds,
             LastLoginAt = updatedUser.LastLoginAt,
             CreatedAt = updatedUser.CreatedAt,
             ThemePreference = updatedUser.ThemePreference,

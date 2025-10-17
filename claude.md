@@ -166,6 +166,66 @@ This API handles:
 
 **Current state:** Legacy tables still exist in DbContext but should not be used in new code.
 
+## Feature Toggles / Release Toggles
+
+### When to Use Feature Toggles
+**IMPORTANT**: Before implementing any new feature, evaluate if it requires a feature toggle.
+
+**Ask the user if a release toggle is required when:**
+- The feature is a **breaking change** (changes existing behavior)
+- The feature is a **large change** (impacts multiple modules/services)
+- The feature depends on **external services** that may not be configured (AWS, third-party APIs)
+- The feature is **experimental** or needs gradual rollout
+- The feature could cause **performance impact** or stability issues
+
+**How to implement feature toggles:**
+1. Add configuration setting in `appsettings.json`:
+   ```json
+   {
+     "FeatureToggles": {
+       "NewFeatureEnabled": false
+     }
+   }
+   ```
+
+2. Create configuration class:
+   ```csharp
+   public class FeatureToggles
+   {
+       public bool NewFeatureEnabled { get; set; }
+   }
+   ```
+
+3. Register in `Program.cs`:
+   ```csharp
+   builder.Services.Configure<FeatureToggles>(
+       builder.Configuration.GetSection("FeatureToggles"));
+   ```
+
+4. Inject and use in controllers/services:
+   ```csharp
+   private readonly IOptions<FeatureToggles> _featureToggles;
+
+   if (_featureToggles.Value.NewFeatureEnabled)
+   {
+       // New feature logic
+   }
+   else
+   {
+       // Fallback or skip
+       _logger.LogDebug("Feature disabled, skipping...");
+   }
+   ```
+
+### Development Workflow
+
+#### Before Starting a New Feature
+1. **Identify if it's a breaking/large change**
+2. **Ask the user**: "This appears to be a [breaking/large] change. Would you like me to implement a feature toggle for this?"
+3. **Wait for confirmation** before proceeding
+4. **If yes**: Add feature toggle to configuration and wrap implementation
+5. **If no**: Proceed with direct implementation
+
 ## Documentation Guidelines
 
 ### When to Create Documentation Files

@@ -44,6 +44,13 @@ public class UniversitiesController : ControllerBase
             Name = u.Name,
             Code = u.Code,
             Description = u.Description,
+            Address = u.Address,
+            TaxId = u.TaxId,
+            ContactEmail = u.ContactEmail,
+            ContactPhone = u.ContactPhone,
+            ContactPerson = u.ContactPerson,
+            Website = u.Website,
+            SubscriptionTier = u.SubscriptionTier,
             CreatedAt = u.CreatedAt,
             UpdatedAt = u.UpdatedAt
         }).ToList();
@@ -74,6 +81,13 @@ public class UniversitiesController : ControllerBase
             Name = university.Name,
             Code = university.Code,
             Description = university.Description,
+            Address = university.Address,
+            TaxId = university.TaxId,
+            ContactEmail = university.ContactEmail,
+            ContactPhone = university.ContactPhone,
+            ContactPerson = university.ContactPerson,
+            Website = university.Website,
+            SubscriptionTier = university.SubscriptionTier,
             CreatedAt = university.CreatedAt,
             UpdatedAt = university.UpdatedAt,
             Courses = university.Courses.Select(c => new CourseDto
@@ -112,7 +126,14 @@ public class UniversitiesController : ControllerBase
         {
             Name = request.Name,
             Code = request.Code,
-            Description = request.Description
+            Description = request.Description,
+            Address = request.Address,
+            TaxId = request.TaxId,
+            ContactEmail = request.ContactEmail,
+            ContactPhone = request.ContactPhone,
+            ContactPerson = request.ContactPerson,
+            Website = request.Website,
+            SubscriptionTier = request.SubscriptionTier
         };
 
         var created = await _universityRepository.AddAsync(university);
@@ -125,6 +146,13 @@ public class UniversitiesController : ControllerBase
             Name = created.Name,
             Code = created.Code,
             Description = created.Description,
+            Address = created.Address,
+            TaxId = created.TaxId,
+            ContactEmail = created.ContactEmail,
+            ContactPhone = created.ContactPhone,
+            ContactPerson = created.ContactPerson,
+            Website = created.Website,
+            SubscriptionTier = created.SubscriptionTier,
             CreatedAt = created.CreatedAt,
             UpdatedAt = created.UpdatedAt
         };
@@ -175,6 +203,41 @@ public class UniversitiesController : ControllerBase
             university.Description = request.Description;
         }
 
+        if (request.Address != null)
+        {
+            university.Address = request.Address;
+        }
+
+        if (request.TaxId != null)
+        {
+            university.TaxId = request.TaxId;
+        }
+
+        if (request.ContactEmail != null)
+        {
+            university.ContactEmail = request.ContactEmail;
+        }
+
+        if (request.ContactPhone != null)
+        {
+            university.ContactPhone = request.ContactPhone;
+        }
+
+        if (request.ContactPerson != null)
+        {
+            university.ContactPerson = request.ContactPerson;
+        }
+
+        if (request.Website != null)
+        {
+            university.Website = request.Website;
+        }
+
+        if (request.SubscriptionTier.HasValue)
+        {
+            university.SubscriptionTier = request.SubscriptionTier.Value;
+        }
+
         await _universityRepository.UpdateAsync(university);
 
         _logger.LogInformation("Updated university {Name} with ID {Id}", university.Name, university.Id);
@@ -185,6 +248,13 @@ public class UniversitiesController : ControllerBase
             Name = university.Name,
             Code = university.Code,
             Description = university.Description,
+            Address = university.Address,
+            TaxId = university.TaxId,
+            ContactEmail = university.ContactEmail,
+            ContactPhone = university.ContactPhone,
+            ContactPerson = university.ContactPerson,
+            Website = university.Website,
+            SubscriptionTier = university.SubscriptionTier,
             CreatedAt = university.CreatedAt,
             UpdatedAt = university.UpdatedAt
         };

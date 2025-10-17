@@ -40,6 +40,14 @@ public class UserRepository : IUserRepository
             .FirstOrDefaultAsync(u => u.Username == username);
     }
 
+    public async Task<User?> GetByUsernameOrEmailAsync(string usernameOrEmail)
+    {
+        return await _context.Users
+            .Include(u => u.University)
+            .Include(u => u.Course)
+            .FirstOrDefaultAsync(u => u.Username == usernameOrEmail || u.Email == usernameOrEmail);
+    }
+
     public async Task<User?> GetByEmailAsync(string email)
     {
         return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);

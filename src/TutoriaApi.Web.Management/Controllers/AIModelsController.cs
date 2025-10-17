@@ -48,6 +48,7 @@ public class AIModelsController : ControllerBase
     /// <param name="provider">Filter by provider (openai, anthropic)</param>
     /// <param name="isActive">Filter by active status</param>
     /// <param name="includeDeprecated">Include deprecated models (default: false)</param>
+    /// <param name="universityId">Filter by university subscription tier</param>
     /// <returns>List of AI models.</returns>
     /// <remarks>
     /// Returns all AI models with filtering options. Useful for populating dropdowns
@@ -57,6 +58,7 @@ public class AIModelsController : ControllerBase
     /// - provider: Filter by 'openai' or 'anthropic'
     /// - isActive: Filter by active/inactive status
     /// - includeDeprecated: Include deprecated models (default: false)
+    /// - universityId: Filter models by university's subscription tier (e.g., Tier 3 unis get all models)
     ///
     /// **Performance**: Single query with module count projection.
     /// </remarks>
@@ -66,7 +68,8 @@ public class AIModelsController : ControllerBase
     public async Task<ActionResult<List<AIModelListDto>>> GetAIModels(
         [FromQuery] string? provider = null,
         [FromQuery] bool? isActive = null,
-        [FromQuery] bool includeDeprecated = false)
+        [FromQuery] bool includeDeprecated = false,
+        [FromQuery] int? universityId = null)
     {
         var query = _context.AIModels.AsQueryable();
 
@@ -85,6 +88,17 @@ public class AIModelsController : ControllerBase
             query = query.Where(a => !a.IsDeprecated);
         }
 
+        // Filter by university subscription tier
+        if (universityId.HasValue)
+        {
+            var university = await _context.Universities.FindAsync(universityId.Value);
+            if (university != null)
+            {
+                // Only show models that require tier <= university's subscription tier
+                query = query.Where(a => a.RequiredTier <= university.SubscriptionTier);
+            }
+        }
+
         var models = await query
             .OrderBy(a => a.Provider)
             .ThenBy(a => a.DisplayName)
@@ -99,6 +113,7 @@ public class AIModelsController : ControllerBase
                 SupportsFunctionCalling = a.SupportsFunctionCalling,
                 InputCostPer1M = a.InputCostPer1M,
                 OutputCostPer1M = a.OutputCostPer1M,
+                RequiredTier = a.RequiredTier,
                 IsActive = a.IsActive,
                 IsDeprecated = a.IsDeprecated,
                 RecommendedFor = a.RecommendedFor
@@ -133,6 +148,7 @@ public class AIModelsController : ControllerBase
                 SupportsFunctionCalling = a.SupportsFunctionCalling,
                 InputCostPer1M = a.InputCostPer1M,
                 OutputCostPer1M = a.OutputCostPer1M,
+                RequiredTier = a.RequiredTier,
                 IsActive = a.IsActive,
                 IsDeprecated = a.IsDeprecated,
                 DeprecationDate = a.DeprecationDate,
@@ -198,6 +214,7 @@ public class AIModelsController : ControllerBase
             SupportsFunctionCalling = request.SupportsFunctionCalling,
             InputCostPer1M = request.InputCostPer1M,
             OutputCostPer1M = request.OutputCostPer1M,
+            RequiredTier = request.RequiredTier,
             IsActive = request.IsActive,
             IsDeprecated = request.IsDeprecated,
             DeprecationDate = request.DeprecationDate,
@@ -220,6 +237,7 @@ public class AIModelsController : ControllerBase
             SupportsFunctionCalling = created.SupportsFunctionCalling,
             InputCostPer1M = created.InputCostPer1M,
             OutputCostPer1M = created.OutputCostPer1M,
+            RequiredTier = created.RequiredTier,
             IsActive = created.IsActive,
             IsDeprecated = created.IsDeprecated,
             DeprecationDate = created.DeprecationDate,
@@ -334,6 +352,11 @@ public class AIModelsController : ControllerBase
             aiModel.RecommendedFor = request.RecommendedFor;
         }
 
+        if (request.RequiredTier.HasValue)
+        {
+            aiModel.RequiredTier = request.RequiredTier.Value;
+        }
+
         await _aiModelRepository.UpdateAsync(aiModel);
 
         _logger.LogInformation("Updated AI model {ModelName} with ID {Id}", aiModel.ModelName, aiModel.Id);
@@ -351,6 +374,7 @@ public class AIModelsController : ControllerBase
                 SupportsFunctionCalling = a.SupportsFunctionCalling,
                 InputCostPer1M = a.InputCostPer1M,
                 OutputCostPer1M = a.OutputCostPer1M,
+                RequiredTier = a.RequiredTier,
                 IsActive = a.IsActive,
                 IsDeprecated = a.IsDeprecated,
                 DeprecationDate = a.DeprecationDate,

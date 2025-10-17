@@ -22,6 +22,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<FileEntity> Files { get; set; }
     public DbSet<ModuleAccessToken> ModuleAccessTokens { get; set; }
     public DbSet<ProfessorCourse> ProfessorCourses { get; set; }
+    public DbSet<StudentCourse> StudentCourses { get; set; }
     public DbSet<ApiClient> ApiClients { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -37,6 +38,12 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
             entity.Property(e => e.Code).HasColumnName("Code").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Description).HasColumnName("Description");
+            entity.Property(e => e.Address).HasColumnName("Address").HasMaxLength(500);
+            entity.Property(e => e.TaxId).HasColumnName("TaxId").HasMaxLength(20);
+            entity.Property(e => e.ContactEmail).HasColumnName("ContactEmail").HasMaxLength(255);
+            entity.Property(e => e.ContactPhone).HasColumnName("ContactPhone").HasMaxLength(50);
+            entity.Property(e => e.ContactPerson).HasColumnName("ContactPerson").HasMaxLength(200);
+            entity.Property(e => e.Website).HasColumnName("Website").HasMaxLength(255);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -117,7 +124,9 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
             entity.Property(e => e.IsAdmin).HasColumnName("IsAdmin");
-            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.GovernmentId).HasColumnName("GovernmentId").HasMaxLength(50);
+            entity.Property(e => e.ExternalId).HasColumnName("ExternalId").HasMaxLength(100);
+            entity.Property(e => e.Birthdate).HasColumnName("Birthdate");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
             entity.Property(e => e.LastLoginAt).HasColumnName("LastLoginAt");
@@ -135,11 +144,6 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.University)
                 .WithMany()
                 .HasForeignKey(e => e.UniversityId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            entity.HasOne(e => e.Course)
-                .WithMany()
-                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasCheckConstraint("CK_Users_UserType", "[UserType] IN ('professor', 'super_admin', 'student')");
@@ -218,6 +222,26 @@ public class TutoriaDbContext : DbContext
                 .WithMany(c => c.ProfessorCourses)
                 .HasForeignKey(pc => pc.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // StudentCourse configuration (many-to-many)
+        modelBuilder.Entity<StudentCourse>(entity =>
+        {
+            entity.ToTable("StudentCourses");
+            entity.HasKey(sc => new { sc.StudentId, sc.CourseId });
+            entity.Property(sc => sc.StudentId).HasColumnName("StudentId");
+            entity.Property(sc => sc.CourseId).HasColumnName("CourseId");
+            entity.Property(sc => sc.CreatedAt).HasColumnName("CreatedAt");
+
+            entity.HasOne(sc => sc.Student)
+                .WithMany(s => s.StudentCourses)
+                .HasForeignKey(sc => sc.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(sc => sc.Course)
+                .WithMany()
+                .HasForeignKey(sc => sc.CourseId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ApiClient configuration

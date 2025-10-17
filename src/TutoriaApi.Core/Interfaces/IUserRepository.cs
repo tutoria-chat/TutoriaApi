@@ -8,6 +8,7 @@ public interface IUserRepository
     Task<User?> GetByIdWithIncludesAsync(int userId);
     Task<User?> GetByUsernameAsync(string username);
     Task<User?> GetByUsernameWithIncludesAsync(string username);
+    Task<User?> GetByUsernameOrEmailAsync(string usernameOrEmail);
     Task<User?> GetByEmailAsync(string email);
     Task<User?> GetByPasswordResetTokenAsync(string token);
     Task<IEnumerable<User>> GetByTypeAsync(string userType);

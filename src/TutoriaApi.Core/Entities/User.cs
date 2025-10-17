@@ -18,8 +18,10 @@ public class User
     public int? UniversityId { get; set; }
     public bool? IsAdmin { get; set; } = false;
 
-    // Student-specific fields (nullable for non-students)
-    public int? CourseId { get; set; }
+    // Additional profile fields
+    public string? GovernmentId { get; set; } // CPF (Brazil), SSN (US), etc.
+    public string? ExternalId { get; set; } // Student registration ID, employee ID, etc.
+    public DateTime? Birthdate { get; set; }
 
     // Common fields
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -32,5 +34,5 @@ public class User
 
     // Navigation properties
     public University? University { get; set; }
-    public Course? Course { get; set; }
+    public ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
 }
