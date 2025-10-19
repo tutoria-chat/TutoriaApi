@@ -63,6 +63,28 @@ public class ModulesController : ControllerBase
             .Include(m => m.Course)
             .AsQueryable();
 
+        // Apply professor-scoped filtering
+        var userType = User.FindFirst("type")?.Value;
+        var isAdmin = User.FindFirst("isAdmin")?.Value?.ToLower() == "true";
+        var userIdClaim = User.FindFirst("user_id")?.Value;
+
+        if (userType == "professor" && !isAdmin && int.TryParse(userIdClaim, out var professorId))
+        {
+            // Non-admin professors can only see modules from courses they're assigned to
+            query = query.Where(m => _context.ProfessorCourses
+                .Any(pc => pc.ProfessorId == professorId && pc.CourseId == m.CourseId));
+        }
+        else if (userType == "professor" && isAdmin)
+        {
+            // Admin professors can see all modules in their university
+            var universityIdClaim = User.FindFirst("university_id")?.Value;
+            if (int.TryParse(universityIdClaim, out var universityId))
+            {
+                query = query.Where(m => m.Course.UniversityId == universityId);
+            }
+        }
+        // Super admins see all modules (no filtering)
+
         if (courseId.HasValue)
         {
             query = query.Where(m => m.CourseId == courseId.Value);

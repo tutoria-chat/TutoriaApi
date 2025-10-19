@@ -30,6 +30,7 @@ public class AuthController : ControllerBase
     private readonly IApiClientRepository _apiClientRepository;
     private readonly IUserRepository _userRepository;
     private readonly IJwtService _jwtService;
+    private readonly IEmailService _emailService;
     private readonly TutoriaDbContext _context; // Still needed for Courses.FindAsync in RegisterStudent
     private readonly ILogger<AuthController> _logger;
 
@@ -37,12 +38,14 @@ public class AuthController : ControllerBase
         IApiClientRepository apiClientRepository,
         IUserRepository userRepository,
         IJwtService jwtService,
+        IEmailService emailService,
         TutoriaDbContext context,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
         _userRepository = userRepository;
         _jwtService = jwtService;
+        _emailService = emailService;
         _context = context;
         _logger = logger;
     }
@@ -447,9 +450,21 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Password reset token generated for user {UserId}", user.UserId);
 
-        // TODO: Send email with reset link containing the token
-        // For now, we'll just log it (in production, this would be sent via email service)
-        _logger.LogInformation("Password reset token for {Email}: {Token}", user.Email, resetToken);
+        // Send password reset email
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(
+                user.Email,
+                user.FirstName,
+                resetToken,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+            // Don't reveal email send failure to prevent enumeration
+        }
 
         return Ok(new { message = "If the email exists, a password reset link has been sent" });
     }
@@ -506,6 +521,20 @@ public class AuthController : ControllerBase
         await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("Password reset successful for user {UserId}", user.UserId);
+
+        // Send password changed confirmation email
+        try
+        {
+            await _emailService.SendPasswordChangedConfirmationEmailAsync(
+                user.Email,
+                user.FirstName,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password changed email to {Email}", user.Email);
+        }
 
         return Ok(new { message = "Password has been reset successfully" });
     }
@@ -921,7 +950,19 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Password changed successfully for user {UserId}", userId);
 
-        // TODO: Send security alert email to notify user of password change
+        // Send password changed confirmation email
+        try
+        {
+            await _emailService.SendPasswordChangedConfirmationEmailAsync(
+                user.Email,
+                user.FirstName,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password changed email to {Email}", user.Email);
+        }
 
         return Ok(new { message = "Password changed successfully" });
     }

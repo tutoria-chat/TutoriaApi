@@ -37,6 +37,12 @@ public class FileDetailDto
     public DateTime UpdatedAt { get; set; }
 }
 
+public class UpdateFileRequest
+{
+    [MaxLength(255, ErrorMessage = "File name cannot exceed 255 characters")]
+    public string? FileName { get; set; }
+}
+
 public class UpdateFileStatusRequest
 {
     [Required(ErrorMessage = "Status is required")]

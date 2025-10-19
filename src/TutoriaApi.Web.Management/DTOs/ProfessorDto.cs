@@ -14,6 +14,8 @@ public class ProfessorDto
     public bool IsActive { get; set; }
     public int? UniversityId { get; set; }
     public string? UniversityName { get; set; }
+    public string ThemePreference { get; set; } = "system";
+    public string LanguagePreference { get; set; } = "pt-br";
     public DateTime? LastLoginAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

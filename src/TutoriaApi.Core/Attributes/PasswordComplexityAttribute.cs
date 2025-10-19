@@ -5,7 +5,8 @@ namespace TutoriaApi.Core.Attributes;
 
 /// <summary>
 /// Validates password complexity requirements.
-/// Requires: Minimum 8 characters, at least one uppercase, one lowercase, one digit, and one special character.
+/// Requires: Minimum 8 characters, at least one uppercase, one lowercase, and one digit.
+/// Special characters are recommended but not required by default.
 /// </summary>
 public class PasswordComplexityAttribute : ValidationAttribute
 {
@@ -20,7 +21,7 @@ public class PasswordComplexityAttribute : ValidationAttribute
         bool requireUppercase = true,
         bool requireLowercase = true,
         bool requireDigit = true,
-        bool requireSpecialChar = true)
+        bool requireSpecialChar = false)
     {
         _minLength = minLength;
         _requireUppercase = requireUppercase;

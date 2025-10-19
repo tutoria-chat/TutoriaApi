@@ -1,8 +1,10 @@
 using System.Reflection;
+using Amazon.SimpleEmail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TutoriaApi.Infrastructure.Data;
+using TutoriaApi.Infrastructure.Helpers;
 
 namespace TutoriaApi.Infrastructure;
 
@@ -20,6 +22,14 @@ public static class DependencyInjection
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
                 sqlOptions => sqlOptions.EnableRetryOnFailure()));
+
+        // Register helper classes
+        services.AddScoped<AccessControlHelper>();
+        Console.WriteLine("✓ Registered: AccessControlHelper");
+
+        // Register AWS SES client
+        services.AddAWSService<IAmazonSimpleEmailService>();
+        Console.WriteLine("✓ Registered: IAmazonSimpleEmailService (AWS SES)");
 
         // Auto-register all repositories and services
         services.AddRepositories();

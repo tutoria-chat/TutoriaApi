@@ -50,6 +50,7 @@ public class ModuleAccessTokensController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] int? moduleId = null,
+        [FromQuery] int? universityId = null,
         [FromQuery] bool? isActive = null)
     {
         if (page < 1) page = 1;
@@ -58,9 +59,37 @@ public class ModuleAccessTokensController : ControllerBase
 
         var query = _context.ModuleAccessTokens
             .Include(t => t.Module)
+                .ThenInclude(m => m.Course)
             .AsQueryable();
 
+        // Access control based on user type
+        var userType = User.FindFirst("type")?.Value;
+        var isAdmin = User.FindFirst("isAdmin")?.Value?.ToLower() == "true";
+        var userIdClaim = User.FindFirst("user_id")?.Value;
+
+        if (userType == "professor" && !isAdmin && int.TryParse(userIdClaim, out var professorId))
+        {
+            // Non-admin professors can only see tokens for modules in courses they're assigned to
+            query = query.Where(t => _context.ProfessorCourses
+                .Any(pc => pc.ProfessorId == professorId && pc.CourseId == t.Module.CourseId));
+        }
+        else if (userType == "professor" && isAdmin)
+        {
+            // Admin professors can see tokens for modules in their university
+            var universityIdClaim = User.FindFirst("university_id")?.Value;
+            if (int.TryParse(universityIdClaim, out var profUniversityId))
+            {
+                query = query.Where(t => t.Module.Course.UniversityId == profUniversityId);
+            }
+        }
+        // Super admins can see all tokens (no additional filtering)
+
         // Apply filters
+        if (universityId.HasValue)
+        {
+            query = query.Where(t => t.Module.Course.UniversityId == universityId.Value);
+        }
+
         if (moduleId.HasValue)
         {
             query = query.Where(t => t.ModuleId == moduleId.Value);

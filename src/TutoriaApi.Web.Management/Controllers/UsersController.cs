@@ -17,17 +17,20 @@ public class UsersController : ControllerBase
 {
     private readonly IUniversityRepository _universityRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly IEmailService _emailService;
     private readonly TutoriaDbContext _context;
     private readonly ILogger<UsersController> _logger;
 
     public UsersController(
         IUniversityRepository universityRepository,
         ICourseRepository courseRepository,
+        IEmailService emailService,
         TutoriaDbContext context,
         ILogger<UsersController> logger)
     {
         _universityRepository = universityRepository;
         _courseRepository = courseRepository;
+        _emailService = emailService;
         _context = context;
         _logger = logger;
     }
@@ -287,6 +290,38 @@ public class UsersController : ControllerBase
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Created user {Username} ({UserType}) with ID {Id}", user.Username, user.UserType, user.UserId);
+
+        // Generate password reset token for email
+        var tokenBytes = new byte[32];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(tokenBytes);
+        }
+        var resetToken = Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
+
+        user.PasswordResetToken = resetToken;
+        user.PasswordResetExpires = DateTime.UtcNow.AddHours(24); // 24 hours for first-time setup
+        await _context.SaveChangesAsync();
+
+        // Send welcome email with credentials
+        try
+        {
+            await _emailService.SendWelcomeEmailAsync(
+                user.Email,
+                user.FirstName,
+                user.Username,
+                request.Password, // Temporary password (sent only once)
+                resetToken,
+                user.UserType,
+                user.LanguagePreference ?? "en"
+            );
+            _logger.LogInformation("Welcome email sent to {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send welcome email to {Email}", user.Email);
+            // Continue - user is created, email failure shouldn't block the operation
+        }
 
         // Reload with includes for response
         var createdUser = await _context.Users
