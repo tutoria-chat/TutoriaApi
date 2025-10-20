@@ -33,7 +33,7 @@ public class JwtService : IJwtService
         {
             new Claim(JwtRegisteredClaimNames.Sub, subject),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim("type", type)
+            new Claim(ClaimTypes.Role, type) // Use standard ClaimTypes.Role instead of custom "type"
         };
 
         // Add scopes as individual claims

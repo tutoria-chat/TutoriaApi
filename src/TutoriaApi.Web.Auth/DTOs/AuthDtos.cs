@@ -10,6 +10,18 @@ public class LoginRequest
 
     [Required(ErrorMessage = "Password is required")]
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Client ID for server-to-server authentication (e.g., Next.js backend).
+    /// Optional if Authorization header with client token is provided.
+    /// </summary>
+    public string? ClientId { get; set; }
+
+    /// <summary>
+    /// Client secret for server-to-server authentication.
+    /// Optional if Authorization header with client token is provided.
+    /// </summary>
+    public string? ClientSecret { get; set; }
 }
 
 public class LoginResponse
@@ -18,7 +30,11 @@ public class LoginResponse
     public string RefreshToken { get; set; } = string.Empty;
     public string TokenType { get; set; } = "Bearer";
     public int ExpiresIn { get; set; }
-    public UserDto User { get; set; } = null!;
+
+    // Minimal user info for client-side routing/permissions
+    public int UserId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string UserType { get; set; } = string.Empty;
 }
 
 public class RegisterStudentRequest
@@ -80,8 +96,9 @@ public class UserDto
     public string? ExternalId { get; set; }
     public DateTime? Birthdate { get; set; }
     public List<int>? StudentCourseIds { get; set; } // For students with multiple courses
+    public List<int>? ProfessorCourseIds { get; set; } // For professors assigned to courses
     public DateTime? LastLoginAt { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
     public string ThemePreference { get; set; } = "system";
     public string LanguagePreference { get; set; } = "pt-br";
 }

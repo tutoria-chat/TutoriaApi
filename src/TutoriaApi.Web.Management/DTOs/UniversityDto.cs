@@ -15,8 +15,8 @@ public class UniversityDto
     public string? ContactPerson { get; set; }
     public string? Website { get; set; }
     public int SubscriptionTier { get; set; } // 1 = Basic, 2 = Standard, 3 = Premium
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class UniversityCreateRequest
@@ -99,9 +99,12 @@ public class UniversityWithCoursesDto
     public string? ContactPhone { get; set; }
     public string? ContactPerson { get; set; }
     public string? Website { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public List<CourseDto> Courses { get; set; } = new();
+    public int SubscriptionTier { get; set; } // 1 = Basic, 2 = Standard, 3 = Premium
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public int ProfessorsCount { get; set; }
+    public int CoursesCount { get; set; }
+    public List<CourseDetailDto> Courses { get; set; } = new();
 }
 
 public class CourseDto

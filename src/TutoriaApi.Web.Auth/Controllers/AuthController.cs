@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
@@ -178,6 +179,79 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
+        // ========================================
+        // CLIENT AUTHENTICATION (Hybrid Approach)
+        // ========================================
+        // Support TWO methods:
+        // Method 1: Authorization header with client Bearer token (OAuth2 flow)
+        // Method 2: client_id + client_secret in request body (server-to-server)
+
+        bool clientAuthenticated = false;
+
+        // Method 1: Check for Bearer token in Authorization header
+        var authHeader = Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var clientToken = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _jwtService.ValidateToken(clientToken, validateLifetime: true);
+
+            if (principal != null)
+            {
+                // Verify it's a client token (not a user token)
+                var tokenType = principal.FindFirst("token_type")?.Value;
+                if (tokenType == "client")
+                {
+                    // Verify client has permission to authenticate users
+                    var clientScopes = principal.FindAll("scope").Select(c => c.Value).ToArray();
+                    if (clientScopes.Contains("api.read") || clientScopes.Contains("api.write"))
+                    {
+                        clientAuthenticated = true;
+                        _logger.LogInformation("Client authenticated via Bearer token");
+                    }
+                }
+            }
+
+            if (!clientAuthenticated)
+            {
+                _logger.LogWarning("Invalid client token in Authorization header");
+                return Unauthorized(new { message = "Invalid client token" });
+            }
+        }
+        // Method 2: Check for client_id + client_secret in request body
+        else if (!string.IsNullOrEmpty(request.ClientId) && !string.IsNullOrEmpty(request.ClientSecret))
+        {
+            var client = await _apiClientRepository.GetByClientIdAsync(request.ClientId);
+
+            if (client == null || !client.IsActive)
+            {
+                _logger.LogWarning("Login failed: Invalid client_id {ClientId}", request.ClientId);
+                return Unauthorized(new { message = "Invalid client credentials" });
+            }
+
+            if (!BCrypt.Net.BCrypt.Verify(request.ClientSecret, client.HashedSecret))
+            {
+                _logger.LogWarning("Login failed: Invalid client_secret for {ClientId}", request.ClientId);
+                return Unauthorized(new { message = "Invalid client credentials" });
+            }
+
+            // Update last used timestamp
+            client.LastUsedAt = DateTime.UtcNow;
+            await _apiClientRepository.UpdateAsync(client);
+
+            clientAuthenticated = true;
+            _logger.LogInformation("Client authenticated via client_id/secret: {ClientId}", request.ClientId);
+        }
+        else
+        {
+            // Neither authentication method provided
+            _logger.LogWarning("Login failed: No client authentication provided");
+            return Unauthorized(new { message = "Client authentication required. Provide either Authorization header or client_id/client_secret" });
+        }
+
+        // ========================================
+        // USER AUTHENTICATION
+        // ========================================
+
         // Find user by username or email
         var user = await _userRepository.GetByUsernameOrEmailAsync(request.Username);
 
@@ -245,37 +319,15 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("User {Username} logged in successfully", user.Username);
 
-        // Get student course IDs if user is a student
-        List<int>? studentCourseIds = null;
-        if (user.UserType == "student")
-        {
-            studentCourseIds = user.StudentCourses?.Select(sc => sc.CourseId).ToList();
-        }
-
         return Ok(new LoginResponse
         {
             AccessToken = accessToken,
             RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800, // 8 hours in seconds
-            User = new UserDto
-            {
-                UserId = user.UserId,
-                Username = user.Username,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                UserType = user.UserType,
-                IsActive = user.IsActive,
-                UniversityId = user.UniversityId,
-                UniversityName = user.University?.Name,
-                IsAdmin = user.IsAdmin,
-                StudentCourseIds = studentCourseIds,
-                LastLoginAt = user.LastLoginAt,
-                CreatedAt = user.CreatedAt,
-                ThemePreference = user.ThemePreference,
-                LanguagePreference = user.LanguagePreference
-            }
+            UserId = user.UserId,
+            Username = user.Username,
+            UserType = user.UserType
         });
     }
 
@@ -379,21 +431,9 @@ public class AuthController : ControllerBase
             RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800,
-            User = new UserDto
-            {
-                UserId = student.UserId,
-                Username = student.Username,
-                Email = student.Email,
-                FirstName = student.FirstName,
-                LastName = student.LastName,
-                UserType = student.UserType,
-                IsActive = student.IsActive,
-                StudentCourseIds = request.CourseIds,
-                LastLoginAt = student.LastLoginAt,
-                CreatedAt = student.CreatedAt,
-                ThemePreference = student.ThemePreference,
-                LanguagePreference = student.LanguagePreference
-            }
+            UserId = student.UserId,
+            Username = student.Username,
+            UserType = student.UserType
         });
     }
 
@@ -593,7 +633,7 @@ public class AuthController : ControllerBase
 
         // Extract user info from token
         var userIdClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var userType = principal.FindFirst("type")?.Value;
+        var userType = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value; // Use standard ClaimTypes.Role
 
         if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(userType))
         {
@@ -719,7 +759,20 @@ public class AuthController : ControllerBase
         List<int>? studentCourseIds = null;
         if (user.UserType == "student")
         {
-            studentCourseIds = user.StudentCourses?.Select(sc => sc.CourseId).ToList();
+            studentCourseIds = await _context.StudentCourses
+                .Where(sc => sc.StudentId == user.UserId)
+                .Select(sc => sc.CourseId)
+                .ToListAsync();
+        }
+
+        // Get professor course IDs if user is a professor
+        List<int>? professorCourseIds = null;
+        if (user.UserType == "professor")
+        {
+            professorCourseIds = await _context.ProfessorCourses
+                .Where(pc => pc.ProfessorId == user.UserId)
+                .Select(pc => pc.CourseId)
+                .ToListAsync();
         }
 
         return Ok(new UserDto
@@ -735,6 +788,7 @@ public class AuthController : ControllerBase
             UniversityName = user.University?.Name,
             IsAdmin = user.IsAdmin,
             StudentCourseIds = studentCourseIds,
+            ProfessorCourseIds = professorCourseIds,
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt,
             ThemePreference = user.ThemePreference,
@@ -850,7 +904,20 @@ public class AuthController : ControllerBase
         List<int>? studentCourseIds = null;
         if (updatedUser!.UserType == "student")
         {
-            studentCourseIds = updatedUser.StudentCourses?.Select(sc => sc.CourseId).ToList();
+            studentCourseIds = await _context.StudentCourses
+                .Where(sc => sc.StudentId == updatedUser.UserId)
+                .Select(sc => sc.CourseId)
+                .ToListAsync();
+        }
+
+        // Get professor course IDs if user is a professor
+        List<int>? professorCourseIds = null;
+        if (updatedUser.UserType == "professor")
+        {
+            professorCourseIds = await _context.ProfessorCourses
+                .Where(pc => pc.ProfessorId == updatedUser.UserId)
+                .Select(pc => pc.CourseId)
+                .ToListAsync();
         }
 
         return Ok(new UserDto
@@ -866,6 +933,7 @@ public class AuthController : ControllerBase
             UniversityName = updatedUser.University?.Name,
             IsAdmin = updatedUser.IsAdmin,
             StudentCourseIds = studentCourseIds,
+            ProfessorCourseIds = professorCourseIds,
             LastLoginAt = updatedUser.LastLoginAt,
             CreatedAt = updatedUser.CreatedAt,
             ThemePreference = updatedUser.ThemePreference,

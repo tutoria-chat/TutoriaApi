@@ -17,8 +17,10 @@ public class ProfessorDto
     public string ThemePreference { get; set; } = "system";
     public string LanguagePreference { get; set; } = "pt-br";
     public DateTime? LastLoginAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    public int? CoursesCount { get; set; }
+    public List<int>? AssignedCourseIds { get; set; }
 }
 
 public class ProfessorCreateRequest

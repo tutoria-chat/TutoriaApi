@@ -1,15 +1,24 @@
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
+using TutoriaApi.Infrastructure.Helpers;
+using FileEntity = TutoriaApi.Core.Entities.File;
 
 namespace TutoriaApi.Infrastructure.Services;
 
 public class ModuleService : IModuleService
 {
     private readonly IModuleRepository _moduleRepository;
+    private readonly IFileRepository _fileRepository;
+    private readonly AccessControlHelper _accessControl;
 
-    public ModuleService(IModuleRepository moduleRepository)
+    public ModuleService(
+        IModuleRepository moduleRepository,
+        IFileRepository fileRepository,
+        AccessControlHelper accessControl)
     {
         _moduleRepository = moduleRepository;
+        _fileRepository = fileRepository;
+        _accessControl = accessControl;
     }
 
     public async Task<Module?> GetByIdAsync(int id)
@@ -17,9 +26,20 @@ public class ModuleService : IModuleService
         return await _moduleRepository.GetByIdAsync(id);
     }
 
-    public async Task<Module?> GetWithDetailsAsync(int id)
+    public async Task<ModuleDetailViewModel?> GetWithDetailsAsync(int id)
     {
-        return await _moduleRepository.GetWithDetailsAsync(id);
+        var module = await _moduleRepository.GetWithDetailsAsync(id);
+        if (module == null) return null;
+
+        var files = await _fileRepository.GetByModuleIdAsync(id);
+
+        return new ModuleDetailViewModel
+        {
+            Module = module,
+            Course = module.Course,
+            AIModel = module.AIModel,
+            Files = files.ToList()
+        };
     }
 
     public async Task<(IEnumerable<Module> Items, int Total)> GetPagedAsync(
@@ -31,6 +51,67 @@ public class ModuleService : IModuleService
         int pageSize)
     {
         return await _moduleRepository.SearchAsync(courseId, semester, year, search, page, pageSize);
+    }
+
+    public async Task<(List<ModuleListViewModel> Items, int Total)> GetPagedWithCountsAsync(
+        int? courseId,
+        int? semester,
+        int? year,
+        string? search,
+        int page,
+        int pageSize,
+        User? currentUser)
+    {
+        // Get accessible course IDs based on user role
+        List<int>? allowedCourseIds = null;
+
+        if (currentUser != null)
+        {
+            if (currentUser.UserType == "professor")
+            {
+                if (currentUser.IsAdmin ?? false)
+                {
+                    // Admin professors can access all courses in their university
+                    // We'll filter by university in the query parameters
+                }
+                else
+                {
+                    // Regular professors can only access assigned courses
+                    allowedCourseIds = (await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId)).ToList();
+                }
+            }
+            // Super admins can access all (no filtering)
+        }
+
+        // Get modules with applied filters and access control
+        var (modules, total) = await _moduleRepository.SearchAsync(courseId, semester, year, search, page, pageSize);
+
+        // Apply professor access control filter
+        if (allowedCourseIds != null && allowedCourseIds.Any())
+        {
+            modules = modules.Where(m => allowedCourseIds.Contains(m.CourseId));
+            total = modules.Count();  // Recalculate total after filtering
+        }
+
+        // Build view models with counts
+        var viewModels = new List<ModuleListViewModel>();
+        foreach (var module in modules)
+        {
+            var filesCount = (await _fileRepository.GetByModuleIdAsync(module.Id)).Count();
+            // TODO: Add tokens count when IModuleAccessTokenRepository is implemented
+            var tokensCount = 0;
+
+            viewModels.Add(new ModuleListViewModel
+            {
+                Module = module,
+                CourseName = module.Course?.Name,
+                AIModelDisplayName = module.AIModel?.DisplayName,
+                FilesCount = filesCount,
+                TokensCount = tokensCount
+            });
+        }
+
+        return (viewModels, total);
     }
 
     public async Task<Module> CreateAsync(Module module)

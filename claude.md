@@ -23,6 +23,152 @@ TutoriaApi/
 - **Repository Pattern**: Data access abstraction for database operations
 - **Dependency Injection**: Standard .NET DI container with automatic registration (see below)
 
+### Separation of Concerns - CRITICAL RULES
+
+**Controllers (Lean & Simple)**:
+- Validate request DTOs (ModelState, manual validation)
+- Call service methods **ALWAYS wrapped in try-catch blocks**
+- Handle authorization checks (via attributes or manual checks)
+- Map service results to HTTP responses (Ok, BadRequest, NotFound, etc.)
+- **NO business logic**
+- **NO database queries**
+- **NO direct repository calls** (use services instead)
+
+**CRITICAL: Exception Handling in Controllers**
+- **EVERY service call MUST be wrapped in try-catch**
+- Handle expected exceptions (KeyNotFoundException, InvalidOperationException, etc.)
+- Log unexpected exceptions with full details
+- Return appropriate HTTP status codes (404, 400, 500)
+- NEVER let exceptions bubble up to the client unhandled
+
+**Services (Business Logic)**:
+- Contain all business logic and orchestration
+- Validate business rules (not just data annotations)
+- Orchestrate multiple repository calls if needed
+- Transform data between domain entities and DTOs
+- Handle complex operations (aggregations, calculations, transformations)
+- **NO direct DbContext access** (use repositories)
+- **NO HTTP concerns** (no StatusCode, no ActionResult)
+
+**Repositories (Data Access Only)**:
+- Execute database queries using DbContext
+- Implement CRUD operations
+- Provide specialized query methods (filters, includes, counts)
+- Return domain entities or primitive types (int, bool)
+- **NO business logic**
+- **NO DTOs** (work with entities only)
+
+**Example - GOOD Architecture**:
+```csharp
+// Repository - Data access only
+public class UniversityRepository : IUniversityRepository
+{
+    private readonly TutoriaDbContext _context;
+
+    public async Task<int> GetProfessorsCountAsync(int universityId)
+    {
+        return await _context.Users
+            .Where(u => u.UserType == "professor" && u.UniversityId == universityId)
+            .CountAsync();
+    }
+}
+
+// Service - Business logic
+public class UniversityService : IUniversityService
+{
+    private readonly IUniversityRepository _repository;
+
+    public async Task<UniversityDetailDto> GetUniversityDetailAsync(int id)
+    {
+        var university = await _repository.GetByIdWithCoursesAsync(id);
+        if (university == null) return null;
+
+        var professorsCount = await _repository.GetProfessorsCountAsync(id);
+
+        // Business logic: build DTO with aggregated data
+        return new UniversityDetailDto
+        {
+            Id = university.Id,
+            Name = university.Name,
+            ProfessorsCount = professorsCount,
+            // ... more mapping
+        };
+    }
+}
+
+// Controller - Lean & simple with proper error handling
+public class UniversitiesController : ControllerBase
+{
+    private readonly IUniversityService _service;
+    private readonly ILogger<UniversitiesController> _logger;
+
+    [HttpGet("{id}")]
+    public async Task<ActionResult<UniversityDetailDto>> GetUniversity(int id)
+    {
+        try
+        {
+            var result = await _service.GetUniversityDetailAsync(id);
+
+            if (result == null)
+                return NotFound(new { message = "University not found" });
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting university with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+}
+```
+
+**Example - BAD Architecture** (DO NOT DO THIS):
+```csharp
+// ❌ BAD: Service accessing DbContext directly
+public class UniversityService
+{
+    private readonly TutoriaDbContext _context; // ❌ NO!
+
+    public async Task<int> GetProfessorsCountAsync(int universityId)
+    {
+        return await _context.Users.CountAsync(); // ❌ Should be in repository!
+    }
+}
+
+// ❌ BAD: Controller with business logic
+[HttpGet("{id}")]
+public async Task<ActionResult> GetUniversity(int id)
+{
+    var university = await _repository.GetByIdAsync(id); // ❌ Should call service!
+
+    // ❌ Business logic in controller!
+    var professorsCount = await _context.Users
+        .Where(u => u.UniversityId == id)
+        .CountAsync();
+
+    // ❌ Complex mapping in controller!
+    var dto = new UniversityDto { ... };
+    return Ok(dto);
+}
+```
+
+## Running the API
+
+### IMPORTANT: DO NOT Run as Background Task
+**NEVER run .NET APIs as background tasks** using `dotnet run` with `run_in_background: true`.
+
+**Why:**
+- The user manages the .NET API instances themselves
+- Running in background causes file locking issues (DLL conflicts)
+- Multiple instances can cause port conflicts
+- User may already have Visual Studio or Rider running the API
+
+**What to do instead:**
+- If you need to test API changes, ask the user to restart their API instance
+- For build verification, use `dotnet build` (NOT `dotnet run`)
+- Only run `dotnet test` for unit tests if explicitly requested
+
 ## Code Standards
 
 ### Naming Conventions

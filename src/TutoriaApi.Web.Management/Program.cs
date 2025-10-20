@@ -62,20 +62,20 @@ builder.Services.AddAuthorization(options =>
 {
     // SuperAdmin-only policy (full system access)
     options.AddPolicy("SuperAdminOnly", policy =>
-        policy.RequireClaim("type", "super_admin"));
+        policy.RequireRole("super_admin")); // Use standard RequireRole
 
     // AdminOrAbove policy (SuperAdmin or AdminProfessor)
     options.AddPolicy("AdminOrAbove", policy =>
         policy.RequireAssertion(context =>
-            context.User.HasClaim(c => c.Type == "type" && c.Value == "super_admin") ||
-            (context.User.HasClaim(c => c.Type == "type" && c.Value == "professor") &&
+            context.User.IsInRole("super_admin") ||
+            (context.User.IsInRole("professor") &&
              context.User.HasClaim(c => c.Type == "isAdmin" && c.Value.ToLower() == "true"))));
 
     // ProfessorOrAbove policy (SuperAdmin, AdminProfessor, or Professor)
     options.AddPolicy("ProfessorOrAbove", policy =>
         policy.RequireAssertion(context =>
-            context.User.HasClaim(c => c.Type == "type" && c.Value == "super_admin") ||
-            context.User.HasClaim(c => c.Type == "type" && c.Value == "professor")));
+            context.User.IsInRole("super_admin") ||
+            context.User.IsInRole("professor")));
 
     // ReadScope policy (requires api.read scope)
     options.AddPolicy("ReadAccess", policy =>
@@ -177,7 +177,12 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// Disable HTTPS redirection in development (breaks CORS preflight)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors();
 
 // Add global exception handler (should be early in the pipeline)

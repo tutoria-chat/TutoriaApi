@@ -1,66 +1,34 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
-using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
-using TutoriaApi.Infrastructure.Helpers;
 using TutoriaApi.Web.Management.DTOs;
-using BCrypt.Net;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
 [ApiController]
 [Route("api/professors")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class ProfessorsController : ControllerBase
+public class ProfessorsController : BaseAuthController // Inherits from BaseAuthController instead of ControllerBase
 {
-    private readonly IUniversityRepository _universityRepository;
-    private readonly TutoriaDbContext _context;
-    private readonly AccessControlHelper _accessControl;
+    private readonly IProfessorService _professorService;
     private readonly ILogger<ProfessorsController> _logger;
 
     public ProfessorsController(
-        IUniversityRepository universityRepository,
-        TutoriaDbContext context,
-        AccessControlHelper accessControl,
-        ILogger<ProfessorsController> logger)
+        IProfessorService professorService,
+        ILogger<ProfessorsController> _logger)
     {
-        _universityRepository = universityRepository;
-        _context = context;
-        _accessControl = accessControl;
-        _logger = logger;
+        _professorService = professorService;
+        this._logger = _logger;
     }
 
-    private int GetCurrentUserId()
-    {
-        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(userIdClaim, out var userId) ? userId : 0;
-    }
-
-    private async Task<User?> GetCurrentUserAsync()
-    {
-        var userId = GetCurrentUserId();
-        return await _context.Users.FindAsync(userId);
-    }
-
-    private bool IsSuperAdmin()
-    {
-        return User.IsInRole("super_admin");
-    }
-
-    private async Task<bool> IsAdminProfessorAsync()
-    {
-        var currentUser = await GetCurrentUserAsync();
-        return currentUser?.UserType == "professor" && (currentUser.IsAdmin ?? false);
-    }
+    // GetCurrentUserId() and GetCurrentUserFromClaims() are now inherited from BaseAuthController
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ProfessorDto>>> GetProfessors(
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
         [FromQuery] bool? isAdmin = null,
         [FromQuery] string? search = null)
     {
@@ -68,193 +36,177 @@ public class ProfessorsController : ControllerBase
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized(new { message = "User not found" });
-        }
+            var currentUser = GetCurrentUserFromClaims();
 
-        // Access control: Only admins can see all professors
-        if (currentUser.UserType == "professor")
-        {
-            if (!(currentUser.IsAdmin ?? false))
+            var (viewModels, total) = await _professorService.GetPagedAsync(
+                universityId,
+                courseId,
+                isAdmin,
+                search,
+                page,
+                size,
+                currentUser);
+
+            var items = viewModels.Select(vm => new ProfessorDto
             {
-                return Forbid(); // Non-admin professors cannot list professors
-            }
+                Id = vm.Professor.UserId,
+                Username = vm.Professor.Username,
+                Email = vm.Professor.Email,
+                FirstName = vm.Professor.FirstName,
+                LastName = vm.Professor.LastName,
+                IsAdmin = vm.Professor.IsAdmin ?? false,
+                IsActive = vm.Professor.IsActive,
+                UniversityId = vm.Professor.UniversityId,
+                UniversityName = vm.UniversityName,
+                ThemePreference = vm.Professor.ThemePreference ?? "system",
+                LanguagePreference = vm.Professor.LanguagePreference ?? "pt-br",
+                LastLoginAt = vm.Professor.LastLoginAt,
+                CreatedAt = vm.Professor.CreatedAt,
+                UpdatedAt = vm.Professor.UpdatedAt,
+                CoursesCount = vm.CoursesCount
+            }).ToList();
 
-            // Admin professors can only see professors from their own university
-            if (!universityId.HasValue && currentUser.UniversityId.HasValue)
+            return Ok(new PaginatedResponse<ProfessorDto>
             {
-                universityId = currentUser.UniversityId.Value;
-            }
+                Items = items,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
         }
-
-        var query = _context.Users
-            .Where(u => u.UserType == "professor")
-            .Include(u => u.University)
-            .AsQueryable();
-
-        if (universityId.HasValue)
+        catch (UnauthorizedAccessException ex)
         {
-            query = query.Where(u => u.UniversityId == universityId.Value);
+            _logger.LogWarning(ex, "Unauthorized access to professors list");
+            return Forbid();
         }
-
-        if (isAdmin.HasValue)
+        catch (Exception ex)
         {
-            query = query.Where(u => u.IsAdmin == isAdmin.Value);
+            _logger.LogError(ex, "Error retrieving professors");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(u =>
-                u.Username.Contains(search) ||
-                u.FirstName.Contains(search) ||
-                u.LastName.Contains(search) ||
-                u.Email.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-        var professors = await query
-            .OrderBy(u => u.UserId)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync();
-
-        var items = professors.Select(u => new ProfessorDto
-        {
-            Id = u.UserId,
-            Username = u.Username,
-            Email = u.Email,
-            FirstName = u.FirstName,
-            LastName = u.LastName,
-            IsAdmin = u.IsAdmin ?? false,
-            IsActive = u.IsActive,
-            UniversityId = u.UniversityId,
-            UniversityName = u.University?.Name,
-            ThemePreference = u.ThemePreference ?? "system",
-            LanguagePreference = u.LanguagePreference ?? "pt-br",
-            LastLoginAt = u.LastLoginAt,
-            CreatedAt = u.CreatedAt,
-            UpdatedAt = u.UpdatedAt
-        }).ToList();
-
-        return Ok(new PaginatedResponse<ProfessorDto>
-        {
-            Items = items,
-            Total = total,
-            Page = page,
-            Size = size,
-            Pages = (int)Math.Ceiling(total / (double)size)
-        });
     }
 
     [HttpGet("me")]
     public async Task<ActionResult<ProfessorDto>> GetCurrentProfessor()
     {
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null || currentUser.UserType != "professor")
+        try
         {
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            var viewModel = await _professorService.GetCurrentProfessorAsync(currentUser);
+
+            if (viewModel == null)
+            {
+                return NotFound(new { message = "Professor not found" });
+            }
+
+            var professor = viewModel.Professor;
+
+            return Ok(new ProfessorDto
+            {
+                Id = professor.UserId,
+                Username = professor.Username,
+                Email = professor.Email,
+                FirstName = professor.FirstName,
+                LastName = professor.LastName,
+                IsAdmin = professor.IsAdmin ?? false,
+                IsActive = professor.IsActive,
+                UniversityId = professor.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ThemePreference = professor.ThemePreference ?? "system",
+                LanguagePreference = professor.LanguagePreference ?? "pt-br",
+                LastLoginAt = professor.LastLoginAt,
+                CreatedAt = professor.CreatedAt,
+                UpdatedAt = professor.UpdatedAt
+            });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to current professor");
             return Forbid();
         }
-
-        var professor = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == currentUser.UserId);
-
-        if (professor == null)
+        catch (Exception ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            _logger.LogError(ex, "Error retrieving current professor");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        return Ok(new ProfessorDto
-        {
-            Id = professor.UserId,
-            Username = professor.Username,
-            Email = professor.Email,
-            FirstName = professor.FirstName,
-            LastName = professor.LastName,
-            IsAdmin = professor.IsAdmin ?? false,
-            IsActive = professor.IsActive,
-            UniversityId = professor.UniversityId,
-            UniversityName = professor.University?.Name,
-            ThemePreference = professor.ThemePreference ?? "system",
-            LanguagePreference = professor.LanguagePreference ?? "pt-br",
-            LastLoginAt = professor.LastLoginAt,
-            CreatedAt = professor.CreatedAt,
-            UpdatedAt = professor.UpdatedAt
-        });
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ProfessorDto>> GetProfessor(int id)
     {
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
-        }
+            var currentUser = GetCurrentUserFromClaims();
 
-        // Access control: Only admins can view other professors
-        if (currentUser.UserType == "professor")
-        {
-            var currentProfId = currentUser.UserId;
-            if (!(currentUser.IsAdmin ?? false) && currentProfId != id)
+            var viewModel = await _professorService.GetByIdAsync(id, currentUser);
+
+            if (viewModel == null)
             {
-                return Forbid();
+                return NotFound(new { message = "Professor not found" });
             }
+
+            var professor = viewModel.Professor;
+
+            return Ok(new ProfessorDto
+            {
+                Id = professor.UserId,
+                Username = professor.Username,
+                Email = professor.Email,
+                FirstName = professor.FirstName,
+                LastName = professor.LastName,
+                IsAdmin = professor.IsAdmin ?? false,
+                IsActive = professor.IsActive,
+                UniversityId = professor.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ThemePreference = professor.ThemePreference ?? "system",
+                LanguagePreference = professor.LanguagePreference ?? "pt-br",
+                LastLoginAt = professor.LastLoginAt,
+                CreatedAt = professor.CreatedAt,
+                UpdatedAt = professor.UpdatedAt,
+                AssignedCourseIds = viewModel.AssignedCourseIds
+            });
         }
-
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (professor == null)
+        catch (UnauthorizedAccessException ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            _logger.LogWarning(ex, "Unauthorized access to professor {ProfessorId}", id);
+            return Forbid();
         }
-
-        return Ok(new ProfessorDto
+        catch (Exception ex)
         {
-            Id = professor.UserId,
-            Username = professor.Username,
-            Email = professor.Email,
-            FirstName = professor.FirstName,
-            LastName = professor.LastName,
-            IsAdmin = professor.IsAdmin ?? false,
-            IsActive = professor.IsActive,
-            UniversityId = professor.UniversityId,
-            UniversityName = professor.University?.Name,
-            ThemePreference = professor.ThemePreference ?? "system",
-            LanguagePreference = professor.LanguagePreference ?? "pt-br",
-            LastLoginAt = professor.LastLoginAt,
-            CreatedAt = professor.CreatedAt,
-            UpdatedAt = professor.UpdatedAt
-        });
+            _logger.LogError(ex, "Error retrieving professor {ProfessorId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpGet("{id}/courses")]
     public async Task<ActionResult<object>> GetProfessorCourses(int id)
     {
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
-        }
+            var currentUser = GetCurrentUserFromClaims();
 
-        // Access control
-        if (currentUser.UserType == "professor")
+            var courseIds = await _professorService.GetProfessorCourseIdsAsync(id, currentUser);
+
+            return Ok(new { course_ids = courseIds });
+        }
+        catch (UnauthorizedAccessException ex)
         {
-            var currentProfId = currentUser.UserId;
-            if (!(currentUser.IsAdmin ?? false) && currentProfId != id)
-            {
-                return Forbid();
-            }
+            _logger.LogWarning(ex, "Unauthorized access to professor courses {ProfessorId}", id);
+            return Forbid();
         }
-
-        var courseIds = await _accessControl.GetProfessorCourseIdsAsync(id);
-
-        return Ok(new { course_ids = courseIds });
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving professor courses {ProfessorId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost]
@@ -266,79 +218,63 @@ public class ProfessorsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
-        }
-
-        // Access control: Only admins can create professors
-        if (currentUser.UserType == "professor")
-        {
-            if (!(currentUser.IsAdmin ?? false))
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
             {
-                return Forbid();
+                return Unauthorized();
             }
+
+            var viewModel = await _professorService.CreateAsync(
+                request.Username,
+                request.Email,
+                request.FirstName,
+                request.LastName,
+                request.Password,
+                request.UniversityId,
+                request.IsAdmin,
+                currentUser);
+
+            var professor = viewModel.Professor;
+
+            _logger.LogInformation("Created professor {Username} with ID {Id}", professor.Username, professor.UserId);
+
+            return CreatedAtAction(nameof(GetProfessor), new { id = professor.UserId }, new ProfessorDto
+            {
+                Id = professor.UserId,
+                Username = professor.Username,
+                Email = professor.Email,
+                FirstName = professor.FirstName,
+                LastName = professor.LastName,
+                IsAdmin = professor.IsAdmin ?? false,
+                IsActive = professor.IsActive,
+                UniversityId = professor.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ThemePreference = professor.ThemePreference ?? "system",
+                LanguagePreference = professor.LanguagePreference ?? "pt-br",
+                CreatedAt = professor.CreatedAt,
+                UpdatedAt = professor.UpdatedAt
+            });
         }
-
-        // Check if university exists
-        var university = await _universityRepository.GetByIdAsync(request.UniversityId);
-        if (university == null)
+        catch (KeyNotFoundException ex)
         {
-            return NotFound(new { message = "University not found" });
+            return NotFound(new { message = ex.Message });
         }
-
-        // Check if username or email already exists (across all users)
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
-
-        if (existingByUsername != null)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = "Username already exists" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-        if (existingByEmail != null)
+        catch (UnauthorizedAccessException ex)
         {
-            return BadRequest(new { message = "Email already exists" });
+            _logger.LogWarning(ex, "Unauthorized professor creation attempt");
+            return Forbid();
         }
-
-        var professor = new User
+        catch (Exception ex)
         {
-            Username = request.Username,
-            Email = request.Email,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
-            UserType = "professor",
-            UniversityId = request.UniversityId,
-            IsAdmin = request.IsAdmin,
-            IsActive = true
-        };
-
-        _context.Users.Add(professor);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Created professor {Username} with ID {Id}", professor.Username, professor.UserId);
-
-        return CreatedAtAction(nameof(GetProfessor), new { id = professor.UserId }, new ProfessorDto
-        {
-            Id = professor.UserId,
-            Username = professor.Username,
-            Email = professor.Email,
-            FirstName = professor.FirstName,
-            LastName = professor.LastName,
-            IsAdmin = professor.IsAdmin ?? false,
-            IsActive = professor.IsActive,
-            UniversityId = professor.UniversityId,
-            UniversityName = university.Name,
-            ThemePreference = professor.ThemePreference ?? "system",
-            LanguagePreference = professor.LanguagePreference ?? "pt-br",
-            CreatedAt = professor.CreatedAt,
-            UpdatedAt = professor.UpdatedAt
-        });
+            _logger.LogError(ex, "Error creating professor");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}")]
@@ -349,190 +285,102 @@ public class ProfessorsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            var viewModel = await _professorService.UpdateAsync(
+                id,
+                request.Username,
+                request.Email,
+                request.FirstName,
+                request.LastName,
+                request.IsAdmin,
+                request.IsActive,
+                currentUser);
+
+            var professor = viewModel.Professor;
+
+            _logger.LogInformation("Updated professor {Username} with ID {Id}", professor.Username, professor.UserId);
+
+            return Ok(new ProfessorDto
+            {
+                Id = professor.UserId,
+                Username = professor.Username,
+                Email = professor.Email,
+                FirstName = professor.FirstName,
+                LastName = professor.LastName,
+                IsAdmin = professor.IsAdmin ?? false,
+                IsActive = professor.IsActive,
+                UniversityId = professor.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ThemePreference = professor.ThemePreference ?? "system",
+                LanguagePreference = professor.LanguagePreference ?? "pt-br",
+                LastLoginAt = professor.LastLoginAt,
+                CreatedAt = professor.CreatedAt,
+                UpdatedAt = professor.UpdatedAt
+            });
         }
-
-        // Access control: Only admins can update other professors, or professors can update themselves (limited fields)
-        if (currentUser.UserType == "professor")
+        catch (KeyNotFoundException ex)
         {
-            var currentProfId = currentUser.UserId;
-            if (!(currentUser.IsAdmin ?? false) && currentProfId != id)
-            {
-                return Forbid();
-            }
+            return NotFound(new { message = ex.Message });
         }
-
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (professor == null)
+        catch (InvalidOperationException ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        // Determine allowed fields based on permissions
-        var isUpdatingSelf = currentUser.UserId == id;
-        var isAdmin = currentUser.UserType == "super_admin" || (currentUser.IsAdmin ?? false);
-
-        // Non-admin professors can only update certain fields about themselves
-        if (isUpdatingSelf && !isAdmin)
+        catch (UnauthorizedAccessException ex)
         {
-            // Only allow first_name, last_name, email
-            if (!string.IsNullOrWhiteSpace(request.FirstName))
-            {
-                professor.FirstName = request.FirstName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.LastName))
-            {
-                professor.LastName = request.LastName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Email))
-            {
-                var existingByEmail = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == request.Email && u.UserId != id);
-
-                if (existingByEmail != null)
-                {
-                    return BadRequest(new { message = "Email already exists" });
-                }
-
-                professor.Email = request.Email;
-            }
-        }
-        else if (isAdmin)
-        {
-            // Admins can update all fields
-            if (!string.IsNullOrWhiteSpace(request.Username))
-            {
-                var existingByUsername = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Username == request.Username && u.UserId != id);
-
-                if (existingByUsername != null)
-                {
-                    return BadRequest(new { message = "Username already exists" });
-                }
-
-                professor.Username = request.Username;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.Email))
-            {
-                var existingByEmail = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == request.Email && u.UserId != id);
-
-                if (existingByEmail != null)
-                {
-                    return BadRequest(new { message = "Email already exists" });
-                }
-
-                professor.Email = request.Email;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.FirstName))
-            {
-                professor.FirstName = request.FirstName;
-            }
-
-            if (!string.IsNullOrWhiteSpace(request.LastName))
-            {
-                professor.LastName = request.LastName;
-            }
-
-            if (request.IsAdmin.HasValue)
-            {
-                professor.IsAdmin = request.IsAdmin.Value;
-            }
-
-            if (request.IsActive.HasValue)
-            {
-                professor.IsActive = request.IsActive.Value;
-            }
-        }
-        else
-        {
+            _logger.LogWarning(ex, "Unauthorized professor update attempt for {ProfessorId}", id);
             return Forbid();
         }
-
-        professor.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Updated professor {Username} with ID {Id}", professor.Username, professor.UserId);
-
-        University? university = null;
-        if (professor.UniversityId.HasValue)
+        catch (Exception ex)
         {
-            university = await _universityRepository.GetByIdAsync(professor.UniversityId.Value);
+            _logger.LogError(ex, "Error updating professor {ProfessorId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        return Ok(new ProfessorDto
-        {
-            Id = professor.UserId,
-            Username = professor.Username,
-            Email = professor.Email,
-            FirstName = professor.FirstName,
-            LastName = professor.LastName,
-            IsAdmin = professor.IsAdmin ?? false,
-            IsActive = professor.IsActive,
-            UniversityId = professor.UniversityId,
-            UniversityName = university?.Name,
-            ThemePreference = professor.ThemePreference ?? "system",
-            LanguagePreference = professor.LanguagePreference ?? "pt-br",
-            LastLoginAt = professor.LastLoginAt,
-            CreatedAt = professor.CreatedAt,
-            UpdatedAt = professor.UpdatedAt
-        });
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "AdminOrAbove")]
     public async Task<ActionResult> DeleteProfessor(int id)
     {
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
-        }
-
-        // Access control: Only admins can delete professors
-        if (currentUser.UserType == "professor")
-        {
-            if (!(currentUser.IsAdmin ?? false))
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
             {
-                return Forbid();
+                return Unauthorized();
             }
-        }
 
-        // Prevent self-deletion
-        if (currentUser.UserType != "super_admin")
+            await _professorService.DeleteAsync(id, currentUser);
+
+            _logger.LogInformation("Deleted professor with ID {Id}", id);
+
+            return Ok(new { message = "Professor deleted successfully" });
+        }
+        catch (KeyNotFoundException ex)
         {
-            var currentProfId = currentUser.UserId;
-            if (currentProfId == id)
-            {
-                return BadRequest(new { message = "Cannot delete yourself" });
-            }
+            return NotFound(new { message = ex.Message });
         }
-
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (professor == null)
+        catch (InvalidOperationException ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        _context.Users.Remove(professor);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Deleted professor {Username} with ID {Id}", professor.Username, professor.UserId);
-
-        return Ok(new { message = "Professor deleted successfully" });
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized professor deletion attempt for {ProfessorId}", id);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting professor {ProfessorId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}/password")]
@@ -543,37 +391,33 @@ public class ProfessorsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var currentUser = await GetCurrentUserAsync();
-        if (currentUser == null)
+        try
         {
-            return Unauthorized();
-        }
-
-        // Access control: Only admins can update other professors' passwords, professors can update their own
-        if (currentUser.UserType == "professor")
-        {
-            var currentProfId = currentUser.UserId;
-            if (!(currentUser.IsAdmin ?? false) && currentProfId != id)
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
             {
-                return Forbid();
+                return Unauthorized();
             }
+
+            await _professorService.ChangePasswordAsync(id, request.NewPassword, currentUser);
+
+            _logger.LogInformation("Changed password for professor with ID {Id}", id);
+
+            return Ok(new { message = "Password changed successfully" });
         }
-
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (professor == null)
+        catch (KeyNotFoundException ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            return NotFound(new { message = ex.Message });
         }
-
-        professor.HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
-        professor.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Changed password for professor {Username} with ID {Id}", professor.Username, professor.UserId);
-
-        return Ok(new { message = "Password changed successfully" });
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized password change attempt for {ProfessorId}", id);
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error changing password for professor {ProfessorId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 }

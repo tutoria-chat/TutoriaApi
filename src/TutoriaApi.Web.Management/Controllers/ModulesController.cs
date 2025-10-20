@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
@@ -11,38 +9,19 @@ namespace TutoriaApi.Web.Management.Controllers;
 /// <summary>
 /// Manages academic modules (course units) and their configuration.
 /// </summary>
-/// <remarks>
-/// Modules are individual units within a course (e.g., "Introduction to Python", "Calculus I").
-/// Each module has an associated OpenAI Assistant and vector store for AI tutoring functionality.
-///
-/// **Authorization**: All endpoints require authentication. Write operations require ProfessorOrAbove policy.
-///
-/// **Key Features**:
-/// - Module creation with system prompt and language configuration
-/// - OpenAI Assistant and Vector Store integration
-/// - File attachments for module content
-/// - Module Access Tokens for widget integration
-/// - Prompt improvement tracking
-/// </remarks>
 [ApiController]
 [Route("api/modules")]
 [Authorize]
-public class ModulesController : ControllerBase
+public class ModulesController : BaseAuthController
 {
-    private readonly IModuleRepository _moduleRepository;
-    private readonly ICourseRepository _courseRepository;
-    private readonly TutoriaDbContext _context;
+    private readonly IModuleService _moduleService;
     private readonly ILogger<ModulesController> _logger;
 
     public ModulesController(
-        IModuleRepository moduleRepository,
-        ICourseRepository courseRepository,
-        TutoriaDbContext context,
+        IModuleService moduleService,
         ILogger<ModulesController> logger)
     {
-        _moduleRepository = moduleRepository;
-        _courseRepository = courseRepository;
-        _context = context;
+        _moduleService = moduleService;
         _logger = logger;
     }
 
@@ -59,154 +38,125 @@ public class ModulesController : ControllerBase
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        var query = _context.Modules
-            .Include(m => m.Course)
-            .AsQueryable();
-
-        // Apply professor-scoped filtering
-        var userType = User.FindFirst("type")?.Value;
-        var isAdmin = User.FindFirst("isAdmin")?.Value?.ToLower() == "true";
-        var userIdClaim = User.FindFirst("user_id")?.Value;
-
-        if (userType == "professor" && !isAdmin && int.TryParse(userIdClaim, out var professorId))
+        try
         {
-            // Non-admin professors can only see modules from courses they're assigned to
-            query = query.Where(m => _context.ProfessorCourses
-                .Any(pc => pc.ProfessorId == professorId && pc.CourseId == m.CourseId));
-        }
-        else if (userType == "professor" && isAdmin)
-        {
-            // Admin professors can see all modules in their university
-            var universityIdClaim = User.FindFirst("university_id")?.Value;
-            if (int.TryParse(universityIdClaim, out var universityId))
+            var currentUser = GetCurrentUserFromClaims();
+
+            var (viewModels, total) = await _moduleService.GetPagedWithCountsAsync(
+                courseId,
+                semester,
+                year,
+                search,
+                page,
+                size,
+                currentUser);
+
+            var dtos = viewModels.Select(vm => new ModuleListDto
             {
-                query = query.Where(m => m.Course.UniversityId == universityId);
-            }
-        }
-        // Super admins see all modules (no filtering)
+                Id = vm.Module.Id,
+                Name = vm.Module.Name,
+                Code = vm.Module.Code,
+                Description = vm.Module.Description,
+                Semester = vm.Module.Semester,
+                Year = vm.Module.Year,
+                CourseId = vm.Module.CourseId,
+                CourseName = vm.CourseName,
+                AIModelId = vm.Module.AIModelId,
+                AIModelDisplayName = vm.AIModelDisplayName,
+                FilesCount = vm.FilesCount,
+                TokensCount = vm.TokensCount,
+                CreatedAt = vm.Module.CreatedAt,
+                UpdatedAt = vm.Module.UpdatedAt
+            }).ToList();
 
-        if (courseId.HasValue)
-        {
-            query = query.Where(m => m.CourseId == courseId.Value);
-        }
-
-        if (semester.HasValue)
-        {
-            query = query.Where(m => m.Semester == semester.Value);
-        }
-
-        if (year.HasValue)
-        {
-            query = query.Where(m => m.Year == year.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(m => m.Name.Contains(search) || m.Code.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-
-        // Use projection to avoid N+1 queries - count related entities in single query
-        var items = await query
-            .OrderBy(m => m.Id)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .Select(m => new ModuleListDto
+            return Ok(new PaginatedResponse<ModuleListDto>
             {
-                Id = m.Id,
-                Name = m.Name,
-                Code = m.Code,
-                Description = m.Description,
-                Semester = m.Semester,
-                Year = m.Year,
-                CourseId = m.CourseId,
-                CourseName = m.Course != null ? m.Course.Name : null,
-                AIModelId = m.AIModelId,
-                AIModelDisplayName = m.AIModel != null ? m.AIModel.DisplayName : null,
-                FilesCount = _context.Files.Count(f => f.ModuleId == m.Id),
-                TokensCount = _context.ModuleAccessTokens.Count(t => t.ModuleId == m.Id),
-                CreatedAt = m.CreatedAt,
-                UpdatedAt = m.UpdatedAt
-            })
-            .ToListAsync();
-
-        return Ok(new PaginatedResponse<ModuleListDto>
+                Items = dtos,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
+        }
+        catch (Exception ex)
         {
-            Items = items,
-            Total = total,
-            Page = page,
-            Size = size,
-            Pages = (int)Math.Ceiling(total / (double)size)
-        });
+            _logger.LogError(ex, "Error retrieving modules");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ModuleDetailDto>> GetModule(int id)
     {
-        var module = await _context.Modules
-            .Include(m => m.Course)
-                .ThenInclude(c => c.University)
-            .Include(m => m.Files)
-            .Include(m => m.AIModel)
-            .FirstOrDefaultAsync(m => m.Id == id);
-
-        if (module == null)
+        try
         {
-            return NotFound(new { message = "Module not found" });
+            var viewModel = await _moduleService.GetWithDetailsAsync(id);
+
+            if (viewModel == null)
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
+            var module = viewModel.Module;
+            var course = viewModel.Course;
+            var aiModel = viewModel.AIModel;
+            var files = viewModel.Files;
+
+            return Ok(new ModuleDetailDto
+            {
+                Id = module.Id,
+                Name = module.Name,
+                Code = module.Code,
+                Description = module.Description,
+                SystemPrompt = module.SystemPrompt,
+                Semester = module.Semester,
+                Year = module.Year,
+                CourseId = module.CourseId,
+                Course = course != null ? new CourseDto
+                {
+                    Id = course.Id,
+                    Name = course.Name,
+                    Code = course.Code,
+                    Description = course.Description
+                } : null,
+                AIModelId = module.AIModelId,
+                AIModel = aiModel != null ? new AIModelDto
+                {
+                    Id = aiModel.Id,
+                    ModelName = aiModel.ModelName,
+                    DisplayName = aiModel.DisplayName,
+                    Provider = aiModel.Provider,
+                    MaxTokens = aiModel.MaxTokens,
+                    SupportsVision = aiModel.SupportsVision,
+                    SupportsFunctionCalling = aiModel.SupportsFunctionCalling,
+                    IsActive = aiModel.IsActive,
+                    IsDeprecated = aiModel.IsDeprecated
+                } : null,
+                OpenAIAssistantId = module.OpenAIAssistantId,
+                OpenAIVectorStoreId = module.OpenAIVectorStoreId,
+                LastPromptImprovedAt = module.LastPromptImprovedAt,
+                PromptImprovementCount = module.PromptImprovementCount,
+                TutorLanguage = module.TutorLanguage,
+                Files = files.Select(f => new FileDto
+                {
+                    Id = f.Id,
+                    FileName = f.FileName,
+                    BlobPath = f.BlobPath,
+                    ContentType = f.ContentType,
+                    FileSize = f.FileSize,
+                    OpenAIFileId = f.OpenAIFileId,
+                    IsActive = f.IsActive,
+                    CreatedAt = f.CreatedAt
+                }).ToList(),
+                CreatedAt = module.CreatedAt,
+                UpdatedAt = module.UpdatedAt
+            });
         }
-
-        var dto = new ModuleDetailDto
+        catch (Exception ex)
         {
-            Id = module.Id,
-            Name = module.Name,
-            Code = module.Code,
-            Description = module.Description,
-            SystemPrompt = module.SystemPrompt,
-            Semester = module.Semester,
-            Year = module.Year,
-            CourseId = module.CourseId,
-            Course = module.Course != null ? new CourseDto
-            {
-                Id = module.Course.Id,
-                Name = module.Course.Name,
-                Code = module.Course.Code,
-                Description = module.Course.Description
-            } : null,
-            AIModelId = module.AIModelId,
-            AIModel = module.AIModel != null ? new AIModelDto
-            {
-                Id = module.AIModel.Id,
-                ModelName = module.AIModel.ModelName,
-                DisplayName = module.AIModel.DisplayName,
-                Provider = module.AIModel.Provider,
-                MaxTokens = module.AIModel.MaxTokens,
-                SupportsVision = module.AIModel.SupportsVision,
-                SupportsFunctionCalling = module.AIModel.SupportsFunctionCalling,
-                IsActive = module.AIModel.IsActive,
-                IsDeprecated = module.AIModel.IsDeprecated
-            } : null,
-            OpenAIAssistantId = module.OpenAIAssistantId,
-            OpenAIVectorStoreId = module.OpenAIVectorStoreId,
-            LastPromptImprovedAt = module.LastPromptImprovedAt,
-            PromptImprovementCount = module.PromptImprovementCount,
-            TutorLanguage = module.TutorLanguage,
-            Files = module.Files.Select(f => new FileDto
-            {
-                Id = f.Id,
-                FileName = f.FileName,
-                BlobName = f.BlobName,
-                ContentType = f.ContentType,
-                Size = f.Size,
-                OpenAIFileId = f.OpenAIFileId,
-                Status = f.Status,
-                CreatedAt = f.CreatedAt
-            }).ToList(),
-            CreatedAt = module.CreatedAt,
-            UpdatedAt = module.UpdatedAt
-        };
-
-        return Ok(dto);
+            _logger.LogError(ex, "Error retrieving module {ModuleId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost]
@@ -218,56 +168,57 @@ public class ModulesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Check if course exists
-        var course = await _courseRepository.GetByIdAsync(request.CourseId);
-        if (course == null)
+        try
         {
-            return NotFound(new { message = "Course not found" });
+            var module = new Module
+            {
+                Name = request.Name,
+                Code = request.Code,
+                Description = request.Description,
+                SystemPrompt = request.SystemPrompt,
+                Semester = request.Semester,
+                Year = request.Year,
+                CourseId = request.CourseId,
+                AIModelId = request.AIModelId,
+                TutorLanguage = request.TutorLanguage,
+                PromptImprovementCount = 0
+            };
+
+            var created = await _moduleService.CreateAsync(module);
+
+            _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
+
+            return CreatedAtAction(nameof(GetModule), new { id = created.Id }, new ModuleDetailDto
+            {
+                Id = created.Id,
+                Name = created.Name,
+                Code = created.Code,
+                Description = created.Description,
+                SystemPrompt = created.SystemPrompt,
+                Semester = created.Semester,
+                Year = created.Year,
+                CourseId = created.CourseId,
+                AIModelId = created.AIModelId,
+                TutorLanguage = created.TutorLanguage,
+                PromptImprovementCount = created.PromptImprovementCount,
+                Files = new List<FileDto>(),
+                CreatedAt = created.CreatedAt,
+                UpdatedAt = created.UpdatedAt
+            });
         }
-
-        // Check if module with same code exists in course
-        var existingModule = await _context.Modules
-            .FirstOrDefaultAsync(m => m.Code == request.Code && m.CourseId == request.CourseId);
-
-        if (existingModule != null)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = "Module with this code already exists in this course" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var module = new Module
+        catch (ArgumentException ex)
         {
-            Name = request.Name,
-            Code = request.Code,
-            Description = request.Description,
-            SystemPrompt = request.SystemPrompt,
-            Semester = request.Semester,
-            Year = request.Year,
-            CourseId = request.CourseId,
-            AIModelId = request.AIModelId,
-            TutorLanguage = request.TutorLanguage,
-            PromptImprovementCount = 0
-        };
-
-        var created = await _moduleRepository.AddAsync(module);
-
-        _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
-
-        return CreatedAtAction(nameof(GetModule), new { id = created.Id }, new ModuleDetailDto
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
         {
-            Id = created.Id,
-            Name = created.Name,
-            Code = created.Code,
-            Description = created.Description,
-            SystemPrompt = created.SystemPrompt,
-            Semester = created.Semester,
-            Year = created.Year,
-            CourseId = created.CourseId,
-            TutorLanguage = created.TutorLanguage,
-            PromptImprovementCount = created.PromptImprovementCount,
-            Files = new List<FileDto>(),
-            CreatedAt = created.CreatedAt,
-            UpdatedAt = created.UpdatedAt
-        });
+            _logger.LogError(ex, "Error creating module");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}")]
@@ -279,110 +230,108 @@ public class ModulesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var module = await _moduleRepository.GetByIdAsync(id);
-        if (module == null)
+        try
         {
-            return NotFound(new { message = "Module not found" });
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
-        {
-            module.Name = request.Name;
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Code))
-        {
-            // Check if code is taken by another module in same course
-            var existingModule = await _context.Modules
-                .FirstOrDefaultAsync(m => m.Code == request.Code && m.CourseId == module.CourseId && m.Id != id);
-
-            if (existingModule != null)
+            var existing = await _moduleService.GetByIdAsync(id);
+            if (existing == null)
             {
-                return BadRequest(new { message = "Module with this code already exists in this course" });
+                return NotFound(new { message = "Module not found" });
             }
 
-            module.Code = request.Code;
-        }
+            // Apply updates from request
+            if (!string.IsNullOrWhiteSpace(request.Name))
+                existing.Name = request.Name;
 
-        if (request.Description != null)
-        {
-            module.Description = request.Description;
-        }
+            if (!string.IsNullOrWhiteSpace(request.Code))
+                existing.Code = request.Code;
 
-        if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
-        {
-            module.SystemPrompt = request.SystemPrompt;
-        }
+            if (request.Description != null)
+                existing.Description = request.Description;
 
-        if (request.Semester.HasValue)
-        {
-            module.Semester = request.Semester;
-        }
+            if (!string.IsNullOrWhiteSpace(request.SystemPrompt))
+                existing.SystemPrompt = request.SystemPrompt;
 
-        if (request.Year.HasValue)
-        {
-            module.Year = request.Year;
-        }
+            if (request.Semester.HasValue)
+                existing.Semester = request.Semester;
 
-        if (!string.IsNullOrWhiteSpace(request.TutorLanguage))
-        {
-            module.TutorLanguage = request.TutorLanguage;
-        }
+            if (request.Year.HasValue)
+                existing.Year = request.Year;
 
-        if (request.AIModelId.HasValue)
-        {
-            module.AIModelId = request.AIModelId;
-        }
+            if (!string.IsNullOrWhiteSpace(request.TutorLanguage))
+                existing.TutorLanguage = request.TutorLanguage;
 
-        await _moduleRepository.UpdateAsync(module);
+            if (request.AIModelId.HasValue)
+                existing.AIModelId = request.AIModelId;
 
-        _logger.LogInformation("Updated module {Name} with ID {Id}", module.Name, module.Id);
+            var updated = await _moduleService.UpdateAsync(id, existing);
 
-        var course = await _courseRepository.GetByIdAsync(module.CourseId);
+            _logger.LogInformation("Updated module {Name} with ID {Id}", updated.Name, updated.Id);
 
-        return Ok(new ModuleDetailDto
-        {
-            Id = module.Id,
-            Name = module.Name,
-            Code = module.Code,
-            Description = module.Description,
-            SystemPrompt = module.SystemPrompt,
-            Semester = module.Semester,
-            Year = module.Year,
-            CourseId = module.CourseId,
-            Course = course != null ? new CourseDto
+            var viewModel = await _moduleService.GetWithDetailsAsync(id);
+
+            return Ok(new ModuleDetailDto
             {
-                Id = course.Id,
-                Name = course.Name,
-                Code = course.Code,
-                Description = course.Description
-            } : null,
-            OpenAIAssistantId = module.OpenAIAssistantId,
-            OpenAIVectorStoreId = module.OpenAIVectorStoreId,
-            LastPromptImprovedAt = module.LastPromptImprovedAt,
-            PromptImprovementCount = module.PromptImprovementCount,
-            TutorLanguage = module.TutorLanguage,
-            Files = new List<FileDto>(),
-            CreatedAt = module.CreatedAt,
-            UpdatedAt = module.UpdatedAt
-        });
+                Id = updated.Id,
+                Name = updated.Name,
+                Code = updated.Code,
+                Description = updated.Description,
+                SystemPrompt = updated.SystemPrompt,
+                Semester = updated.Semester,
+                Year = updated.Year,
+                CourseId = updated.CourseId,
+                Course = viewModel?.Course != null ? new CourseDto
+                {
+                    Id = viewModel.Course.Id,
+                    Name = viewModel.Course.Name,
+                    Code = viewModel.Course.Code,
+                    Description = viewModel.Course.Description
+                } : null,
+                AIModelId = updated.AIModelId,
+                OpenAIAssistantId = updated.OpenAIAssistantId,
+                OpenAIVectorStoreId = updated.OpenAIVectorStoreId,
+                LastPromptImprovedAt = updated.LastPromptImprovedAt,
+                PromptImprovementCount = updated.PromptImprovementCount,
+                TutorLanguage = updated.TutorLanguage,
+                Files = new List<FileDto>(),
+                CreatedAt = updated.CreatedAt,
+                UpdatedAt = updated.UpdatedAt
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating module {ModuleId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "ProfessorOrAbove")]
     public async Task<ActionResult> DeleteModule(int id)
     {
-        var module = await _moduleRepository.GetByIdAsync(id);
-        if (module == null)
+        try
         {
-            return NotFound(new { message = "Module not found" });
+            await _moduleService.DeleteAsync(id);
+
+            _logger.LogInformation("Deleted module with ID {Id}", id);
+
+            return Ok(new { message = "Module deleted successfully" });
         }
-
-        await _moduleRepository.DeleteAsync(module);
-
-        _logger.LogInformation("Deleted module {Name} with ID {Id}", module.Name, module.Id);
-
-        return Ok(new { message = "Module deleted successfully" });
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting module {ModuleId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
-
 }

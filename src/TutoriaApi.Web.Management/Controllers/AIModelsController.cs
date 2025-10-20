@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
@@ -28,17 +26,14 @@ namespace TutoriaApi.Web.Management.Controllers;
 [Authorize]
 public class AIModelsController : ControllerBase
 {
-    private readonly IAIModelRepository _aiModelRepository;
-    private readonly TutoriaDbContext _context;
+    private readonly IAIModelService _aiModelService;
     private readonly ILogger<AIModelsController> _logger;
 
     public AIModelsController(
-        IAIModelRepository aiModelRepository,
-        TutoriaDbContext context,
+        IAIModelService aiModelService,
         ILogger<AIModelsController> logger)
     {
-        _aiModelRepository = aiModelRepository;
-        _context = context;
+        _aiModelService = aiModelService;
         _logger = logger;
     }
 
@@ -71,56 +66,35 @@ public class AIModelsController : ControllerBase
         [FromQuery] bool includeDeprecated = false,
         [FromQuery] int? universityId = null)
     {
-        var query = _context.AIModels.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(provider))
+        try
         {
-            query = query.Where(a => a.Provider == provider.ToLower());
-        }
+            var viewModels = await _aiModelService.GetAIModelsAsync(provider, isActive, includeDeprecated, universityId);
 
-        if (isActive.HasValue)
-        {
-            query = query.Where(a => a.IsActive == isActive.Value);
-        }
-
-        if (!includeDeprecated)
-        {
-            query = query.Where(a => !a.IsDeprecated);
-        }
-
-        // Filter by university subscription tier
-        if (universityId.HasValue)
-        {
-            var university = await _context.Universities.FindAsync(universityId.Value);
-            if (university != null)
+            var dtos = viewModels.Select(vm => new AIModelListDto
             {
-                // Only show models that require tier <= university's subscription tier
-                query = query.Where(a => a.RequiredTier <= university.SubscriptionTier);
-            }
+                Id = vm.AIModel.Id,
+                ModelName = vm.AIModel.ModelName,
+                DisplayName = vm.AIModel.DisplayName,
+                Provider = vm.AIModel.Provider,
+                MaxTokens = vm.AIModel.MaxTokens,
+                SupportsVision = vm.AIModel.SupportsVision,
+                SupportsFunctionCalling = vm.AIModel.SupportsFunctionCalling,
+                InputCostPer1M = vm.AIModel.InputCostPer1M,
+                OutputCostPer1M = vm.AIModel.OutputCostPer1M,
+                RequiredTier = vm.AIModel.RequiredTier,
+                IsActive = vm.AIModel.IsActive,
+                IsDeprecated = vm.AIModel.IsDeprecated,
+                RecommendedFor = vm.AIModel.RecommendedFor,
+                ModulesCount = vm.ModulesCount
+            }).ToList();
+
+            return Ok(dtos);
         }
-
-        var models = await query
-            .OrderBy(a => a.Provider)
-            .ThenBy(a => a.DisplayName)
-            .Select(a => new AIModelListDto
-            {
-                Id = a.Id,
-                ModelName = a.ModelName,
-                DisplayName = a.DisplayName,
-                Provider = a.Provider,
-                MaxTokens = a.MaxTokens,
-                SupportsVision = a.SupportsVision,
-                SupportsFunctionCalling = a.SupportsFunctionCalling,
-                InputCostPer1M = a.InputCostPer1M,
-                OutputCostPer1M = a.OutputCostPer1M,
-                RequiredTier = a.RequiredTier,
-                IsActive = a.IsActive,
-                IsDeprecated = a.IsDeprecated,
-                RecommendedFor = a.RecommendedFor
-            })
-            .ToListAsync();
-
-        return Ok(models);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting AI models");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -135,37 +109,44 @@ public class AIModelsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<AIModelDetailDto>> GetAIModel(int id)
     {
-        var dto = await _context.AIModels
-            .Where(a => a.Id == id)
-            .Select(a => new AIModelDetailDto
-            {
-                Id = a.Id,
-                ModelName = a.ModelName,
-                DisplayName = a.DisplayName,
-                Provider = a.Provider,
-                MaxTokens = a.MaxTokens,
-                SupportsVision = a.SupportsVision,
-                SupportsFunctionCalling = a.SupportsFunctionCalling,
-                InputCostPer1M = a.InputCostPer1M,
-                OutputCostPer1M = a.OutputCostPer1M,
-                RequiredTier = a.RequiredTier,
-                IsActive = a.IsActive,
-                IsDeprecated = a.IsDeprecated,
-                DeprecationDate = a.DeprecationDate,
-                Description = a.Description,
-                RecommendedFor = a.RecommendedFor,
-                ModulesCount = _context.Modules.Count(m => m.AIModelId == a.Id),
-                CreatedAt = a.CreatedAt,
-                UpdatedAt = a.UpdatedAt
-            })
-            .FirstOrDefaultAsync();
-
-        if (dto == null)
+        try
         {
-            return NotFound(new { message = "AI model not found" });
-        }
+            var viewModel = await _aiModelService.GetAIModelWithDetailsAsync(id);
 
-        return Ok(dto);
+            if (viewModel == null)
+            {
+                return NotFound(new { message = "AI model not found" });
+            }
+
+            var dto = new AIModelDetailDto
+            {
+                Id = viewModel.AIModel.Id,
+                ModelName = viewModel.AIModel.ModelName,
+                DisplayName = viewModel.AIModel.DisplayName,
+                Provider = viewModel.AIModel.Provider,
+                MaxTokens = viewModel.AIModel.MaxTokens,
+                SupportsVision = viewModel.AIModel.SupportsVision,
+                SupportsFunctionCalling = viewModel.AIModel.SupportsFunctionCalling,
+                InputCostPer1M = viewModel.AIModel.InputCostPer1M,
+                OutputCostPer1M = viewModel.AIModel.OutputCostPer1M,
+                RequiredTier = viewModel.AIModel.RequiredTier,
+                IsActive = viewModel.AIModel.IsActive,
+                IsDeprecated = viewModel.AIModel.IsDeprecated,
+                DeprecationDate = viewModel.AIModel.DeprecationDate,
+                Description = viewModel.AIModel.Description,
+                RecommendedFor = viewModel.AIModel.RecommendedFor,
+                ModulesCount = viewModel.ModulesCount,
+                CreatedAt = viewModel.AIModel.CreatedAt,
+                UpdatedAt = viewModel.AIModel.UpdatedAt
+            };
+
+            return Ok(dto);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting AI model with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -197,56 +178,63 @@ public class AIModelsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Check if model with same name already exists
-        var existingModel = await _aiModelRepository.GetByModelNameAsync(request.ModelName);
-        if (existingModel != null)
+        try
         {
-            return BadRequest(new { message = "AI model with this name already exists" });
+            var aiModel = new AIModel
+            {
+                ModelName = request.ModelName,
+                DisplayName = request.DisplayName,
+                Provider = request.Provider,
+                MaxTokens = request.MaxTokens,
+                SupportsVision = request.SupportsVision,
+                SupportsFunctionCalling = request.SupportsFunctionCalling,
+                InputCostPer1M = request.InputCostPer1M,
+                OutputCostPer1M = request.OutputCostPer1M,
+                RequiredTier = request.RequiredTier,
+                IsActive = request.IsActive,
+                IsDeprecated = request.IsDeprecated,
+                DeprecationDate = request.DeprecationDate,
+                Description = request.Description,
+                RecommendedFor = request.RecommendedFor
+            };
+
+            var created = await _aiModelService.CreateAsync(aiModel);
+
+            _logger.LogInformation("Created AI model {ModelName} with ID {Id}", created.ModelName, created.Id);
+
+            var dto = new AIModelDetailDto
+            {
+                Id = created.Id,
+                ModelName = created.ModelName,
+                DisplayName = created.DisplayName,
+                Provider = created.Provider,
+                MaxTokens = created.MaxTokens,
+                SupportsVision = created.SupportsVision,
+                SupportsFunctionCalling = created.SupportsFunctionCalling,
+                InputCostPer1M = created.InputCostPer1M,
+                OutputCostPer1M = created.OutputCostPer1M,
+                RequiredTier = created.RequiredTier,
+                IsActive = created.IsActive,
+                IsDeprecated = created.IsDeprecated,
+                DeprecationDate = created.DeprecationDate,
+                Description = created.Description,
+                RecommendedFor = created.RecommendedFor,
+                ModulesCount = 0,
+                CreatedAt = created.CreatedAt,
+                UpdatedAt = created.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetAIModel), new { id = created.Id }, dto);
         }
-
-        var aiModel = new AIModel
+        catch (InvalidOperationException ex)
         {
-            ModelName = request.ModelName,
-            DisplayName = request.DisplayName,
-            Provider = request.Provider.ToLower(),
-            MaxTokens = request.MaxTokens,
-            SupportsVision = request.SupportsVision,
-            SupportsFunctionCalling = request.SupportsFunctionCalling,
-            InputCostPer1M = request.InputCostPer1M,
-            OutputCostPer1M = request.OutputCostPer1M,
-            RequiredTier = request.RequiredTier,
-            IsActive = request.IsActive,
-            IsDeprecated = request.IsDeprecated,
-            DeprecationDate = request.DeprecationDate,
-            Description = request.Description,
-            RecommendedFor = request.RecommendedFor
-        };
-
-        var created = await _aiModelRepository.AddAsync(aiModel);
-
-        _logger.LogInformation("Created AI model {ModelName} with ID {Id}", created.ModelName, created.Id);
-
-        return CreatedAtAction(nameof(GetAIModel), new { id = created.Id }, new AIModelDetailDto
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
         {
-            Id = created.Id,
-            ModelName = created.ModelName,
-            DisplayName = created.DisplayName,
-            Provider = created.Provider,
-            MaxTokens = created.MaxTokens,
-            SupportsVision = created.SupportsVision,
-            SupportsFunctionCalling = created.SupportsFunctionCalling,
-            InputCostPer1M = created.InputCostPer1M,
-            OutputCostPer1M = created.OutputCostPer1M,
-            RequiredTier = created.RequiredTier,
-            IsActive = created.IsActive,
-            IsDeprecated = created.IsDeprecated,
-            DeprecationDate = created.DeprecationDate,
-            Description = created.Description,
-            RecommendedFor = created.RecommendedFor,
-            ModulesCount = 0,
-            CreatedAt = created.CreatedAt,
-            UpdatedAt = created.UpdatedAt
-        });
+            _logger.LogError(ex, "Error creating AI model");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -284,109 +272,70 @@ public class AIModelsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var aiModel = await _aiModelRepository.GetByIdAsync(id);
-        if (aiModel == null)
+        try
+        {
+            // Get existing model first
+            var existing = await _aiModelService.GetAIModelWithDetailsAsync(id);
+            if (existing == null)
+            {
+                return NotFound(new { message = "AI model not found" });
+            }
+
+            // Build update entity from existing + request
+            var aiModel = existing.AIModel;
+            aiModel.DisplayName = request.DisplayName ?? aiModel.DisplayName;
+            aiModel.MaxTokens = request.MaxTokens ?? aiModel.MaxTokens;
+            aiModel.SupportsVision = request.SupportsVision ?? aiModel.SupportsVision;
+            aiModel.SupportsFunctionCalling = request.SupportsFunctionCalling ?? aiModel.SupportsFunctionCalling;
+            aiModel.InputCostPer1M = request.InputCostPer1M ?? aiModel.InputCostPer1M;
+            aiModel.OutputCostPer1M = request.OutputCostPer1M ?? aiModel.OutputCostPer1M;
+            aiModel.RequiredTier = request.RequiredTier ?? aiModel.RequiredTier;
+            aiModel.IsActive = request.IsActive ?? aiModel.IsActive;
+            aiModel.IsDeprecated = request.IsDeprecated ?? aiModel.IsDeprecated;
+            aiModel.DeprecationDate = request.DeprecationDate ?? aiModel.DeprecationDate;
+            aiModel.Description = request.Description ?? aiModel.Description;
+            aiModel.RecommendedFor = request.RecommendedFor ?? aiModel.RecommendedFor;
+
+            var updated = await _aiModelService.UpdateAsync(id, aiModel);
+
+            _logger.LogInformation("Updated AI model {ModelName} with ID {Id}", updated.ModelName, updated.Id);
+
+            // Get full details for response
+            var viewModel = await _aiModelService.GetAIModelWithDetailsAsync(id);
+
+            var dto = new AIModelDetailDto
+            {
+                Id = viewModel!.AIModel.Id,
+                ModelName = viewModel.AIModel.ModelName,
+                DisplayName = viewModel.AIModel.DisplayName,
+                Provider = viewModel.AIModel.Provider,
+                MaxTokens = viewModel.AIModel.MaxTokens,
+                SupportsVision = viewModel.AIModel.SupportsVision,
+                SupportsFunctionCalling = viewModel.AIModel.SupportsFunctionCalling,
+                InputCostPer1M = viewModel.AIModel.InputCostPer1M,
+                OutputCostPer1M = viewModel.AIModel.OutputCostPer1M,
+                RequiredTier = viewModel.AIModel.RequiredTier,
+                IsActive = viewModel.AIModel.IsActive,
+                IsDeprecated = viewModel.AIModel.IsDeprecated,
+                DeprecationDate = viewModel.AIModel.DeprecationDate,
+                Description = viewModel.AIModel.Description,
+                RecommendedFor = viewModel.AIModel.RecommendedFor,
+                ModulesCount = viewModel.ModulesCount,
+                CreatedAt = viewModel.AIModel.CreatedAt,
+                UpdatedAt = viewModel.AIModel.UpdatedAt
+            };
+
+            return Ok(dto);
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "AI model not found" });
         }
-
-        // Update only provided fields
-        if (!string.IsNullOrWhiteSpace(request.DisplayName))
+        catch (Exception ex)
         {
-            aiModel.DisplayName = request.DisplayName;
+            _logger.LogError(ex, "Error updating AI model with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        if (request.MaxTokens.HasValue)
-        {
-            aiModel.MaxTokens = request.MaxTokens.Value;
-        }
-
-        if (request.SupportsVision.HasValue)
-        {
-            aiModel.SupportsVision = request.SupportsVision.Value;
-        }
-
-        if (request.SupportsFunctionCalling.HasValue)
-        {
-            aiModel.SupportsFunctionCalling = request.SupportsFunctionCalling.Value;
-        }
-
-        if (request.InputCostPer1M.HasValue)
-        {
-            aiModel.InputCostPer1M = request.InputCostPer1M;
-        }
-
-        if (request.OutputCostPer1M.HasValue)
-        {
-            aiModel.OutputCostPer1M = request.OutputCostPer1M;
-        }
-
-        if (request.IsActive.HasValue)
-        {
-            aiModel.IsActive = request.IsActive.Value;
-        }
-
-        if (request.IsDeprecated.HasValue)
-        {
-            aiModel.IsDeprecated = request.IsDeprecated.Value;
-
-            // Auto-set deprecation date if marking as deprecated and no date exists
-            if (aiModel.IsDeprecated && aiModel.DeprecationDate == null)
-            {
-                aiModel.DeprecationDate = DateTime.UtcNow;
-            }
-        }
-
-        if (request.DeprecationDate.HasValue)
-        {
-            aiModel.DeprecationDate = request.DeprecationDate;
-        }
-
-        if (request.Description != null)
-        {
-            aiModel.Description = request.Description;
-        }
-
-        if (request.RecommendedFor != null)
-        {
-            aiModel.RecommendedFor = request.RecommendedFor;
-        }
-
-        if (request.RequiredTier.HasValue)
-        {
-            aiModel.RequiredTier = request.RequiredTier.Value;
-        }
-
-        await _aiModelRepository.UpdateAsync(aiModel);
-
-        _logger.LogInformation("Updated AI model {ModelName} with ID {Id}", aiModel.ModelName, aiModel.Id);
-
-        var dto = await _context.AIModels
-            .Where(a => a.Id == aiModel.Id)
-            .Select(a => new AIModelDetailDto
-            {
-                Id = a.Id,
-                ModelName = a.ModelName,
-                DisplayName = a.DisplayName,
-                Provider = a.Provider,
-                MaxTokens = a.MaxTokens,
-                SupportsVision = a.SupportsVision,
-                SupportsFunctionCalling = a.SupportsFunctionCalling,
-                InputCostPer1M = a.InputCostPer1M,
-                OutputCostPer1M = a.OutputCostPer1M,
-                RequiredTier = a.RequiredTier,
-                IsActive = a.IsActive,
-                IsDeprecated = a.IsDeprecated,
-                DeprecationDate = a.DeprecationDate,
-                Description = a.Description,
-                RecommendedFor = a.RecommendedFor,
-                ModulesCount = _context.Modules.Count(m => m.AIModelId == a.Id),
-                CreatedAt = a.CreatedAt,
-                UpdatedAt = a.UpdatedAt
-            })
-            .FirstOrDefaultAsync();
-
-        return Ok(dto);
     }
 
     /// <summary>
@@ -416,30 +365,30 @@ public class AIModelsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> DeleteAIModel(int id)
     {
-        var aiModel = await _aiModelRepository.GetByIdAsync(id);
-        if (aiModel == null)
+        try
+        {
+            var (success, modulesCount) = await _aiModelService.SoftDeleteAsync(id);
+
+            _logger.LogInformation(
+                "Soft deleted AI model with ID {Id}. {ModulesCount} modules were using this model.",
+                id,
+                modulesCount);
+
+            return Ok(new
+            {
+                message = "AI model deactivated successfully",
+                affectedModules = modulesCount,
+                note = "Model marked as inactive. Existing modules can still use it but it won't appear in new module selections."
+            });
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "AI model not found" });
         }
-
-        // Get count of modules using this model
-        var modulesCount = await _context.Modules.CountAsync(m => m.AIModelId == id);
-
-        // Soft delete - mark as inactive instead of hard delete
-        aiModel.IsActive = false;
-        await _aiModelRepository.UpdateAsync(aiModel);
-
-        _logger.LogInformation(
-            "Soft deleted AI model {ModelName} with ID {Id}. {ModulesCount} modules were using this model.",
-            aiModel.ModelName,
-            aiModel.Id,
-            modulesCount);
-
-        return Ok(new
+        catch (Exception ex)
         {
-            message = "AI model deactivated successfully",
-            affectedModules = modulesCount,
-            note = "Model marked as inactive. Existing modules can still use it but it won't appear in new module selections."
-        });
+            _logger.LogError(ex, "Error deleting AI model with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 }

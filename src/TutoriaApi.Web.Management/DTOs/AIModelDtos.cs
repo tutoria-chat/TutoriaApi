@@ -17,6 +17,7 @@ public class AIModelListDto
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
     public string? RecommendedFor { get; set; }
+    public int ModulesCount { get; set; }
 }
 
 public class AIModelDetailDto
@@ -37,7 +38,7 @@ public class AIModelDetailDto
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
     public int ModulesCount { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
 

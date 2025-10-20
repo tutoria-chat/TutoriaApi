@@ -10,6 +10,6 @@ public class Course : BaseEntity
     // Navigation properties
     public University University { get; set; } = null!;
     public ICollection<Module> Modules { get; set; } = new List<Module>();
-    public ICollection<Student> Students { get; set; } = new List<Student>();
+    public ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
     public ICollection<ProfessorCourse> ProfessorCourses { get; set; } = new List<ProfessorCourse>();
 }

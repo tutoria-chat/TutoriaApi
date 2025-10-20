@@ -67,4 +67,68 @@ public class UniversityService : IUniversityService
 
         await _universityRepository.DeleteAsync(university);
     }
+
+    public async Task<int> GetProfessorsCountAsync(int universityId)
+    {
+        return await _universityRepository.GetProfessorsCountAsync(universityId);
+    }
+
+    public async Task<int> GetModulesCountByCourseAsync(int courseId)
+    {
+        return await _universityRepository.GetModulesCountByCourseAsync(courseId);
+    }
+
+    public async Task<int> GetAssignedProfessorsCountByCourseAsync(int courseId)
+    {
+        return await _universityRepository.GetAssignedProfessorsCountByCourseAsync(courseId);
+    }
+
+    public async Task<int> GetStudentsCountByCourseAsync(int courseId)
+    {
+        return await _universityRepository.GetStudentsCountByCourseAsync(courseId);
+    }
+
+    public async Task<UniversityWithCoursesViewModel?> GetUniversityWithDetailsAsync(int id)
+    {
+        // Get university with courses - EXPLICITLY filtered by navigation property
+        var university = await _universityRepository.GetByIdWithCoursesAsync(id);
+
+        if (university == null)
+        {
+            return null;
+        }
+
+        // CRITICAL: Validate that all courses actually belong to this university
+        // This is a safety check in case of data corruption
+        var validCourses = university.Courses
+            .Where(c => c.UniversityId == id)
+            .ToList();
+
+        // Get professor count for this university
+        var professorsCount = await _universityRepository.GetProfessorsCountAsync(id);
+
+        // Build course view models with counts
+        var courseViewModels = new List<CourseViewModel>();
+        foreach (var course in validCourses)
+        {
+            var modulesCount = await _universityRepository.GetModulesCountByCourseAsync(course.Id);
+            var courseProfessorsCount = await _universityRepository.GetAssignedProfessorsCountByCourseAsync(course.Id);
+            var studentsCount = await _universityRepository.GetStudentsCountByCourseAsync(course.Id);
+
+            courseViewModels.Add(new CourseViewModel
+            {
+                Course = course,
+                ModulesCount = modulesCount,
+                ProfessorsCount = courseProfessorsCount,
+                StudentsCount = studentsCount
+            });
+        }
+
+        return new UniversityWithCoursesViewModel
+        {
+            University = university,
+            ProfessorsCount = professorsCount,
+            Courses = courseViewModels
+        };
+    }
 }

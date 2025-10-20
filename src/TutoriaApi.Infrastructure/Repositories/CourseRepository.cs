@@ -16,7 +16,6 @@ public class CourseRepository : Repository<Course>, ICourseRepository
         return await _dbSet
             .Include(c => c.University)
             .Include(c => c.Modules)
-            .Include(c => c.Students)
             .FirstOrDefaultAsync(c => c.Id == id);
     }
 
@@ -58,5 +57,64 @@ public class CourseRepository : Repository<Course>, ICourseRepository
     public async Task<bool> ExistsByCodeAndUniversityAsync(string code, int universityId)
     {
         return await _dbSet.AnyAsync(c => c.Code == code && c.UniversityId == universityId);
+    }
+
+    public async Task<Course?> GetWithFullDetailsAsync(int id)
+    {
+        return await _dbSet
+            .Include(c => c.University)
+            .Include(c => c.Modules)
+            .FirstOrDefaultAsync(c => c.Id == id);
+    }
+
+    public async Task<int> GetModulesCountAsync(int courseId)
+    {
+        return await _context.Modules
+            .Where(m => m.CourseId == courseId)
+            .CountAsync();
+    }
+
+    public async Task<int> GetProfessorsCountAsync(int courseId)
+    {
+        return await _context.ProfessorCourses
+            .Where(pc => pc.CourseId == courseId)
+            .CountAsync();
+    }
+
+    public async Task<int> GetStudentsCountAsync(int courseId)
+    {
+        return await _context.StudentCourses
+            .Where(sc => sc.CourseId == courseId)
+            .CountAsync();
+    }
+
+    public async Task<bool> IsProfessorAssignedAsync(int courseId, int professorId)
+    {
+        return await _context.ProfessorCourses
+            .AnyAsync(pc => pc.CourseId == courseId && pc.ProfessorId == professorId);
+    }
+
+    public async Task AssignProfessorAsync(int courseId, int professorId)
+    {
+        var professorCourse = new ProfessorCourse
+        {
+            CourseId = courseId,
+            ProfessorId = professorId
+        };
+
+        await _context.ProfessorCourses.AddAsync(professorCourse);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task UnassignProfessorAsync(int courseId, int professorId)
+    {
+        var professorCourse = await _context.ProfessorCourses
+            .FirstOrDefaultAsync(pc => pc.CourseId == courseId && pc.ProfessorId == professorId);
+
+        if (professorCourse != null)
+        {
+            _context.ProfessorCourses.Remove(professorCourse);
+            await _context.SaveChangesAsync();
+        }
     }
 }

@@ -11,7 +11,7 @@ namespace TutoriaApi.Infrastructure.Services;
 /// </summary>
 public class AwsSesEmailService : IEmailService
 {
-    private readonly IAmazonSimpleEmailService _sesClient;
+    private readonly IAmazonSimpleEmailService? _sesClient;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AwsSesEmailService> _logger;
     private readonly string _fromAddress;
@@ -20,9 +20,9 @@ public class AwsSesEmailService : IEmailService
     private readonly bool _isEnabled;
 
     public AwsSesEmailService(
-        IAmazonSimpleEmailService sesClient,
         IConfiguration configuration,
-        ILogger<AwsSesEmailService> logger)
+        ILogger<AwsSesEmailService> logger,
+        IAmazonSimpleEmailService? sesClient = null)
     {
         _sesClient = sesClient;
         _configuration = configuration;
@@ -30,7 +30,12 @@ public class AwsSesEmailService : IEmailService
         _fromAddress = configuration["Email:FromAddress"] ?? "noreply@tutoria.com";
         _fromName = configuration["Email:FromName"] ?? "Tutoria Platform";
         _frontendUrl = configuration["Email:FrontendUrl"] ?? "http://localhost:3000";
-        _isEnabled = configuration.GetValue<bool>("Email:Enabled", false);
+        _isEnabled = bool.TryParse(configuration["Email:Enabled"], out var enabled) && enabled && sesClient != null;
+
+        if (_sesClient == null)
+        {
+            _logger.LogWarning("AWS SES client not configured. Email features will be disabled (emails will be logged only).");
+        }
     }
 
     public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetToken, string languageCode = "en")
@@ -150,6 +155,12 @@ public class AwsSesEmailService : IEmailService
 
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody, string textBody)
     {
+        if (_sesClient == null)
+        {
+            _logger.LogWarning("Cannot send email to {Email}: AWS SES client not configured", toEmail);
+            return;
+        }
+
         try
         {
             var sendRequest = new SendEmailRequest

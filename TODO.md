@@ -814,6 +814,94 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 - [ ] Document deployment process
 - [ ] Create CONTRIBUTING.md guide
 
+### Swagger/OpenAPI Documentation Enhancement
+- [ ] **Add comprehensive XML documentation comments to all controllers**
+  - Summary, remarks, param, returns tags for all endpoints
+  - Example request/response payloads in XML comments
+  - Document all query parameters, route parameters, and request bodies
+  - Include common error scenarios and edge cases
+
+- [ ] **Add ProducesResponseType attributes to all endpoints**
+  - `[ProducesResponseType(typeof(TDto), StatusCodes.Status200OK)]` for successful responses
+  - `[ProducesResponseType(StatusCodes.Status400BadRequest)]` for validation errors
+  - `[ProducesResponseType(StatusCodes.Status401Unauthorized)]` for auth failures
+  - `[ProducesResponseType(StatusCodes.Status403Forbidden)]` for authorization failures
+  - `[ProducesResponseType(StatusCodes.Status404NotFound)]` for resource not found
+  - `[ProducesResponseType(StatusCodes.Status500InternalServerError)]` for server errors
+  - Document all possible response types for each endpoint
+
+- [ ] **Enable XML documentation file generation**
+  ```xml
+  <!-- Add to .csproj files -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn> <!-- Suppress missing XML comment warnings -->
+  </PropertyGroup>
+  ```
+
+- [ ] **Clean up controller comments**
+  - Remove inline `//` comments that should be XML docs
+  - Convert important inline comments to XML `<remarks>` sections
+  - Remove redundant comments that duplicate code intent
+  - Keep only comments that explain WHY, not WHAT
+  - Move operational notes to XML `<remarks>` or separate documentation
+
+- [ ] **Enhance Swagger UI**
+  - Add operation IDs for client code generation
+  - Add tags for logical grouping of endpoints
+  - Add example values for DTOs using `[SwaggerSchema]` attributes
+  - Configure default request/response examples
+  - Add description and contact info in SwaggerDoc
+
+- [ ] **Example of well-documented endpoint:**
+  ```csharp
+  /// <summary>
+  /// Creates a new university in the system.
+  /// </summary>
+  /// <remarks>
+  /// This endpoint allows SuperAdmins to create new educational institutions.
+  ///
+  /// **Authorization**: Requires SuperAdminOnly policy.
+  ///
+  /// **Validation Rules**:
+  /// - Name: Required, max 200 characters
+  /// - Code: Required, unique, max 50 characters
+  /// - Description: Optional, max 1000 characters
+  ///
+  /// **Example Request**:
+  /// ```json
+  /// {
+  ///   "name": "University of Technology",
+  ///   "code": "UTECH",
+  ///   "description": "Leading institution in technology education"
+  /// }
+  /// ```
+  /// </remarks>
+  /// <param name="request">University creation data</param>
+  /// <returns>The newly created university with generated ID</returns>
+  /// <response code="201">University created successfully</response>
+  /// <response code="400">Validation failed or code already exists</response>
+  /// <response code="401">User is not authenticated</response>
+  /// <response code="403">User does not have SuperAdmin permissions</response>
+  [HttpPost]
+  [ProducesResponseType(typeof(UniversityDto), StatusCodes.Status201Created)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+  [ProducesResponseType(StatusCodes.Status403Forbidden)]
+  public async Task<ActionResult<UniversityDto>> CreateUniversity([FromBody] CreateUniversityRequest request)
+  {
+      // Implementation
+  }
+  ```
+
+- [ ] **Benefits**:
+  - Auto-generated, accurate API documentation in Swagger UI
+  - Better developer experience for API consumers
+  - Client code generation support (OpenAPI Generator, NSwag)
+  - Clear contract between frontend and backend
+  - Reduced support questions and integration issues
+  - Professional-looking API documentation
+
 ## 🔧 Nice to Have
 - [ ] Add health check endpoints
 - [ ] Add application insights/logging (Serilog)
@@ -824,6 +912,67 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 - [ ] Add database seeding for development
 - [ ] Add Postman collection export
 - [x] **Add global exception handling middleware** ✅
+
+## 🧹 Code Quality & Refactoring
+
+### Replace Hardcoded Strings with Constants
+- [ ] **Create constants files for magic strings across the codebase**
+  - JWT claim types (`"type"`, `"isAdmin"`, `"UniversityId"`, etc.)
+  - User types (`"super_admin"`, `"professor"`, `"student"`)
+  - Scopes (`"api.read"`, `"api.write"`, `"api.admin"`, `"api.manage"`)
+  - Policy names (`"SuperAdminOnly"`, `"AdminOrAbove"`, `"ProfessorOrAbove"`, etc.)
+  - Email template names
+  - Database table/column names (if used in raw queries)
+  - Error messages and validation messages
+  - Default values (theme preferences, language preferences, etc.)
+
+- [ ] **Suggested structure**:
+  ```csharp
+  // TutoriaApi.Core/Constants/ClaimTypes.cs
+  public static class TutoriaClaimTypes
+  {
+      public const string Type = "type";
+      public const string IsAdmin = "isAdmin";
+      public const string UniversityId = "UniversityId";
+  }
+
+  // TutoriaApi.Core/Constants/UserTypes.cs
+  public static class UserTypes
+  {
+      public const string SuperAdmin = "super_admin";
+      public const string Professor = "professor";
+      public const string Student = "student";
+  }
+
+  // TutoriaApi.Core/Constants/Scopes.cs
+  public static class ApiScopes
+  {
+      public const string Read = "api.read";
+      public const string Write = "api.write";
+      public const string Admin = "api.admin";
+      public const string Manage = "api.manage";
+  }
+
+  // TutoriaApi.Core/Constants/Policies.cs
+  public static class AuthPolicies
+  {
+      public const string SuperAdminOnly = "SuperAdminOnly";
+      public const string AdminOrAbove = "AdminOrAbove";
+      public const string ProfessorOrAbove = "ProfessorOrAbove";
+      public const string ReadAccess = "ReadAccess";
+      public const string WriteAccess = "WriteAccess";
+      public const string AdminAccess = "AdminAccess";
+      public const string ManageAccess = "ManageAccess";
+  }
+  ```
+
+- [ ] **Refactor all controllers, services, and middleware to use constants**
+- [ ] **Benefits**:
+  - Compile-time safety (typos caught early)
+  - Centralized management (change once, update everywhere)
+  - Better IntelliSense support
+  - Easier to find all usages
+  - Self-documenting code
 
 ## 🐰 RabbitMQ Async Message Processing
 **Plan Document**: `RABBITMQ_ASYNC_CHAT_PLAN.md`

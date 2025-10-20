@@ -27,6 +27,14 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Module>> GetByUniversityIdAsync(int universityId)
+    {
+        return await _dbSet
+            .Include(m => m.Course)
+            .Where(m => m.Course.UniversityId == universityId)
+            .ToListAsync();
+    }
+
     public async Task<(IEnumerable<Module> Items, int Total)> SearchAsync(
         int? courseId,
         int? semester,
@@ -70,5 +78,23 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
     public async Task<bool> ExistsByCodeAndCourseAsync(string code, int courseId)
     {
         return await _dbSet.AnyAsync(m => m.Code == code && m.CourseId == courseId);
+    }
+
+    public async Task<Dictionary<int, int>> GetFileCountsAsync(IEnumerable<int> moduleIds)
+    {
+        return await _context.Files
+            .Where(f => moduleIds.Contains(f.ModuleId))
+            .GroupBy(f => f.ModuleId)
+            .Select(g => new { ModuleId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ModuleId, x => x.Count);
+    }
+
+    public async Task<Dictionary<int, int>> GetTokenCountsAsync(IEnumerable<int> moduleIds)
+    {
+        return await _context.ModuleAccessTokens
+            .Where(t => moduleIds.Contains(t.ModuleId))
+            .GroupBy(t => t.ModuleId)
+            .Select(g => new { ModuleId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ModuleId, x => x.Count);
     }
 }

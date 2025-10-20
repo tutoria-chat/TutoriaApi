@@ -16,8 +16,8 @@ public class ModuleListDto
     public string? AIModelDisplayName { get; set; }
     public int FilesCount { get; set; }
     public int TokensCount { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleDetailDto
@@ -39,8 +39,8 @@ public class ModuleDetailDto
     public int PromptImprovementCount { get; set; }
     public string TutorLanguage { get; set; } = "pt-br";
     public List<FileDto> Files { get; set; } = new();
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleCreateRequest
@@ -100,11 +100,11 @@ public class ModuleUpdateRequest
 public class FileDto
 {
     public int Id { get; set; }
-    public string FileName { get; set; } = string.Empty;
-    public string BlobName { get; set; } = string.Empty;
-    public string ContentType { get; set; } = string.Empty;
-    public long Size { get; set; }
+    public string? FileName { get; set; }
+    public string? BlobPath { get; set; }
+    public string? ContentType { get; set; }
+    public long? FileSize { get; set; }
     public string? OpenAIFileId { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }

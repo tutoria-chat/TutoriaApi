@@ -33,10 +33,10 @@ public class AnalyticsController : ControllerBase
 
     public AnalyticsController(
         IDynamoDbAnalyticsService analyticsService,
-        ILogger<AnalyticsController> logger)
+        ILogger<AnalyticsController> _logger)
     {
         _analyticsService = analyticsService;
-        _logger = logger;
+        this._logger = _logger;
     }
 
     /// <summary>
@@ -61,11 +61,19 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Limit must be between 1 and 500" });
         }
 
-        _logger.LogInformation("Retrieving conversation history for {ConversationId}", conversationId);
+        try
+        {
+            _logger.LogInformation("Retrieving conversation history for {ConversationId}", conversationId);
 
-        var messages = await _analyticsService.GetConversationHistoryAsync(conversationId, limit);
+            var messages = await _analyticsService.GetConversationHistoryAsync(conversationId, limit);
 
-        return Ok(messages);
+            return Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving conversation history for {ConversationId}", conversationId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -87,11 +95,19 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Invalid module ID" });
         }
 
-        _logger.LogInformation("Retrieving analytics summary for module {ModuleId}", moduleId);
+        try
+        {
+            _logger.LogInformation("Retrieving analytics summary for module {ModuleId}", moduleId);
 
-        var summary = await _analyticsService.GetModuleSummaryAsync(moduleId, startDate, endDate);
+            var summary = await _analyticsService.GetModuleSummaryAsync(moduleId, startDate, endDate);
 
-        return Ok(summary);
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving module summary for module {ModuleId}", moduleId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -120,11 +136,19 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Limit must be between 1 and 5000" });
         }
 
-        _logger.LogInformation("Retrieving messages for module {ModuleId}", moduleId);
+        try
+        {
+            _logger.LogInformation("Retrieving messages for module {ModuleId}", moduleId);
 
-        var messages = await _analyticsService.GetModuleAnalyticsAsync(moduleId, startDate, endDate, limit);
+            var messages = await _analyticsService.GetModuleAnalyticsAsync(moduleId, startDate, endDate, limit);
 
-        return Ok(messages);
+            return Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving messages for module {ModuleId}", moduleId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -153,11 +177,19 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Limit must be between 1 and 1000" });
         }
 
-        _logger.LogInformation("Retrieving activity for student {StudentId}", studentId);
+        try
+        {
+            _logger.LogInformation("Retrieving activity for student {StudentId}", studentId);
 
-        var messages = await _analyticsService.GetStudentActivityAsync(studentId, startDate, endDate, limit);
+            var messages = await _analyticsService.GetStudentActivityAsync(studentId, startDate, endDate, limit);
 
-        return Ok(messages);
+            return Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving activity for student {StudentId}", studentId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -192,11 +224,19 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Limit must be between 1 and 5000" });
         }
 
-        _logger.LogInformation("Retrieving usage statistics for provider {Provider}", provider);
+        try
+        {
+            _logger.LogInformation("Retrieving usage statistics for provider {Provider}", provider);
 
-        var messages = await _analyticsService.GetProviderUsageAsync(normalizedProvider, startDate, endDate, limit);
+            var messages = await _analyticsService.GetProviderUsageAsync(normalizedProvider, startDate, endDate, limit);
 
-        return Ok(messages);
+            return Ok(messages);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving provider usage for {Provider}", provider);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -228,12 +268,20 @@ public class AnalyticsController : ControllerBase
             return BadRequest(new { message = "Max results must be between 1 and 50" });
         }
 
-        _logger.LogInformation("Generating FAQ for module {ModuleId} with min occurrences {MinOccurrences}",
-            moduleId, minimumOccurrences);
+        try
+        {
+            _logger.LogInformation("Generating FAQ for module {ModuleId} with min occurrences {MinOccurrences}",
+                moduleId, minimumOccurrences);
 
-        var faqItems = await _analyticsService.GenerateFaqFromQuestionsAsync(moduleId, minimumOccurrences, maxResults);
+            var faqItems = await _analyticsService.GenerateFaqFromQuestionsAsync(moduleId, minimumOccurrences, maxResults);
 
-        return Ok(faqItems);
+            return Ok(faqItems);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating FAQ for module {ModuleId}", moduleId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     /// <summary>
@@ -248,58 +296,18 @@ public class AnalyticsController : ControllerBase
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null)
     {
-        _logger.LogInformation("Retrieving cost analysis");
-
-        // Get usage for both providers
-        var openaiMessages = await _analyticsService.GetProviderUsageAsync("openai", startDate, endDate);
-        var anthropicMessages = await _analyticsService.GetProviderUsageAsync("anthropic", startDate, endDate);
-
-        // Group by model and calculate totals
-        var openaiCosts = openaiMessages
-            .GroupBy(m => m.ModelUsed)
-            .Select(g => new
-            {
-                Provider = "openai",
-                Model = g.Key,
-                TotalMessages = g.Count(),
-                TotalTokens = g.Sum(m => m.TokenCount ?? 0),
-                AverageResponseTime = g.Average(m => m.ResponseTime ?? 0)
-            })
-            .ToList();
-
-        var anthropicCosts = anthropicMessages
-            .GroupBy(m => m.ModelUsed)
-            .Select(g => new
-            {
-                Provider = "anthropic",
-                Model = g.Key,
-                TotalMessages = g.Count(),
-                TotalTokens = g.Sum(m => m.TokenCount ?? 0),
-                AverageResponseTime = g.Average(m => m.ResponseTime ?? 0)
-            })
-            .ToList();
-
-        var summary = new
+        try
         {
-            OpenAI = new
-            {
-                TotalMessages = openaiMessages.Count,
-                TotalTokens = openaiMessages.Sum(m => m.TokenCount ?? 0),
-                Models = openaiCosts
-            },
-            Anthropic = new
-            {
-                TotalMessages = anthropicMessages.Count,
-                TotalTokens = anthropicMessages.Sum(m => m.TokenCount ?? 0),
-                Models = anthropicCosts
-            },
-            GrandTotal = new
-            {
-                TotalMessages = openaiMessages.Count + anthropicMessages.Count,
-                TotalTokens = openaiMessages.Sum(m => m.TokenCount ?? 0) + anthropicMessages.Sum(m => m.TokenCount ?? 0)
-            }
-        };
+            _logger.LogInformation("Retrieving cost analysis");
 
-        return Ok(summary);
+            var summary = await _analyticsService.GetCostAnalysisAsync(startDate, endDate);
+
+            return Ok(summary);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving cost analysis");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 }

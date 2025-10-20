@@ -23,7 +23,6 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Include(u => u.University)
-            .Include(u => u.Course)
             .FirstOrDefaultAsync(u => u.UserId == userId);
     }
 
@@ -36,7 +35,6 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Include(u => u.University)
-            .Include(u => u.Course)
             .FirstOrDefaultAsync(u => u.Username == username);
     }
 
@@ -44,7 +42,6 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Include(u => u.University)
-            .Include(u => u.Course)
             .FirstOrDefaultAsync(u => u.Username == usernameOrEmail || u.Email == usernameOrEmail);
     }
 

@@ -21,37 +21,68 @@ public class DbSeederService
     {
         try
         {
-            // Check if swagger client already exists
-            var existingClient = await _context.ApiClients
-                .FirstOrDefaultAsync(c => c.ClientId == "swagger-client");
-
-            if (existingClient == null)
+            var clientsToSeed = new[]
             {
-                var scopes = new[] { "api.read", "api.write", "api.admin" };
-                var scopesJson = JsonSerializer.Serialize(scopes);
-
-                var swaggerClient = new ApiClient
+                new
                 {
                     ClientId = "swagger-client",
-                    HashedSecret = BCrypt.Net.BCrypt.HashPassword("dev-secret-2024"),
+                    Secret = "dev-secret-2024",
                     Name = "Swagger UI",
                     Description = "Development Swagger documentation client",
-                    IsActive = true,
-                    Scopes = scopesJson,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
+                    Scopes = new[] { "api.read", "api.write", "api.admin" }
+                },
+                new
+                {
+                    ClientId = "tutoria-ui-backend",
+                    Secret = "tutoria-ui-secret-2024-change-in-production",
+                    Name = "Tutoria UI Backend",
+                    Description = "Next.js server-side client for tutoria-ui login flow",
+                    Scopes = new[] { "api.read", "api.write" }
+                },
+                new
+                {
+                    ClientId = "tutoria-mobile-app",
+                    Secret = "mobile-app-secret-2024-change-in-production",
+                    Name = "Tutoria Mobile App",
+                    Description = "Mobile application client (iOS/Android)",
+                    Scopes = new[] { "api.read", "api.write" }
+                }
+            };
 
-                await _context.ApiClients.AddAsync(swaggerClient);
-                await _context.SaveChangesAsync();
-
-                _logger.LogInformation("✓ Seeded default API client: swagger-client");
-                _logger.LogInformation("  Client Secret: dev-secret-2024");
-            }
-            else
+            foreach (var clientData in clientsToSeed)
             {
-                _logger.LogInformation("✓ API client 'swagger-client' already exists");
+                var existingClient = await _context.ApiClients
+                    .FirstOrDefaultAsync(c => c.ClientId == clientData.ClientId);
+
+                if (existingClient == null)
+                {
+                    var scopesJson = JsonSerializer.Serialize(clientData.Scopes);
+
+                    var newClient = new ApiClient
+                    {
+                        ClientId = clientData.ClientId,
+                        HashedSecret = BCrypt.Net.BCrypt.HashPassword(clientData.Secret),
+                        Name = clientData.Name,
+                        Description = clientData.Description,
+                        IsActive = true,
+                        Scopes = scopesJson,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+
+                    await _context.ApiClients.AddAsync(newClient);
+                    await _context.SaveChangesAsync();
+
+                    _logger.LogInformation("✓ Seeded API client: {ClientId}", clientData.ClientId);
+                    _logger.LogInformation("  Client Secret: {Secret}", clientData.Secret);
+                }
+                else
+                {
+                    _logger.LogInformation("✓ API client '{ClientId}' already exists", clientData.ClientId);
+                }
             }
+
+            _logger.LogInformation("✓ API client seeding complete");
         }
         catch (Exception ex)
         {

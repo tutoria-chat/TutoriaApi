@@ -11,7 +11,7 @@ public class StudentDetailDto
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
     public bool IsActive { get; set; }
-    public int CourseId { get; set; }
+    public int? CourseId { get; set; }  // Nullable - User doesn't have direct CourseId
     public string? CourseName { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime CreatedAt { get; set; }

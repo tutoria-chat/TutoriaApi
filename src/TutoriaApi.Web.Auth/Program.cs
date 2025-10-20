@@ -111,8 +111,8 @@ builder.Services.AddScoped<TutoriaApi.Infrastructure.Services.DbSeederService>()
 // Add CORS
 builder.Services.AddCors(options =>
 {
-    if (builder.Environment.IsDevelopment())
-    {
+    //if (builder.Environment.IsDevelopment())
+    //{
         // Development: Allow all origins for easier testing
         options.AddDefaultPolicy(policy =>
         {
@@ -120,7 +120,7 @@ builder.Services.AddCors(options =>
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         });
-    }
+    /*}
     else
     {
         // Production: Restrict to specific origins
@@ -133,7 +133,7 @@ builder.Services.AddCors(options =>
                   .AllowAnyHeader()
                   .AllowCredentials();
         });
-    }
+    }*/
 });
 
 var app = builder.Build();
@@ -153,7 +153,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Disable HTTPS redirection in development (breaks CORS preflight)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseCors();
 
 // Add global exception handler (should be early in the pipeline)

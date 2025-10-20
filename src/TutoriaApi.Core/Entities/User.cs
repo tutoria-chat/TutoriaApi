@@ -34,5 +34,6 @@ public class User
 
     // Navigation properties
     public University? University { get; set; }
-    public ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
+    // NOTE: ProfessorCourses and StudentCourses removed to avoid EF Core relationship issues
+    // Use raw queries or separate DbSet operations to work with junction tables
 }
