@@ -308,7 +308,8 @@ public class FilesController : BaseAuthController
 
             var downloadUrl = await _fileService.GetDownloadUrlAsync(id, currentUser);
 
-            return Redirect(downloadUrl);
+            // Return JSON with download URL for frontend to handle (camelCase for consistency)
+            return Ok(new { downloadUrl });
         }
         catch (KeyNotFoundException ex)
         {

@@ -286,14 +286,32 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors
-        Dictionary<string, string>? additionalClaims = null;
+        // Add additional claims for professors and all users
+        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
+
         if (user.UserType == "professor" && user.IsAdmin.HasValue)
         {
-            additionalClaims = new Dictionary<string, string>
-            {
-                { "isAdmin", user.IsAdmin.Value.ToString().ToLower() }
-            };
+            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
+        }
+
+        // Add UniversityId for professors (needed for permission checks)
+        if (user.UserType == "professor" && user.UniversityId.HasValue)
+        {
+            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
+        }
+
+        // Add email, firstName, lastName for all users
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            additionalClaims[ClaimTypes.Email] = user.Email;
+        }
+        if (!string.IsNullOrEmpty(user.FirstName))
+        {
+            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
+        }
+        if (!string.IsNullOrEmpty(user.LastName))
+        {
+            additionalClaims[ClaimTypes.Surname] = user.LastName;
         }
 
         // Generate JWT access token
@@ -302,7 +320,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims
+            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
         );
 
         // Generate refresh token
@@ -665,14 +683,32 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors
-        Dictionary<string, string>? additionalClaims = null;
+        // Add additional claims for professors and all users
+        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
+
         if (user.UserType == "professor" && user.IsAdmin.HasValue)
         {
-            additionalClaims = new Dictionary<string, string>
-            {
-                { "isAdmin", user.IsAdmin.Value.ToString().ToLower() }
-            };
+            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
+        }
+
+        // Add UniversityId for professors (needed for permission checks)
+        if (user.UserType == "professor" && user.UniversityId.HasValue)
+        {
+            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
+        }
+
+        // Add email, firstName, lastName for all users
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            additionalClaims[ClaimTypes.Email] = user.Email;
+        }
+        if (!string.IsNullOrEmpty(user.FirstName))
+        {
+            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
+        }
+        if (!string.IsNullOrEmpty(user.LastName))
+        {
+            additionalClaims[ClaimTypes.Surname] = user.LastName;
         }
 
         // Generate new access token
@@ -681,7 +717,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims
+            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
         );
 
         // Generate new refresh token

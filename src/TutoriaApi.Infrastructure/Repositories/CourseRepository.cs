@@ -28,6 +28,7 @@ public class CourseRepository : Repository<Course>, ICourseRepository
 
     public async Task<(IEnumerable<Course> Items, int Total)> SearchAsync(
         int? universityId,
+        int? professorId,
         string? search,
         int page,
         int pageSize)
@@ -37,6 +38,13 @@ public class CourseRepository : Repository<Course>, ICourseRepository
         if (universityId.HasValue)
         {
             query = query.Where(c => c.UniversityId == universityId.Value);
+        }
+
+        // Filter by professor - only show courses assigned to this professor
+        if (professorId.HasValue)
+        {
+            query = query.Where(c => _context.ProfessorCourses
+                .Any(pc => pc.CourseId == c.Id && pc.ProfessorId == professorId.Value));
         }
 
         if (!string.IsNullOrWhiteSpace(search))

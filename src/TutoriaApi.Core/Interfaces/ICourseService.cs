@@ -29,6 +29,7 @@ public interface ICourseService
     Task<CourseDetailViewModel?> GetCourseWithFullDetailsAsync(int id);
     Task<(List<CourseWithCountsViewModel> Items, int Total)> GetPagedWithCountsAsync(
         int? universityId,
+        int? professorId,
         string? search,
         int page,
         int pageSize);

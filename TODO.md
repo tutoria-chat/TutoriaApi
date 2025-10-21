@@ -915,6 +915,17 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 
 ## 🧹 Code Quality & Refactoring
 
+### Controller Route Consistency
+- [ ] **Standardize all controllers to use [Controller] tag in routes**
+  - Replace hardcoded controller names with `[controller]` token
+  - Example: Change `[Route("api/universities")]` to `[Route("api/[controller]")]`
+  - Apply to all controllers in Web.Management and Web.Auth projects
+  - Benefits:
+    - Easier controller renaming
+    - Consistent routing pattern
+    - Less room for typos
+    - Follows ASP.NET Core best practices
+
 ### Replace Hardcoded Strings with Constants
 - [ ] **Create constants files for magic strings across the codebase**
   - JWT claim types (`"type"`, `"isAdmin"`, `"UniversityId"`, etc.)

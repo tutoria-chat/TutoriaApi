@@ -52,6 +52,13 @@ public class UniversityService : IUniversityService
         existing.Name = university.Name;
         existing.Code = university.Code;
         existing.Description = university.Description;
+        existing.Address = university.Address;
+        existing.TaxId = university.TaxId;
+        existing.ContactEmail = university.ContactEmail;
+        existing.ContactPhone = university.ContactPhone;
+        existing.ContactPerson = university.ContactPerson;
+        existing.Website = university.Website;
+        existing.SubscriptionTier = university.SubscriptionTier;
 
         await _universityRepository.UpdateAsync(existing);
         return existing;

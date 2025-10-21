@@ -77,11 +77,12 @@ public class CourseService : ICourseService
 
     public async Task<(List<CourseWithCountsViewModel> Items, int Total)> GetPagedWithCountsAsync(
         int? universityId,
+        int? professorId,
         string? search,
         int page,
         int pageSize)
     {
-        var (courses, total) = await _courseRepository.SearchAsync(universityId, search, page, pageSize);
+        var (courses, total) = await _courseRepository.SearchAsync(universityId, professorId, search, page, pageSize);
 
         var viewModels = new List<CourseWithCountsViewModel>();
 

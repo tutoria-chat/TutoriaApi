@@ -124,9 +124,9 @@ public class ModuleService : IModuleService
         }
 
         // Validate semester and year constraints
-        if (module.Semester < 1 || module.Semester > 8)
+        if (module.Semester.HasValue && (module.Semester < 1 || module.Semester > 2))
         {
-            throw new ArgumentException("Semester must be between 1 and 8");
+            throw new ArgumentException("Semester must be 1 or 2 (only two semesters per year)");
         }
 
         if (module.Year < 2020 || module.Year > 2050)
@@ -153,6 +153,7 @@ public class ModuleService : IModuleService
         existing.Year = module.Year;
         existing.CourseId = module.CourseId;
         existing.TutorLanguage = module.TutorLanguage;
+        existing.AIModelId = module.AIModelId;
 
         await _moduleRepository.UpdateAsync(existing);
         return existing;

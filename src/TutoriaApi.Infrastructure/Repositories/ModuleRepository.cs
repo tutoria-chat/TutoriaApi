@@ -16,6 +16,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
         return await _dbSet
             .Include(m => m.Course)
                 .ThenInclude(c => c.University)
+            .Include(m => m.AIModel)
             .Include(m => m.Files)
             .FirstOrDefaultAsync(m => m.Id == id);
     }
@@ -43,7 +44,10 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
         int page,
         int pageSize)
     {
-        var query = _dbSet.Include(m => m.Course).AsQueryable();
+        var query = _dbSet
+            .Include(m => m.Course)
+            .Include(m => m.AIModel)
+            .AsQueryable();
 
         if (courseId.HasValue)
         {

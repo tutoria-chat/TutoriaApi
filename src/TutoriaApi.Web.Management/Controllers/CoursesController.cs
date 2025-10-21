@@ -43,6 +43,7 @@ public class CoursesController : ControllerBase
     /// <param name="page">Page number (default: 1)</param>
     /// <param name="size">Page size (default: 10, max: 100)</param>
     /// <param name="universityId">Filter by university ID (optional)</param>
+    /// <param name="professorId">Filter by professor ID - only show courses assigned to this professor (optional)</param>
     /// <param name="search">Search by course name or code (optional)</param>
     /// <returns>Paginated list of courses with university info and entity counts.</returns>
     /// <remarks>
@@ -50,6 +51,7 @@ public class CoursesController : ControllerBase
     ///
     /// **Filtering**:
     /// - universityId: Return only courses from specified university
+    /// - professorId: Return only courses assigned to this professor
     /// - search: Partial match on course name or code
     ///
     /// **Performance**: Uses single query with projections to avoid N+1 queries.
@@ -61,6 +63,7 @@ public class CoursesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] int? universityId = null,
+        [FromQuery] int? professorId = null,
         [FromQuery] string? search = null)
     {
         if (page < 1) page = 1;
@@ -69,7 +72,7 @@ public class CoursesController : ControllerBase
 
         try
         {
-            var (viewModels, total) = await _courseService.GetPagedWithCountsAsync(universityId, search, page, size);
+            var (viewModels, total) = await _courseService.GetPagedWithCountsAsync(universityId, professorId, search, page, size);
 
             var dtos = viewModels.Select(vm => new CourseDetailDto
             {

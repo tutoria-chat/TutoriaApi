@@ -119,8 +119,10 @@ public class ModulesController : BaseAuthController
                     Code = course.Code,
                     Description = course.Description
                 } : null,
+                CourseName = course?.Name,
+                UniversityId = course?.UniversityId,
                 AIModelId = module.AIModelId,
-                AIModel = aiModel != null ? new AIModelDto
+                AIModel = aiModel != null ? new AIModelListDto
                 {
                     Id = aiModel.Id,
                     ModelName = aiModel.ModelName,
@@ -129,24 +131,36 @@ public class ModulesController : BaseAuthController
                     MaxTokens = aiModel.MaxTokens,
                     SupportsVision = aiModel.SupportsVision,
                     SupportsFunctionCalling = aiModel.SupportsFunctionCalling,
+                    InputCostPer1M = aiModel.InputCostPer1M,
+                    OutputCostPer1M = aiModel.OutputCostPer1M,
+                    RequiredTier = aiModel.RequiredTier,
                     IsActive = aiModel.IsActive,
-                    IsDeprecated = aiModel.IsDeprecated
+                    IsDeprecated = aiModel.IsDeprecated,
+                    RecommendedFor = aiModel.RecommendedFor,
+                    ModulesCount = 0 // Not needed in this context
                 } : null,
                 OpenAIAssistantId = module.OpenAIAssistantId,
                 OpenAIVectorStoreId = module.OpenAIVectorStoreId,
                 LastPromptImprovedAt = module.LastPromptImprovedAt,
                 PromptImprovementCount = module.PromptImprovementCount,
                 TutorLanguage = module.TutorLanguage,
-                Files = files.Select(f => new FileDto
+                Files = files.Select(f => new FileListDto
                 {
                     Id = f.Id,
+                    Name = f.Name,
+                    FileType = f.FileType,
                     FileName = f.FileName,
                     BlobPath = f.BlobPath,
+                    BlobUrl = f.BlobUrl,
                     ContentType = f.ContentType,
                     FileSize = f.FileSize,
-                    OpenAIFileId = f.OpenAIFileId,
+                    ModuleId = f.ModuleId,
+                    ModuleName = module.Name,
                     IsActive = f.IsActive,
-                    CreatedAt = f.CreatedAt
+                    OpenAIFileId = f.OpenAIFileId,
+                    AnthropicFileId = f.AnthropicFileId,
+                    CreatedAt = f.CreatedAt,
+                    UpdatedAt = f.UpdatedAt
                 }).ToList(),
                 CreatedAt = module.CreatedAt,
                 UpdatedAt = module.UpdatedAt
@@ -201,7 +215,7 @@ public class ModulesController : BaseAuthController
                 AIModelId = created.AIModelId,
                 TutorLanguage = created.TutorLanguage,
                 PromptImprovementCount = created.PromptImprovementCount,
-                Files = new List<FileDto>(),
+                Files = new List<FileListDto>(),
                 CreatedAt = created.CreatedAt,
                 UpdatedAt = created.UpdatedAt
             });
@@ -286,13 +300,49 @@ public class ModulesController : BaseAuthController
                     Code = viewModel.Course.Code,
                     Description = viewModel.Course.Description
                 } : null,
+                CourseName = viewModel?.Course?.Name,
+                UniversityId = viewModel?.Course?.UniversityId,
                 AIModelId = updated.AIModelId,
+                AIModel = viewModel?.AIModel != null ? new AIModelListDto
+                {
+                    Id = viewModel.AIModel.Id,
+                    ModelName = viewModel.AIModel.ModelName,
+                    DisplayName = viewModel.AIModel.DisplayName,
+                    Provider = viewModel.AIModel.Provider,
+                    MaxTokens = viewModel.AIModel.MaxTokens,
+                    SupportsVision = viewModel.AIModel.SupportsVision,
+                    SupportsFunctionCalling = viewModel.AIModel.SupportsFunctionCalling,
+                    InputCostPer1M = viewModel.AIModel.InputCostPer1M,
+                    OutputCostPer1M = viewModel.AIModel.OutputCostPer1M,
+                    RequiredTier = viewModel.AIModel.RequiredTier,
+                    IsActive = viewModel.AIModel.IsActive,
+                    IsDeprecated = viewModel.AIModel.IsDeprecated,
+                    RecommendedFor = viewModel.AIModel.RecommendedFor,
+                    ModulesCount = 0
+                } : null,
                 OpenAIAssistantId = updated.OpenAIAssistantId,
                 OpenAIVectorStoreId = updated.OpenAIVectorStoreId,
                 LastPromptImprovedAt = updated.LastPromptImprovedAt,
                 PromptImprovementCount = updated.PromptImprovementCount,
                 TutorLanguage = updated.TutorLanguage,
-                Files = new List<FileDto>(),
+                Files = viewModel?.Files?.Select(f => new FileListDto
+                {
+                    Id = f.Id,
+                    Name = f.Name,
+                    FileType = f.FileType,
+                    FileName = f.FileName,
+                    BlobPath = f.BlobPath,
+                    BlobUrl = f.BlobUrl,
+                    ContentType = f.ContentType,
+                    FileSize = f.FileSize,
+                    ModuleId = f.ModuleId,
+                    ModuleName = updated.Name,
+                    IsActive = f.IsActive,
+                    OpenAIFileId = f.OpenAIFileId,
+                    AnthropicFileId = f.AnthropicFileId,
+                    CreatedAt = f.CreatedAt,
+                    UpdatedAt = f.UpdatedAt
+                }).ToList() ?? new List<FileListDto>(),
                 CreatedAt = updated.CreatedAt,
                 UpdatedAt = updated.UpdatedAt
             });
