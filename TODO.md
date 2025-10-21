@@ -823,6 +823,11 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 - [x] **Configure automated tests**
   - Tests run on every push
   - Tests run on every PR with coverage
+- [ ] **Fix duplicate GitHub Actions runs on PRs**
+  - Currently triggers on both `push` and `pull_request` events
+  - Results in duplicate jobs: "tests - push" and "tests - pr"
+  - Solution: Remove `push` trigger, keep only `pull_request` for PR workflows
+  - Or use path filters to avoid redundant runs
 - [ ] **Add real unit tests** (currently has placeholder tests)
 - [ ] **Add integration tests**
 - [ ] Configure deployment to Azure/cloud provider

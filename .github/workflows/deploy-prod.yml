@@ -95,6 +95,12 @@ jobs:
         aws-secret-access-key: ${{ secrets.PROD_AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    - name: Generate version label
+      run: |
+        VERSION_LABEL="v-$(date +%Y%m%d-%H%M%S)"
+        echo "VERSION_LABEL=$VERSION_LABEL" >> $GITHUB_ENV
+        echo "Generated version label: $VERSION_LABEL"
+
     - name: Upload to S3
       run: |
         S3_BUCKET="${{ secrets.PROD_EB_S3_BUCKET }}"
@@ -106,7 +112,7 @@ jobs:
       run: |
         aws elasticbeanstalk create-application-version \
           --application-name ${{ env.EB_APPLICATION_NAME }} \
-          --version-label "v-$(date +%Y%m%d-%H%M%S)" \
+          --version-label "${{ env.VERSION_LABEL }}" \
           --source-bundle S3Bucket="${{ secrets.PROD_EB_S3_BUCKET }}",S3Key="${{ env.S3_KEY }}" \
           --description "Production Deployment from GitHub Actions - Commit ${{ github.sha }}"
 
@@ -115,7 +121,7 @@ jobs:
         aws elasticbeanstalk update-environment \
           --application-name ${{ env.EB_APPLICATION_NAME }} \
           --environment-name ${{ env.EB_ENVIRONMENT_NAME }} \
-          --version-label "v-$(date +%Y%m%d-%H%M%S)"
+          --version-label "${{ env.VERSION_LABEL }}"
 
     - name: Wait for deployment to complete
       run: |
