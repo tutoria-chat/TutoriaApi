@@ -38,7 +38,10 @@ builder.Services.AddEndpointsApiExplorer();
 
 // Add Health Checks
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<TutoriaApi.Infrastructure.Data.TutoriaDbContext>();
+    .AddDbContextCheck<TutoriaApi.Infrastructure.Data.TutoriaDbContext>(
+        name: "database",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        tags: new[] { "db", "sql" });
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -190,13 +193,33 @@ app.UseAuthorization();
 app.MapControllers();
 
 // Map health check endpoints
+// Simple ping endpoint for load balancer
+app.MapGet("/ping", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+// Detailed health checks (includes database)
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
-// Log registered services on startup
-Console.WriteLine("\n🚀 Tutoria Unified API started");
-Console.WriteLine("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
-Console.WriteLine("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
-Console.WriteLine("📦 All repositories and services auto-registered via DI\n");
+try
+{
+    // Log registered services on startup
+    Log.Information("🚀 Tutoria Unified API starting...");
+    Log.Information("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
+    Log.Information("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
+    Log.Information("📦 All repositories and services auto-registered via DI");
 
-app.Run();
+    // Log environment and configuration info
+    Log.Information("Environment: {Environment}", app.Environment.EnvironmentName);
+    Log.Information("Content Root: {ContentRoot}", app.Environment.ContentRootPath);
+
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "❌ Application failed to start");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
