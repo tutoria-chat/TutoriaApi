@@ -1,6 +1,0 @@
-@TutoriaApi.Web.Auth_HostAddress = http://localhost:5235
-
-GET {{TutoriaApi.Web.Auth_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###
