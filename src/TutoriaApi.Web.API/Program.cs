@@ -25,10 +25,8 @@ builder.Services.Configure<IpRateLimitPolicies>(builder.Configuration.GetSection
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
-// Add services to the container - Include controllers from BOTH APIs
-builder.Services.AddControllers()
-    .AddApplicationPart(typeof(TutoriaApi.Web.Management.Controllers.UniversitiesController).Assembly)
-    .AddApplicationPart(typeof(TutoriaApi.Web.Auth.Controllers.AuthController).Assembly);
+// Add services to the container
+builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 
