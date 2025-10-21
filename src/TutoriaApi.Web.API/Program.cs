@@ -5,22 +5,18 @@ using System.Text;
 using TutoriaApi.Infrastructure;
 using TutoriaApi.Infrastructure.Middleware;
 using AspNetCoreRateLimit;
-using Serilog;
-
-// Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(new ConfigurationBuilder()
-        .AddJsonFile("appsettings.json")
-        .Build())
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File("logs/tutoria-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Use Serilog for logging
-builder.Host.UseSerilog();
+// Configure built-in logging (console output goes to CloudWatch on EB)
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.SetMinimumLevel(LogLevel.Information);
+builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+builder.Logging.AddFilter("System", LogLevel.Warning);
 
 // Add Rate Limiting
 builder.Services.AddMemoryCache();
@@ -200,26 +196,12 @@ app.MapGet("/ping", () => Results.Ok(new { status = "healthy", timestamp = DateT
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
-try
-{
-    // Log registered services on startup
-    Log.Information("🚀 Tutoria Unified API starting...");
-    Log.Information("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
-    Log.Information("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
-    Log.Information("📦 All repositories and services auto-registered via DI");
+// Log registered services on startup
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+logger.LogInformation("🚀 Tutoria Unified API starting...");
+logger.LogInformation("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
+logger.LogInformation("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
+logger.LogInformation("📦 All repositories and services auto-registered via DI");
+logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
-    // Log environment and configuration info
-    Log.Information("Environment: {Environment}", app.Environment.EnvironmentName);
-    Log.Information("Content Root: {ContentRoot}", app.Environment.ContentRootPath);
-
-    app.Run();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "❌ Application failed to start");
-    throw;
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+app.Run();

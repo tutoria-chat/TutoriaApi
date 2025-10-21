@@ -1,25 +1,21 @@
 using TutoriaApi.Infrastructure;
 using TutoriaApi.Infrastructure.Middleware;
 using AspNetCoreRateLimit;
-using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-// Configure Serilog
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(new ConfigurationBuilder()
-        .AddJsonFile("appsettings.json")
-        .Build())
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .WriteTo.File("logs/tutoria-auth-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
-
 var builder = WebApplication.CreateBuilder(args);
 
-// Use Serilog for logging
-builder.Host.UseSerilog();
+// Configure built-in logging
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+builder.Logging.SetMinimumLevel(LogLevel.Information);
+builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+builder.Logging.AddFilter("System", LogLevel.Warning);
 
 // Add Rate Limiting
 builder.Services.AddMemoryCache();
