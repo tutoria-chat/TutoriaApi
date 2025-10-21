@@ -1,8 +1,12 @@
 using System.Reflection;
+using Amazon;
+using Amazon.Runtime;
+using Amazon.SimpleEmail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TutoriaApi.Infrastructure.Data;
+using TutoriaApi.Infrastructure.Helpers;
 
 namespace TutoriaApi.Infrastructure;
 
@@ -20,6 +24,35 @@ public static class DependencyInjection
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
                 sqlOptions => sqlOptions.EnableRetryOnFailure()));
+
+        // Register helper classes
+        services.AddScoped<AccessControlHelper>();
+        Console.WriteLine("✓ Registered: AccessControlHelper");
+
+        // Register AWS SES client (optional - only if credentials are configured)
+        // Check if AWS credentials are available via environment variables or configuration
+        var awsAccessKey = Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID")
+            ?? configuration["AWS:AccessKeyId"];
+        var awsSecretKey = Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY")
+            ?? configuration["AWS:SecretAccessKey"];
+        var awsRegion = configuration["AWS:Region"] ?? "us-east-1";
+
+        if (!string.IsNullOrEmpty(awsAccessKey) && !string.IsNullOrEmpty(awsSecretKey))
+        {
+            // Configure AWS options with explicit credentials
+            var awsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
+            {
+                Credentials = new BasicAWSCredentials(awsAccessKey, awsSecretKey),
+                Region = RegionEndpoint.GetBySystemName(awsRegion)
+            };
+
+            services.AddAWSService<IAmazonSimpleEmailService>(awsOptions);
+            Console.WriteLine($"✓ Registered: IAmazonSimpleEmailService (AWS SES) - Region: {awsRegion}");
+        }
+        else
+        {
+            Console.WriteLine("⚠ Skipped: AWS SES (credentials not configured - email features disabled)");
+        }
 
         // Auto-register all repositories and services
         services.AddRepositories();

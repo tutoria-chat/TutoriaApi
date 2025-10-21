@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "Tutoria",
+    "Projects": [
+      {
+        "Path": "src\\TutoriaApi.Web.Management\\TutoriaApi.Web.Management.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      },
+      {
+        "Path": "src\\TutoriaApi.Web.Auth\\TutoriaApi.Web.Auth.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      }
+    ]
+  }
+]

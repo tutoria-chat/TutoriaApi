@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
@@ -28,23 +26,14 @@ namespace TutoriaApi.Web.Management.Controllers;
 [Authorize]
 public class CoursesController : ControllerBase
 {
-    private readonly ICourseRepository _courseRepository;
-    private readonly IUniversityRepository _universityRepository;
-    private readonly IProfessorRepository _professorRepository;
-    private readonly TutoriaDbContext _context;
+    private readonly ICourseService _courseService;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
-        ICourseRepository courseRepository,
-        IUniversityRepository universityRepository,
-        IProfessorRepository professorRepository,
-        TutoriaDbContext context,
+        ICourseService courseService,
         ILogger<CoursesController> logger)
     {
-        _courseRepository = courseRepository;
-        _universityRepository = universityRepository;
-        _professorRepository = professorRepository;
-        _context = context;
+        _courseService = courseService;
         _logger = logger;
     }
 
@@ -54,6 +43,7 @@ public class CoursesController : ControllerBase
     /// <param name="page">Page number (default: 1)</param>
     /// <param name="size">Page size (default: 10, max: 100)</param>
     /// <param name="universityId">Filter by university ID (optional)</param>
+    /// <param name="professorId">Filter by professor ID - only show courses assigned to this professor (optional)</param>
     /// <param name="search">Search by course name or code (optional)</param>
     /// <returns>Paginated list of courses with university info and entity counts.</returns>
     /// <remarks>
@@ -61,6 +51,7 @@ public class CoursesController : ControllerBase
     ///
     /// **Filtering**:
     /// - universityId: Return only courses from specified university
+    /// - professorId: Return only courses assigned to this professor
     /// - search: Partial match on course name or code
     ///
     /// **Performance**: Uses single query with projections to avoid N+1 queries.
@@ -72,110 +63,107 @@ public class CoursesController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] int? universityId = null,
+        [FromQuery] int? professorId = null,
         [FromQuery] string? search = null)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        var query = _context.Courses.AsQueryable();
-
-        if (universityId.HasValue)
+        try
         {
-            query = query.Where(c => c.UniversityId == universityId.Value);
-        }
+            var (viewModels, total) = await _courseService.GetPagedWithCountsAsync(universityId, professorId, search, page, size);
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(c => c.Name.Contains(search) || c.Code.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-
-        // Use projection to avoid N+1 queries - count related entities in single query
-        var items = await query
-            .Include(c => c.University)
-            .OrderBy(c => c.Id)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .Select(c => new CourseDetailDto
+            var dtos = viewModels.Select(vm => new CourseDetailDto
             {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description,
-                UniversityId = c.UniversityId,
-                UniversityName = c.University != null ? c.University.Name : null,
-                ModulesCount = _context.Modules.Count(m => m.CourseId == c.Id),
-                ProfessorsCount = _context.ProfessorCourses.Count(pc => pc.CourseId == c.Id),
-                StudentsCount = _context.Users.Count(u => u.UserType == "student" && u.CourseId == c.Id),
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
-            })
-            .ToListAsync();
+                Id = vm.Course.Id,
+                Name = vm.Course.Name,
+                Code = vm.Course.Code,
+                Description = vm.Course.Description,
+                UniversityId = vm.Course.UniversityId,
+                UniversityName = vm.UniversityName,
+                ModulesCount = vm.ModulesCount,
+                ProfessorsCount = vm.ProfessorsCount,
+                StudentsCount = vm.StudentsCount,
+                CreatedAt = vm.Course.CreatedAt,
+                UpdatedAt = vm.Course.UpdatedAt
+            }).ToList();
 
-        return Ok(new PaginatedResponse<CourseDetailDto>
+            return Ok(new PaginatedResponse<CourseDetailDto>
+            {
+                Items = dtos,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
+        }
+        catch (Exception ex)
         {
-            Items = items,
-            Total = total,
-            Page = page,
-            Size = size,
-            Pages = (int)Math.Ceiling(total / (double)size)
-        });
+            _logger.LogError(ex, "Error getting paginated courses");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<CourseWithDetailsDto>> GetCourse(int id)
     {
-        // Use projection with Users table instead of legacy Students table
-        var dto = await _context.Courses
-            .Where(c => c.Id == id)
-            .Select(c => new CourseWithDetailsDto
+        try
+        {
+            var viewModel = await _courseService.GetCourseWithFullDetailsAsync(id);
+
+            if (viewModel == null)
             {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description,
-                UniversityId = c.UniversityId,
-                University = c.University != null ? new UniversityDto
+                return NotFound(new { message = "Course not found" });
+            }
+
+            var dto = new CourseWithDetailsDto
+            {
+                Id = viewModel.Course.Id,
+                Name = viewModel.Course.Name,
+                Code = viewModel.Course.Code,
+                Description = viewModel.Course.Description,
+                UniversityId = viewModel.Course.UniversityId,
+                University = viewModel.University != null ? new UniversityDto
                 {
-                    Id = c.University.Id,
-                    Name = c.University.Name,
-                    Code = c.University.Code,
-                    Description = c.University.Description,
-                    CreatedAt = c.University.CreatedAt,
-                    UpdatedAt = c.University.UpdatedAt
+                    Id = viewModel.University.Id,
+                    Name = viewModel.University.Name,
+                    Code = viewModel.University.Code,
+                    Description = viewModel.University.Description,
+                    CreatedAt = viewModel.University.CreatedAt,
+                    UpdatedAt = viewModel.University.UpdatedAt
                 } : null,
-                Modules = c.Modules.Select(m => new ModuleDto
+                Modules = viewModel.Modules.Select(m => new ModuleDto
                 {
                     Id = m.Id,
                     Name = m.Name,
                     Code = m.Code,
                     Description = m.Description,
                     Semester = m.Semester,
-                    Year = m.Year
+                    Year = m.Year,
+                    FilesCount = viewModel.ModuleFileCounts.GetValueOrDefault(m.Id, 0),
+                    TokensCount = viewModel.ModuleTokenCounts.GetValueOrDefault(m.Id, 0),
+                    UpdatedAt = m.UpdatedAt
                 }).ToList(),
-                Students = _context.Users
-                    .Where(u => u.UserType == "student" && u.CourseId == c.Id)
-                    .Select(u => new StudentDto
-                    {
-                        Id = u.UserId,
-                        Username = u.Username,
-                        Email = u.Email,
-                        FirstName = u.FirstName,
-                        LastName = u.LastName
-                    }).ToList(),
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
-            })
-            .FirstOrDefaultAsync();
+                Students = viewModel.Students.Select(s => new StudentDto
+                {
+                    Id = s.UserId,
+                    Username = s.Username,
+                    Email = s.Email,
+                    FirstName = s.FirstName,
+                    LastName = s.LastName
+                }).ToList(),
+                CreatedAt = viewModel.Course.CreatedAt,
+                UpdatedAt = viewModel.Course.UpdatedAt
+            };
 
-        if (dto == null)
-        {
-            return NotFound(new { message = "Course not found" });
+            return Ok(dto);
         }
-
-        return Ok(dto);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting course with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost]
@@ -187,48 +175,53 @@ public class CoursesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Check if university exists
-        var university = await _universityRepository.GetByIdAsync(request.UniversityId);
-        if (university == null)
+        try
         {
-            return NotFound(new { message = "University not found" });
+            var course = new Course
+            {
+                Name = request.Name,
+                Code = request.Code,
+                Description = request.Description,
+                UniversityId = request.UniversityId
+            };
+
+            var created = await _courseService.CreateAsync(course);
+
+            _logger.LogInformation("Created course {Name} with ID {Id}", created.Name, created.Id);
+
+            // Get full details for response
+            var viewModel = await _courseService.GetCourseWithCountsAsync(created.Id);
+
+            var dto = new CourseDetailDto
+            {
+                Id = viewModel!.Course.Id,
+                Name = viewModel.Course.Name,
+                Code = viewModel.Course.Code,
+                Description = viewModel.Course.Description,
+                UniversityId = viewModel.Course.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ModulesCount = viewModel.ModulesCount,
+                ProfessorsCount = viewModel.ProfessorsCount,
+                StudentsCount = viewModel.StudentsCount,
+                CreatedAt = viewModel.Course.CreatedAt,
+                UpdatedAt = viewModel.Course.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetCourse), new { id = created.Id }, dto);
         }
-
-        // Check if course with same code exists in university
-        var existingCourse = await _context.Courses
-            .FirstOrDefaultAsync(c => c.Code == request.Code && c.UniversityId == request.UniversityId);
-
-        if (existingCourse != null)
+        catch (KeyNotFoundException ex)
         {
-            return BadRequest(new { message = "Course with this code already exists in this university" });
+            return NotFound(new { message = ex.Message });
         }
-
-        var course = new Course
+        catch (InvalidOperationException ex)
         {
-            Name = request.Name,
-            Code = request.Code,
-            Description = request.Description,
-            UniversityId = request.UniversityId
-        };
-
-        var created = await _courseRepository.AddAsync(course);
-
-        _logger.LogInformation("Created course {Name} with ID {Id}", created.Name, created.Id);
-
-        return CreatedAtAction(nameof(GetCourse), new { id = created.Id }, new CourseDetailDto
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
         {
-            Id = created.Id,
-            Name = created.Name,
-            Code = created.Code,
-            Description = created.Description,
-            UniversityId = created.UniversityId,
-            UniversityName = university.Name,
-            ModulesCount = 0,
-            ProfessorsCount = 0,
-            StudentsCount = 0,
-            CreatedAt = created.CreatedAt,
-            UpdatedAt = created.UpdatedAt
-        });
+            _logger.LogError(ex, "Error creating course");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}")]
@@ -240,135 +233,121 @@ public class CoursesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var course = await _courseRepository.GetByIdAsync(id);
-        if (course == null)
+        try
+        {
+            var course = new Course
+            {
+                Name = request.Name ?? string.Empty,
+                Code = request.Code ?? string.Empty,
+                Description = request.Description
+            };
+
+            var viewModel = await _courseService.UpdateAsync(id, course);
+
+            _logger.LogInformation("Updated course {Name} with ID {Id}", viewModel.Course.Name, viewModel.Course.Id);
+
+            var dto = new CourseDetailDto
+            {
+                Id = viewModel.Course.Id,
+                Name = viewModel.Course.Name,
+                Code = viewModel.Course.Code,
+                Description = viewModel.Course.Description,
+                UniversityId = viewModel.Course.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                ModulesCount = viewModel.ModulesCount,
+                ProfessorsCount = viewModel.ProfessorsCount,
+                StudentsCount = viewModel.StudentsCount,
+                CreatedAt = viewModel.Course.CreatedAt,
+                UpdatedAt = viewModel.Course.UpdatedAt
+            };
+
+            return Ok(dto);
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "Course not found" });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Name))
+        catch (InvalidOperationException ex)
         {
-            course.Name = request.Name;
+            return BadRequest(new { message = ex.Message });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Code))
+        catch (Exception ex)
         {
-            // Check if code is taken by another course in same university
-            var existingCourse = await _context.Courses
-                .FirstOrDefaultAsync(c => c.Code == request.Code && c.UniversityId == course.UniversityId && c.Id != id);
-
-            if (existingCourse != null)
-            {
-                return BadRequest(new { message = "Course with this code already exists in this university" });
-            }
-
-            course.Code = request.Code;
+            _logger.LogError(ex, "Error updating course with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        if (request.Description != null)
-        {
-            course.Description = request.Description;
-        }
-
-        await _courseRepository.UpdateAsync(course);
-
-        _logger.LogInformation("Updated course {Name} with ID {Id}", course.Name, course.Id);
-
-        // Use single query with projection to avoid multiple roundtrips
-        var dto = await _context.Courses
-            .Where(c => c.Id == course.Id)
-            .Select(c => new CourseDetailDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description,
-                UniversityId = c.UniversityId,
-                UniversityName = c.University != null ? c.University.Name : null,
-                ModulesCount = _context.Modules.Count(m => m.CourseId == c.Id),
-                ProfessorsCount = _context.ProfessorCourses.Count(pc => pc.CourseId == c.Id),
-                StudentsCount = _context.Users.Count(u => u.UserType == "student" && u.CourseId == c.Id),
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
-            })
-            .FirstOrDefaultAsync();
-
-        return Ok(dto);
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "AdminOrAbove")]
     public async Task<ActionResult> DeleteCourse(int id)
     {
-        var course = await _courseRepository.GetByIdAsync(id);
-        if (course == null)
+        try
+        {
+            await _courseService.DeleteAsync(id);
+
+            _logger.LogInformation("Deleted course with ID {Id}", id);
+
+            return Ok(new { message = "Course deleted successfully" });
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "Course not found" });
         }
-
-        await _courseRepository.DeleteAsync(course);
-
-        _logger.LogInformation("Deleted course {Name} with ID {Id}", course.Name, course.Id);
-
-        return Ok(new { message = "Course deleted successfully" });
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting course with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost("{courseId}/professors/{professorId}")]
     [Authorize(Policy = "AdminOrAbove")]
     public async Task<ActionResult> AssignProfessorToCourse(int courseId, int professorId)
     {
-        var course = await _courseRepository.GetByIdAsync(courseId);
-        if (course == null)
+        try
         {
-            return NotFound(new { message = "Course not found" });
+            await _courseService.AssignProfessorAsync(courseId, professorId);
+
+            _logger.LogInformation("Assigned professor {ProfessorId} to course {CourseId}", professorId, courseId);
+
+            return Ok(new { message = "Professor assigned to course successfully" });
         }
-
-        var professor = await _professorRepository.GetByIdAsync(professorId);
-        if (professor == null)
+        catch (KeyNotFoundException ex)
         {
-            return NotFound(new { message = "Professor not found" });
+            return NotFound(new { message = ex.Message });
         }
-
-        // Check if assignment already exists
-        var existing = await _context.ProfessorCourses
-            .FirstOrDefaultAsync(pc => pc.ProfessorId == professorId && pc.CourseId == courseId);
-
-        if (existing != null)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = "Professor is already assigned to this course" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var assignment = new ProfessorCourse
+        catch (Exception ex)
         {
-            ProfessorId = professorId,
-            CourseId = courseId
-        };
-
-        _context.ProfessorCourses.Add(assignment);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Assigned professor {ProfessorId} to course {CourseId}", professorId, courseId);
-
-        return Ok(new { message = "Professor assigned to course successfully" });
+            _logger.LogError(ex, "Error assigning professor {ProfessorId} to course {CourseId}", professorId, courseId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpDelete("{courseId}/professors/{professorId}")]
     [Authorize(Policy = "AdminOrAbove")]
     public async Task<ActionResult> UnassignProfessorFromCourse(int courseId, int professorId)
     {
-        var assignment = await _context.ProfessorCourses
-            .FirstOrDefaultAsync(pc => pc.ProfessorId == professorId && pc.CourseId == courseId);
-
-        if (assignment == null)
+        try
         {
-            return NotFound(new { message = "Professor is not assigned to this course" });
+            await _courseService.UnassignProfessorAsync(courseId, professorId);
+
+            _logger.LogInformation("Unassigned professor {ProfessorId} from course {CourseId}", professorId, courseId);
+
+            return Ok(new { message = "Professor unassigned from course successfully" });
         }
-
-        _context.ProfessorCourses.Remove(assignment);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Unassigned professor {ProfessorId} from course {CourseId}", professorId, courseId);
-
-        return Ok(new { message = "Professor unassigned from course successfully" });
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unassigning professor {ProfessorId} from course {CourseId}", professorId, courseId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 }

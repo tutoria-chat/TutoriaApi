@@ -9,4 +9,12 @@ public interface IAIModelRepository : IRepository<AIModel>
     Task<IEnumerable<AIModel>> GetByProviderAsync(string provider);
     Task<AIModel?> GetByModelNameAsync(string modelName);
     Task<bool> ExistsByModelNameAsync(string modelName);
+
+    Task<List<AIModel>> SearchAsync(
+        string? provider = null,
+        bool? isActive = null,
+        bool includeDeprecated = false,
+        int? maxTier = null);
+
+    Task<int> GetModulesCountAsync(int aiModelId);
 }

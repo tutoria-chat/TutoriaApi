@@ -13,8 +13,8 @@ public class CourseDetailDto
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class CourseCreateRequest
@@ -54,8 +54,8 @@ public class CourseWithDetailsDto
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleDto
@@ -66,6 +66,9 @@ public class ModuleDto
     public string? Description { get; set; }
     public int? Semester { get; set; }
     public int? Year { get; set; }
+    public int FilesCount { get; set; }
+    public int TokensCount { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class StudentDto

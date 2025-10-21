@@ -16,6 +16,9 @@ public class AIModel : BaseEntity
     public decimal? InputCostPer1M { get; set; }
     public decimal? OutputCostPer1M { get; set; }
 
+    // Subscription tier (1 = Basic/Deprecated, 2 = Standard, 3 = Premium)
+    public int RequiredTier { get; set; } = 3;
+
     // Status
     public bool IsActive { get; set; } = true;
     public bool IsDeprecated { get; set; }

@@ -45,4 +45,45 @@ public class AIModelRepository : Repository<AIModel>, IAIModelRepository
     {
         return await _dbSet.AnyAsync(a => a.ModelName == modelName);
     }
+
+    public async Task<List<AIModel>> SearchAsync(
+        string? provider = null,
+        bool? isActive = null,
+        bool includeDeprecated = false,
+        int? maxTier = null)
+    {
+        var query = _dbSet.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(provider))
+        {
+            query = query.Where(a => a.Provider == provider.ToLower());
+        }
+
+        if (isActive.HasValue)
+        {
+            query = query.Where(a => a.IsActive == isActive.Value);
+        }
+
+        if (!includeDeprecated)
+        {
+            query = query.Where(a => !a.IsDeprecated);
+        }
+
+        if (maxTier.HasValue)
+        {
+            query = query.Where(a => a.RequiredTier <= maxTier.Value);
+        }
+
+        return await query
+            .OrderBy(a => a.Provider)
+            .ThenBy(a => a.DisplayName)
+            .ToListAsync();
+    }
+
+    public async Task<int> GetModulesCountAsync(int aiModelId)
+    {
+        return await _context.Modules
+            .Where(m => m.AIModelId == aiModelId)
+            .CountAsync();
+    }
 }

@@ -13,9 +13,11 @@ public class AIModelListDto
     public bool SupportsFunctionCalling { get; set; }
     public decimal? InputCostPer1M { get; set; }
     public decimal? OutputCostPer1M { get; set; }
+    public int RequiredTier { get; set; }
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
     public string? RecommendedFor { get; set; }
+    public int ModulesCount { get; set; }
 }
 
 public class AIModelDetailDto
@@ -29,13 +31,14 @@ public class AIModelDetailDto
     public bool SupportsFunctionCalling { get; set; }
     public decimal? InputCostPer1M { get; set; }
     public decimal? OutputCostPer1M { get; set; }
+    public int RequiredTier { get; set; }
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
     public DateTime? DeprecationDate { get; set; }
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
     public int ModulesCount { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
 
@@ -68,6 +71,9 @@ public class AIModelCreateRequest
     [Range(0, double.MaxValue, ErrorMessage = "Output cost must be non-negative")]
     public decimal? OutputCostPer1M { get; set; }
 
+    [Range(1, 3, ErrorMessage = "Required tier must be between 1 and 3")]
+    public int RequiredTier { get; set; } = 3;
+
     public bool IsActive { get; set; } = true;
 
     public bool IsDeprecated { get; set; } = false;
@@ -98,6 +104,9 @@ public class AIModelUpdateRequest
 
     [Range(0, double.MaxValue, ErrorMessage = "Output cost must be non-negative")]
     public decimal? OutputCostPer1M { get; set; }
+
+    [Range(1, 3, ErrorMessage = "Required tier must be between 1 and 3")]
+    public int? RequiredTier { get; set; }
 
     public bool? IsActive { get; set; }
 

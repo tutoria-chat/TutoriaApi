@@ -6,6 +6,7 @@ public interface IModuleRepository : IRepository<Module>
 {
     Task<Module?> GetWithDetailsAsync(int id);
     Task<IEnumerable<Module>> GetByCourseIdAsync(int courseId);
+    Task<IEnumerable<Module>> GetByUniversityIdAsync(int universityId);
     Task<(IEnumerable<Module> Items, int Total)> SearchAsync(
         int? courseId,
         int? semester,
@@ -14,4 +15,6 @@ public interface IModuleRepository : IRepository<Module>
         int page,
         int pageSize);
     Task<bool> ExistsByCodeAndCourseAsync(string code, int courseId);
+    Task<Dictionary<int, int>> GetFileCountsAsync(IEnumerable<int> moduleIds);
+    Task<Dictionary<int, int>> GetTokenCountsAsync(IEnumerable<int> moduleIds);
 }

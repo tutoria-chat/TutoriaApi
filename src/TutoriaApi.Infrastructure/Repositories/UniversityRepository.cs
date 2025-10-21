@@ -56,4 +56,32 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
 
         return (items, total);
     }
+
+    public async Task<int> GetProfessorsCountAsync(int universityId)
+    {
+        return await _context.Users
+            .Where(u => u.UserType == "professor" && u.UniversityId == universityId)
+            .CountAsync();
+    }
+
+    public async Task<int> GetModulesCountByCourseAsync(int courseId)
+    {
+        return await _context.Modules
+            .Where(m => m.CourseId == courseId)
+            .CountAsync();
+    }
+
+    public async Task<int> GetAssignedProfessorsCountByCourseAsync(int courseId)
+    {
+        return await _context.ProfessorCourses
+            .Where(pc => pc.CourseId == courseId)
+            .CountAsync();
+    }
+
+    public async Task<int> GetStudentsCountByCourseAsync(int courseId)
+    {
+        return await _context.StudentCourses
+            .Where(sc => sc.CourseId == courseId)
+            .CountAsync();
+    }
 }

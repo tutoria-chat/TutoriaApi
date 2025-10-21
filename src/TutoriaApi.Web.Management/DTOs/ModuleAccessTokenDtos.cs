@@ -16,7 +16,7 @@ public class ModuleAccessTokenListDto
     public bool AllowFileAccess { get; set; }
     public int UsageCount { get; set; }
     public DateTime? LastUsedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }
 
 public class ModuleAccessTokenDetailDto
@@ -39,8 +39,8 @@ public class ModuleAccessTokenDetailDto
     public bool AllowFileAccess { get; set; }
     public int UsageCount { get; set; }
     public DateTime? LastUsedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleAccessTokenCreateRequest

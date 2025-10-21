@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.Management.DTOs;
@@ -12,16 +11,13 @@ namespace TutoriaApi.Web.Management.Controllers;
 [Authorize] // Default: All authenticated users can read
 public class UniversitiesController : ControllerBase
 {
-    private readonly IUniversityRepository _universityRepository;
     private readonly IUniversityService _universityService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
-        IUniversityRepository universityRepository,
         IUniversityService universityService,
         ILogger<UniversitiesController> logger)
     {
-        _universityRepository = universityRepository;
         _universityService = universityService;
         _logger = logger;
     }
@@ -44,6 +40,13 @@ public class UniversitiesController : ControllerBase
             Name = u.Name,
             Code = u.Code,
             Description = u.Description,
+            Address = u.Address,
+            TaxId = u.TaxId,
+            ContactEmail = u.ContactEmail,
+            ContactPhone = u.ContactPhone,
+            ContactPerson = u.ContactPerson,
+            Website = u.Website,
+            SubscriptionTier = u.SubscriptionTier,
             CreatedAt = u.CreatedAt,
             UpdatedAt = u.UpdatedAt
         }).ToList();
@@ -61,27 +64,44 @@ public class UniversitiesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<UniversityWithCoursesDto>> GetUniversity(int id)
     {
-        var university = await _universityRepository.GetByIdWithCoursesAsync(id);
+        var viewModel = await _universityService.GetUniversityWithDetailsAsync(id);
 
-        if (university == null)
+        if (viewModel == null)
         {
             return NotFound(new { message = "University not found" });
         }
 
+        // Map view model to DTO
         var dto = new UniversityWithCoursesDto
         {
-            Id = university.Id,
-            Name = university.Name,
-            Code = university.Code,
-            Description = university.Description,
-            CreatedAt = university.CreatedAt,
-            UpdatedAt = university.UpdatedAt,
-            Courses = university.Courses.Select(c => new CourseDto
+            Id = viewModel.University.Id,
+            Name = viewModel.University.Name,
+            Code = viewModel.University.Code,
+            Description = viewModel.University.Description,
+            Address = viewModel.University.Address,
+            TaxId = viewModel.University.TaxId,
+            ContactEmail = viewModel.University.ContactEmail,
+            ContactPhone = viewModel.University.ContactPhone,
+            ContactPerson = viewModel.University.ContactPerson,
+            Website = viewModel.University.Website,
+            SubscriptionTier = viewModel.University.SubscriptionTier,
+            CreatedAt = viewModel.University.CreatedAt,
+            UpdatedAt = viewModel.University.UpdatedAt,
+            ProfessorsCount = viewModel.ProfessorsCount,
+            CoursesCount = viewModel.Courses.Count,
+            Courses = viewModel.Courses.Select(c => new CourseDetailDto
             {
-                Id = c.Id,
-                Name = c.Name,
-                Code = c.Code,
-                Description = c.Description
+                Id = c.Course.Id,
+                Name = c.Course.Name,
+                Code = c.Course.Code,
+                Description = c.Course.Description,
+                UniversityId = c.Course.UniversityId,
+                UniversityName = viewModel.University.Name,
+                ModulesCount = c.ModulesCount,
+                ProfessorsCount = c.ProfessorsCount,
+                StudentsCount = c.StudentsCount,
+                CreatedAt = c.Course.CreatedAt,
+                UpdatedAt = c.Course.UpdatedAt
             }).ToList()
         };
 
@@ -97,39 +117,50 @@ public class UniversitiesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Check if university with same name or code exists
-        if (await _universityRepository.ExistsByNameAsync(request.Name))
+        // TODO: Refactor - validation logic should be in service
+        try
         {
-            return BadRequest(new { message = "University with this name already exists" });
+            var university = new University
+            {
+                Name = request.Name,
+                Code = request.Code,
+                Description = request.Description,
+                Address = request.Address,
+                TaxId = request.TaxId,
+                ContactEmail = request.ContactEmail,
+                ContactPhone = request.ContactPhone,
+                ContactPerson = request.ContactPerson,
+                Website = request.Website,
+                SubscriptionTier = request.SubscriptionTier
+            };
+
+            var created = await _universityService.CreateAsync(university);
+
+            _logger.LogInformation("Created university {Name} with ID {Id}", created.Name, created.Id);
+
+            var dto = new UniversityDto
+            {
+                Id = created.Id,
+                Name = created.Name,
+                Code = created.Code,
+                Description = created.Description,
+                Address = created.Address,
+                TaxId = created.TaxId,
+                ContactEmail = created.ContactEmail,
+                ContactPhone = created.ContactPhone,
+                ContactPerson = created.ContactPerson,
+                Website = created.Website,
+                SubscriptionTier = created.SubscriptionTier,
+                CreatedAt = created.CreatedAt,
+                UpdatedAt = created.UpdatedAt
+            };
+
+            return CreatedAtAction(nameof(GetUniversity), new { id = created.Id }, dto);
         }
-
-        if (await _universityRepository.ExistsByCodeAsync(request.Code))
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = "University with this code already exists" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var university = new University
-        {
-            Name = request.Name,
-            Code = request.Code,
-            Description = request.Description
-        };
-
-        var created = await _universityRepository.AddAsync(university);
-
-        _logger.LogInformation("Created university {Name} with ID {Id}", created.Name, created.Id);
-
-        var dto = new UniversityDto
-        {
-            Id = created.Id,
-            Name = created.Name,
-            Code = created.Code,
-            Description = created.Description,
-            CreatedAt = created.CreatedAt,
-            UpdatedAt = created.UpdatedAt
-        };
-
-        return CreatedAtAction(nameof(GetUniversity), new { id = created.Id }, dto);
     }
 
     [HttpPut("{id}")]
@@ -141,71 +172,66 @@ public class UniversitiesController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var university = await _universityRepository.GetByIdAsync(id);
-        if (university == null)
+        // TODO: Refactor to use service layer
+        try
+        {
+            var updated = await _universityService.UpdateAsync(id, new University
+            {
+                Name = request.Name!,
+                Code = request.Code!,
+                Description = request.Description,
+                Address = request.Address,
+                TaxId = request.TaxId,
+                ContactEmail = request.ContactEmail,
+                ContactPhone = request.ContactPhone,
+                ContactPerson = request.ContactPerson,
+                Website = request.Website,
+                SubscriptionTier = request.SubscriptionTier ?? 3
+            });
+
+            _logger.LogInformation("Updated university {Name} with ID {Id}", updated.Name, updated.Id);
+
+            return Ok(new UniversityDto
+            {
+                Id = updated.Id,
+                Name = updated.Name,
+                Code = updated.Code,
+                Description = updated.Description,
+                Address = updated.Address,
+                TaxId = updated.TaxId,
+                ContactEmail = updated.ContactEmail,
+                ContactPhone = updated.ContactPhone,
+                ContactPerson = updated.ContactPerson,
+                Website = updated.Website,
+                SubscriptionTier = updated.SubscriptionTier,
+                CreatedAt = updated.CreatedAt,
+                UpdatedAt = updated.UpdatedAt
+            });
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "University not found" });
         }
-
-        // Update only provided fields
-        if (!string.IsNullOrWhiteSpace(request.Name))
+        catch (InvalidOperationException ex)
         {
-            // Check if name is taken by another university
-            var existingByName = await _universityRepository.GetByNameAsync(request.Name);
-            if (existingByName != null && existingByName.Id != id)
-            {
-                return BadRequest(new { message = "University with this name already exists" });
-            }
-            university.Name = request.Name;
+            return BadRequest(new { message = ex.Message });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Code))
-        {
-            // Check if code is taken by another university
-            var existingByCode = await _universityRepository.GetByCodeAsync(request.Code);
-            if (existingByCode != null && existingByCode.Id != id)
-            {
-                return BadRequest(new { message = "University with this code already exists" });
-            }
-            university.Code = request.Code;
-        }
-
-        if (request.Description != null)
-        {
-            university.Description = request.Description;
-        }
-
-        await _universityRepository.UpdateAsync(university);
-
-        _logger.LogInformation("Updated university {Name} with ID {Id}", university.Name, university.Id);
-
-        var dto = new UniversityDto
-        {
-            Id = university.Id,
-            Name = university.Name,
-            Code = university.Code,
-            Description = university.Description,
-            CreatedAt = university.CreatedAt,
-            UpdatedAt = university.UpdatedAt
-        };
-
-        return Ok(dto);
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "SuperAdminOnly")]
     public async Task<ActionResult> DeleteUniversity(int id)
     {
-        var university = await _universityRepository.GetByIdAsync(id);
-        if (university == null)
+        // TODO: Refactor to use service layer
+        try
+        {
+            await _universityService.DeleteAsync(id);
+            _logger.LogInformation("Deleted university with ID {Id}", id);
+            return Ok(new { message = "University deleted successfully" });
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound(new { message = "University not found" });
         }
-
-        await _universityRepository.DeleteAsync(university);
-
-        _logger.LogInformation("Deleted university {Name} with ID {Id}", university.Name, university.Id);
-
-        return Ok(new { message = "University deleted successfully" });
     }
 }

@@ -22,6 +22,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<FileEntity> Files { get; set; }
     public DbSet<ModuleAccessToken> ModuleAccessTokens { get; set; }
     public DbSet<ProfessorCourse> ProfessorCourses { get; set; }
+    public DbSet<StudentCourse> StudentCourses { get; set; }
     public DbSet<ApiClient> ApiClients { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -31,12 +32,19 @@ public class TutoriaDbContext : DbContext
         // University configuration
         modelBuilder.Entity<University>(entity =>
         {
-            entity.ToTable("Universities");
+            // Disable OUTPUT clause because this table has a trigger (TR_Universities_UpdatedAt)
+            entity.ToTable("Universities", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
             entity.Property(e => e.Code).HasColumnName("Code").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Description).HasColumnName("Description");
+            entity.Property(e => e.Address).HasColumnName("Address").HasMaxLength(500);
+            entity.Property(e => e.TaxId).HasColumnName("TaxId").HasMaxLength(20);
+            entity.Property(e => e.ContactEmail).HasColumnName("ContactEmail").HasMaxLength(255);
+            entity.Property(e => e.ContactPhone).HasColumnName("ContactPhone").HasMaxLength(50);
+            entity.Property(e => e.ContactPerson).HasColumnName("ContactPerson").HasMaxLength(200);
+            entity.Property(e => e.Website).HasColumnName("Website").HasMaxLength(255);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -47,7 +55,8 @@ public class TutoriaDbContext : DbContext
         // Course configuration
         modelBuilder.Entity<Course>(entity =>
         {
-            entity.ToTable("Courses");
+            // Disable OUTPUT clause because this table has a trigger (TR_Courses_UpdatedAt)
+            entity.ToTable("Courses", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -66,7 +75,8 @@ public class TutoriaDbContext : DbContext
         // Module configuration
         modelBuilder.Entity<Module>(entity =>
         {
-            entity.ToTable("Modules");
+            // Disable OUTPUT clause because this table has a trigger (TR_Modules_UpdatedAt)
+            entity.ToTable("Modules", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -117,7 +127,9 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
             entity.Property(e => e.IsAdmin).HasColumnName("IsAdmin");
-            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.GovernmentId).HasColumnName("GovernmentId").HasMaxLength(50);
+            entity.Property(e => e.ExternalId).HasColumnName("ExternalId").HasMaxLength(100);
+            entity.Property(e => e.Birthdate).HasColumnName("Birthdate");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
             entity.Property(e => e.LastLoginAt).HasColumnName("LastLoginAt");
@@ -136,29 +148,28 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.SetNull);
-
-            entity.HasOne(e => e.Course)
-                .WithMany()
-                .HasForeignKey(e => e.CourseId)
-                .OnDelete(DeleteBehavior.SetNull);
-
             entity.HasCheckConstraint("CK_Users_UserType", "[UserType] IN ('professor', 'super_admin', 'student')");
         });
 
         // File configuration
         modelBuilder.Entity<FileEntity>(entity =>
         {
-            entity.ToTable("Files");
+            // Disable OUTPUT clause because this table has a trigger (TR_Files_UpdatedAt)
+            entity.ToTable("Files", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.FileName).HasColumnName("FileName").HasMaxLength(500).IsRequired();
-            entity.Property(e => e.BlobName).HasColumnName("BlobName").HasMaxLength(500).IsRequired();
-            entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(255).IsRequired();
-            entity.Property(e => e.Size).HasColumnName("Size");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FileType).HasColumnName("FileType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.FileName).HasColumnName("FileName").HasMaxLength(255);
+            entity.Property(e => e.BlobUrl).HasColumnName("BlobUrl").HasMaxLength(1000);
+            entity.Property(e => e.BlobContainer).HasColumnName("BlobContainer").HasMaxLength(100);
+            entity.Property(e => e.BlobPath).HasColumnName("BlobPath").HasMaxLength(500);
+            entity.Property(e => e.FileSize).HasColumnName("FileSize");
+            entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100);
             entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.OpenAIFileId).HasColumnName("OpenAIFileId").HasMaxLength(255);
-            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("pending");
-            entity.Property(e => e.ErrorMessage).HasColumnName("ErrorMessage");
+            entity.Property(e => e.AnthropicFileId).HasColumnName("AnthropicFileId").HasMaxLength(255);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -171,7 +182,8 @@ public class TutoriaDbContext : DbContext
         // ModuleAccessToken configuration
         modelBuilder.Entity<ModuleAccessToken>(entity =>
         {
-            entity.ToTable("ModuleAccessTokens");
+            // Disable OUTPUT clause because this table has a trigger (TR_ModuleAccessTokens_UpdatedAt)
+            entity.ToTable("ModuleAccessTokens", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(64).IsRequired();
@@ -198,32 +210,36 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.CreatedBy)
                 .WithMany()
                 .HasForeignKey(e => e.CreatedByProfessorId)
+                .HasPrincipalKey(u => u.UserId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
         // ProfessorCourse configuration (many-to-many)
+        // RAW configuration - no relationships, just table mapping
         modelBuilder.Entity<ProfessorCourse>(entity =>
         {
             entity.ToTable("ProfessorCourses");
             entity.HasKey(pc => new { pc.ProfessorId, pc.CourseId });
             entity.Property(pc => pc.ProfessorId).HasColumnName("ProfessorId");
             entity.Property(pc => pc.CourseId).HasColumnName("CourseId");
+        });
 
-            entity.HasOne(pc => pc.Professor)
-                .WithMany(p => p.ProfessorCourses)
-                .HasForeignKey(pc => pc.ProfessorId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(pc => pc.Course)
-                .WithMany(c => c.ProfessorCourses)
-                .HasForeignKey(pc => pc.CourseId)
-                .OnDelete(DeleteBehavior.Cascade);
+        // StudentCourse configuration (many-to-many)
+        // RAW configuration - no relationships, just table mapping
+        modelBuilder.Entity<StudentCourse>(entity =>
+        {
+            entity.ToTable("StudentCourses");
+            entity.HasKey(sc => new { sc.StudentId, sc.CourseId });
+            entity.Property(sc => sc.StudentId).HasColumnName("StudentId");
+            entity.Property(sc => sc.CourseId).HasColumnName("CourseId");
+            entity.Property(sc => sc.CreatedAt).HasColumnName("CreatedAt");
         });
 
         // ApiClient configuration
         modelBuilder.Entity<ApiClient>(entity =>
         {
-            entity.ToTable("ApiClients");
+            // Disable OUTPUT clause because this table has a trigger (TR_ApiClients_UpdatedAt)
+            entity.ToTable("ApiClients", t => t.UseSqlOutputClause(false));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.ClientId).HasColumnName("ClientId").HasMaxLength(100).IsRequired();

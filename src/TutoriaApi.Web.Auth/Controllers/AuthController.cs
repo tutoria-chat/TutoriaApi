@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
@@ -30,6 +31,7 @@ public class AuthController : ControllerBase
     private readonly IApiClientRepository _apiClientRepository;
     private readonly IUserRepository _userRepository;
     private readonly IJwtService _jwtService;
+    private readonly IEmailService _emailService;
     private readonly TutoriaDbContext _context; // Still needed for Courses.FindAsync in RegisterStudent
     private readonly ILogger<AuthController> _logger;
 
@@ -37,12 +39,14 @@ public class AuthController : ControllerBase
         IApiClientRepository apiClientRepository,
         IUserRepository userRepository,
         IJwtService jwtService,
+        IEmailService emailService,
         TutoriaDbContext context,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
         _userRepository = userRepository;
         _jwtService = jwtService;
+        _emailService = emailService;
         _context = context;
         _logger = logger;
     }
@@ -175,8 +179,81 @@ public class AuthController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Find user by username
-        var user = await _userRepository.GetByUsernameWithIncludesAsync(request.Username);
+        // ========================================
+        // CLIENT AUTHENTICATION (Hybrid Approach)
+        // ========================================
+        // Support TWO methods:
+        // Method 1: Authorization header with client Bearer token (OAuth2 flow)
+        // Method 2: client_id + client_secret in request body (server-to-server)
+
+        bool clientAuthenticated = false;
+
+        // Method 1: Check for Bearer token in Authorization header
+        var authHeader = Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var clientToken = authHeader.Substring("Bearer ".Length).Trim();
+            var principal = _jwtService.ValidateToken(clientToken, validateLifetime: true);
+
+            if (principal != null)
+            {
+                // Verify it's a client token (not a user token)
+                var tokenType = principal.FindFirst("token_type")?.Value;
+                if (tokenType == "client")
+                {
+                    // Verify client has permission to authenticate users
+                    var clientScopes = principal.FindAll("scope").Select(c => c.Value).ToArray();
+                    if (clientScopes.Contains("api.read") || clientScopes.Contains("api.write"))
+                    {
+                        clientAuthenticated = true;
+                        _logger.LogInformation("Client authenticated via Bearer token");
+                    }
+                }
+            }
+
+            if (!clientAuthenticated)
+            {
+                _logger.LogWarning("Invalid client token in Authorization header");
+                return Unauthorized(new { message = "Invalid client token" });
+            }
+        }
+        // Method 2: Check for client_id + client_secret in request body
+        else if (!string.IsNullOrEmpty(request.ClientId) && !string.IsNullOrEmpty(request.ClientSecret))
+        {
+            var client = await _apiClientRepository.GetByClientIdAsync(request.ClientId);
+
+            if (client == null || !client.IsActive)
+            {
+                _logger.LogWarning("Login failed: Invalid client_id {ClientId}", request.ClientId);
+                return Unauthorized(new { message = "Invalid client credentials" });
+            }
+
+            if (!BCrypt.Net.BCrypt.Verify(request.ClientSecret, client.HashedSecret))
+            {
+                _logger.LogWarning("Login failed: Invalid client_secret for {ClientId}", request.ClientId);
+                return Unauthorized(new { message = "Invalid client credentials" });
+            }
+
+            // Update last used timestamp
+            client.LastUsedAt = DateTime.UtcNow;
+            await _apiClientRepository.UpdateAsync(client);
+
+            clientAuthenticated = true;
+            _logger.LogInformation("Client authenticated via client_id/secret: {ClientId}", request.ClientId);
+        }
+        else
+        {
+            // Neither authentication method provided
+            _logger.LogWarning("Login failed: No client authentication provided");
+            return Unauthorized(new { message = "Client authentication required. Provide either Authorization header or client_id/client_secret" });
+        }
+
+        // ========================================
+        // USER AUTHENTICATION
+        // ========================================
+
+        // Find user by username or email
+        var user = await _userRepository.GetByUsernameOrEmailAsync(request.Username);
 
         if (user == null)
         {
@@ -209,14 +286,32 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors
-        Dictionary<string, string>? additionalClaims = null;
+        // Add additional claims for professors and all users
+        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
+
         if (user.UserType == "professor" && user.IsAdmin.HasValue)
         {
-            additionalClaims = new Dictionary<string, string>
-            {
-                { "isAdmin", user.IsAdmin.Value.ToString().ToLower() }
-            };
+            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
+        }
+
+        // Add UniversityId for professors (needed for permission checks)
+        if (user.UserType == "professor" && user.UniversityId.HasValue)
+        {
+            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
+        }
+
+        // Add email, firstName, lastName for all users
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            additionalClaims[ClaimTypes.Email] = user.Email;
+        }
+        if (!string.IsNullOrEmpty(user.FirstName))
+        {
+            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
+        }
+        if (!string.IsNullOrEmpty(user.LastName))
+        {
+            additionalClaims[ClaimTypes.Surname] = user.LastName;
         }
 
         // Generate JWT access token
@@ -225,7 +320,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims
+            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
         );
 
         // Generate refresh token
@@ -248,32 +343,16 @@ public class AuthController : ControllerBase
             RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800, // 8 hours in seconds
-            User = new UserDto
-            {
-                UserId = user.UserId,
-                Username = user.Username,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                UserType = user.UserType,
-                IsActive = user.IsActive,
-                UniversityId = user.UniversityId,
-                UniversityName = user.University?.Name,
-                IsAdmin = user.IsAdmin,
-                CourseId = user.CourseId,
-                CourseName = user.Course?.Name,
-                LastLoginAt = user.LastLoginAt,
-                CreatedAt = user.CreatedAt,
-                ThemePreference = user.ThemePreference,
-                LanguagePreference = user.LanguagePreference
-            }
+            UserId = user.UserId,
+            Username = user.Username,
+            UserType = user.UserType
         });
     }
 
     /// <summary>
     /// Student registration endpoint for new account creation.
     /// </summary>
-    /// <param name="request">Student registration details including username, email, password, and course.</param>
+    /// <param name="request">Student registration details including username, email, password, and courses.</param>
     /// <returns>JWT tokens and new student user details.</returns>
     /// <remarks>
     /// Creates a new student account and automatically logs them in.
@@ -281,7 +360,7 @@ public class AuthController : ControllerBase
     /// **Requirements**:
     /// - Unique username (case-sensitive)
     /// - Unique email address
-    /// - Valid course ID
+    /// - Valid course IDs (optional, can be empty list)
     /// - Password meeting complexity requirements
     ///
     /// **Validation**:
@@ -289,28 +368,20 @@ public class AuthController : ControllerBase
     /// - Email: Required, valid email format, max 255 characters
     /// - Password: Required, minimum 8 characters with complexity rules
     /// - FirstName, LastName: Required, max 100 characters
+    /// - CourseIds: Optional list of course IDs to enroll student in
     ///
     /// **Auto-Login**: Returns JWT tokens for immediate authentication after registration.
     /// </remarks>
     /// <response code="201">Student created successfully with JWT tokens.</response>
     /// <response code="400">Validation failed or username/email already exists.</response>
-    /// <response code="404">Course not found.</response>
     [HttpPost("register/student")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<LoginResponse>> RegisterStudent([FromBody] RegisterStudentRequest request)
     {
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
-        }
-
-        // Check if course exists
-        var course = await _context.Courses.FindAsync(request.CourseId);
-        if (course == null)
-        {
-            return NotFound(new { message = "Course not found" });
         }
 
         // Check if username or email already exists
@@ -333,13 +404,25 @@ public class AuthController : ControllerBase
             LastName = request.LastName,
             HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
             UserType = "student",
-            CourseId = request.CourseId,
             IsActive = true
         };
 
         student = await _userRepository.AddAsync(student);
 
-        _logger.LogInformation("Student registered: {Username}", student.Username);
+        // Create StudentCourse entries for each course
+        foreach (var courseId in request.CourseIds)
+        {
+            var studentCourse = new StudentCourse
+            {
+                StudentId = student.UserId,
+                CourseId = courseId
+            };
+            _context.StudentCourses.Add(studentCourse);
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Student registered: {Username} with {CourseCount} courses", student.Username, request.CourseIds.Count);
 
         // Generate JWT access token for immediate login
         var accessToken = _jwtService.GenerateToken(
@@ -366,22 +449,9 @@ public class AuthController : ControllerBase
             RefreshToken = refreshToken,
             TokenType = "Bearer",
             ExpiresIn = 28800,
-            User = new UserDto
-            {
-                UserId = student.UserId,
-                Username = student.Username,
-                Email = student.Email,
-                FirstName = student.FirstName,
-                LastName = student.LastName,
-                UserType = student.UserType,
-                IsActive = student.IsActive,
-                CourseId = student.CourseId,
-                CourseName = course.Name,
-                LastLoginAt = student.LastLoginAt,
-                CreatedAt = student.CreatedAt,
-                ThemePreference = student.ThemePreference,
-                LanguagePreference = student.LanguagePreference
-            }
+            UserId = student.UserId,
+            Username = student.Username,
+            UserType = student.UserType
         });
     }
 
@@ -438,9 +508,21 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Password reset token generated for user {UserId}", user.UserId);
 
-        // TODO: Send email with reset link containing the token
-        // For now, we'll just log it (in production, this would be sent via email service)
-        _logger.LogInformation("Password reset token for {Email}: {Token}", user.Email, resetToken);
+        // Send password reset email
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(
+                user.Email,
+                user.FirstName,
+                resetToken,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+            // Don't reveal email send failure to prevent enumeration
+        }
 
         return Ok(new { message = "If the email exists, a password reset link has been sent" });
     }
@@ -497,6 +579,20 @@ public class AuthController : ControllerBase
         await _userRepository.SaveChangesAsync();
 
         _logger.LogInformation("Password reset successful for user {UserId}", user.UserId);
+
+        // Send password changed confirmation email
+        try
+        {
+            await _emailService.SendPasswordChangedConfirmationEmailAsync(
+                user.Email,
+                user.FirstName,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password changed email to {Email}", user.Email);
+        }
 
         return Ok(new { message = "Password has been reset successfully" });
     }
@@ -555,7 +651,7 @@ public class AuthController : ControllerBase
 
         // Extract user info from token
         var userIdClaim = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var userType = principal.FindFirst("type")?.Value;
+        var userType = principal.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value; // Use standard ClaimTypes.Role
 
         if (string.IsNullOrEmpty(userIdClaim) || string.IsNullOrEmpty(userType))
         {
@@ -587,14 +683,32 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors
-        Dictionary<string, string>? additionalClaims = null;
+        // Add additional claims for professors and all users
+        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
+
         if (user.UserType == "professor" && user.IsAdmin.HasValue)
         {
-            additionalClaims = new Dictionary<string, string>
-            {
-                { "isAdmin", user.IsAdmin.Value.ToString().ToLower() }
-            };
+            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
+        }
+
+        // Add UniversityId for professors (needed for permission checks)
+        if (user.UserType == "professor" && user.UniversityId.HasValue)
+        {
+            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
+        }
+
+        // Add email, firstName, lastName for all users
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            additionalClaims[ClaimTypes.Email] = user.Email;
+        }
+        if (!string.IsNullOrEmpty(user.FirstName))
+        {
+            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
+        }
+        if (!string.IsNullOrEmpty(user.LastName))
+        {
+            additionalClaims[ClaimTypes.Surname] = user.LastName;
         }
 
         // Generate new access token
@@ -603,7 +717,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims
+            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
         );
 
         // Generate new refresh token
@@ -677,6 +791,26 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Account is inactive" });
         }
 
+        // Get student course IDs if user is a student
+        List<int>? studentCourseIds = null;
+        if (user.UserType == "student")
+        {
+            studentCourseIds = await _context.StudentCourses
+                .Where(sc => sc.StudentId == user.UserId)
+                .Select(sc => sc.CourseId)
+                .ToListAsync();
+        }
+
+        // Get professor course IDs if user is a professor
+        List<int>? professorCourseIds = null;
+        if (user.UserType == "professor")
+        {
+            professorCourseIds = await _context.ProfessorCourses
+                .Where(pc => pc.ProfessorId == user.UserId)
+                .Select(pc => pc.CourseId)
+                .ToListAsync();
+        }
+
         return Ok(new UserDto
         {
             UserId = user.UserId,
@@ -689,8 +823,8 @@ public class AuthController : ControllerBase
             UniversityId = user.UniversityId,
             UniversityName = user.University?.Name,
             IsAdmin = user.IsAdmin,
-            CourseId = user.CourseId,
-            CourseName = user.Course?.Name,
+            StudentCourseIds = studentCourseIds,
+            ProfessorCourseIds = professorCourseIds,
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt,
             ThemePreference = user.ThemePreference,
@@ -802,9 +936,29 @@ public class AuthController : ControllerBase
         // Reload user with related data
         var updatedUser = await _userRepository.GetByIdWithIncludesAsync(userId);
 
+        // Get student course IDs if user is a student
+        List<int>? studentCourseIds = null;
+        if (updatedUser!.UserType == "student")
+        {
+            studentCourseIds = await _context.StudentCourses
+                .Where(sc => sc.StudentId == updatedUser.UserId)
+                .Select(sc => sc.CourseId)
+                .ToListAsync();
+        }
+
+        // Get professor course IDs if user is a professor
+        List<int>? professorCourseIds = null;
+        if (updatedUser.UserType == "professor")
+        {
+            professorCourseIds = await _context.ProfessorCourses
+                .Where(pc => pc.ProfessorId == updatedUser.UserId)
+                .Select(pc => pc.CourseId)
+                .ToListAsync();
+        }
+
         return Ok(new UserDto
         {
-            UserId = updatedUser!.UserId,
+            UserId = updatedUser.UserId,
             Username = updatedUser.Username,
             Email = updatedUser.Email,
             FirstName = updatedUser.FirstName,
@@ -814,8 +968,8 @@ public class AuthController : ControllerBase
             UniversityId = updatedUser.UniversityId,
             UniversityName = updatedUser.University?.Name,
             IsAdmin = updatedUser.IsAdmin,
-            CourseId = updatedUser.CourseId,
-            CourseName = updatedUser.Course?.Name,
+            StudentCourseIds = studentCourseIds,
+            ProfessorCourseIds = professorCourseIds,
             LastLoginAt = updatedUser.LastLoginAt,
             CreatedAt = updatedUser.CreatedAt,
             ThemePreference = updatedUser.ThemePreference,
@@ -900,7 +1054,19 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("Password changed successfully for user {UserId}", userId);
 
-        // TODO: Send security alert email to notify user of password change
+        // Send password changed confirmation email
+        try
+        {
+            await _emailService.SendPasswordChangedConfirmationEmailAsync(
+                user.Email,
+                user.FirstName,
+                user.LanguagePreference ?? "en"
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password changed email to {Email}", user.Email);
+        }
 
         return Ok(new { message = "Password changed successfully" });
     }

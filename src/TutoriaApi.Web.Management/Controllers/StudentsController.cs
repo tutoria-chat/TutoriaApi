@@ -1,25 +1,23 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TutoriaApi.Core.Entities;
-using TutoriaApi.Infrastructure.Data;
+using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
 
 [ApiController]
 [Route("api/students")]
-[Authorize(Policy = "ProfessorOrAbove")] // Require ProfessorOrAbove for all student operations
+[Authorize(Policy = "ProfessorOrAbove")]
 public class StudentsController : ControllerBase
 {
-    private readonly TutoriaDbContext _context;
+    private readonly IStudentService _studentService;
     private readonly ILogger<StudentsController> _logger;
 
     public StudentsController(
-        TutoriaDbContext context,
+        IStudentService studentService,
         ILogger<StudentsController> logger)
     {
-        _context = context;
+        _studentService = studentService;
         _logger = logger;
     }
 
@@ -34,84 +32,73 @@ public class StudentsController : ControllerBase
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        var query = _context.Users
-            .Where(u => u.UserType == "student")
-            .Include(u => u.Course)
-            .AsQueryable();
-
-        if (courseId.HasValue)
+        try
         {
-            query = query.Where(u => u.CourseId == courseId.Value);
+            var (students, total) = await _studentService.GetPagedAsync(courseId, search, page, size);
+
+            var items = students.Select(u => new StudentDetailDto
+            {
+                Id = u.UserId,
+                Username = u.Username,
+                Email = u.Email,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                IsActive = u.IsActive,
+                CourseId = null,
+                CourseName = null,
+                LastLoginAt = u.LastLoginAt,
+                CreatedAt = u.CreatedAt,
+                UpdatedAt = u.UpdatedAt
+            }).ToList();
+
+            return Ok(new PaginatedResponse<StudentDetailDto>
+            {
+                Items = items,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
         }
-
-        if (!string.IsNullOrWhiteSpace(search))
+        catch (Exception ex)
         {
-            query = query.Where(u =>
-                u.Username.Contains(search) ||
-                u.FirstName.Contains(search) ||
-                u.LastName.Contains(search) ||
-                u.Email.Contains(search));
+            _logger.LogError(ex, "Error retrieving students");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        var total = await query.CountAsync();
-        var students = await query
-            .OrderBy(u => u.UserId)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync();
-
-        var items = students.Select(u => new StudentDetailDto
-        {
-            Id = u.UserId,
-            Username = u.Username,
-            Email = u.Email,
-            FirstName = u.FirstName,
-            LastName = u.LastName,
-            IsActive = u.IsActive,
-            CourseId = u.CourseId ?? 0,
-            CourseName = u.Course?.Name,
-            LastLoginAt = u.LastLoginAt,
-            CreatedAt = u.CreatedAt,
-            UpdatedAt = u.UpdatedAt
-        }).ToList();
-
-        return Ok(new PaginatedResponse<StudentDetailDto>
-        {
-            Items = items,
-            Total = total,
-            Page = page,
-            Size = size,
-            Pages = (int)Math.Ceiling(total / (double)size)
-        });
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<StudentDetailDto>> GetStudent(int id)
     {
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .Include(u => u.Course)
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (student == null)
+        try
         {
-            return NotFound(new { message = "Student not found" });
+            var student = await _studentService.GetByIdAsync(id);
+
+            if (student == null)
+            {
+                return NotFound(new { message = "Student not found" });
+            }
+
+            return Ok(new StudentDetailDto
+            {
+                Id = student.UserId,
+                Username = student.Username,
+                Email = student.Email,
+                FirstName = student.FirstName,
+                LastName = student.LastName,
+                IsActive = student.IsActive,
+                CourseId = null,
+                CourseName = null,
+                LastLoginAt = student.LastLoginAt,
+                CreatedAt = student.CreatedAt,
+                UpdatedAt = student.UpdatedAt
+            });
         }
-
-        return Ok(new StudentDetailDto
+        catch (Exception ex)
         {
-            Id = student.UserId,
-            Username = student.Username,
-            Email = student.Email,
-            FirstName = student.FirstName,
-            LastName = student.LastName,
-            IsActive = student.IsActive,
-            CourseId = student.CourseId ?? 0,
-            CourseName = student.Course?.Name,
-            LastLoginAt = student.LastLoginAt,
-            CreatedAt = student.CreatedAt,
-            UpdatedAt = student.UpdatedAt
-        });
+            _logger.LogError(ex, "Error retrieving student {StudentId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost]
@@ -122,60 +109,44 @@ public class StudentsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Check if course exists
-        var course = await _context.Courses.FindAsync(request.CourseId);
-        if (course == null)
+        try
         {
-            return NotFound(new { message = "Course not found" });
+            var student = await _studentService.CreateAsync(
+                request.Username,
+                request.Email,
+                request.FirstName,
+                request.LastName,
+                request.CourseId);
+
+            _logger.LogInformation("Created student {Username} with ID {Id}", student.Username, student.UserId);
+
+            return CreatedAtAction(nameof(GetStudent), new { id = student.UserId }, new StudentDetailDto
+            {
+                Id = student.UserId,
+                Username = student.Username,
+                Email = student.Email,
+                FirstName = student.FirstName,
+                LastName = student.LastName,
+                IsActive = student.IsActive,
+                CourseId = null,
+                CourseName = null,
+                CreatedAt = student.CreatedAt,
+                UpdatedAt = student.UpdatedAt
+            });
         }
-
-        // Check if username or email already exists (across all users)
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == request.Username);
-
-        if (existingByUsername != null)
+        catch (KeyNotFoundException ex)
         {
-            return BadRequest(new { message = "Username already exists" });
+            return NotFound(new { message = ex.Message });
         }
-
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-        if (existingByEmail != null)
+        catch (InvalidOperationException ex)
         {
-            return BadRequest(new { message = "Email already exists" });
+            return BadRequest(new { message = ex.Message });
         }
-
-        var student = new User
+        catch (Exception ex)
         {
-            Username = request.Username,
-            Email = request.Email,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            HashedPassword = null, // Students don't have passwords - they don't login
-            UserType = "student",
-            CourseId = request.CourseId,
-            IsActive = true
-        };
-
-        _context.Users.Add(student);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Created student {Username} with ID {Id}", student.Username, student.UserId);
-
-        return CreatedAtAction(nameof(GetStudent), new { id = student.UserId }, new StudentDetailDto
-        {
-            Id = student.UserId,
-            Username = student.Username,
-            Email = student.Email,
-            FirstName = student.FirstName,
-            LastName = student.LastName,
-            IsActive = student.IsActive,
-            CourseId = student.CourseId ?? 0,
-            CourseName = course.Name,
-            CreatedAt = student.CreatedAt,
-            UpdatedAt = student.UpdatedAt
-        });
+            _logger.LogError(ex, "Error creating student");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}")]
@@ -186,110 +157,68 @@ public class StudentsController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (student == null)
+        try
         {
-            return NotFound(new { message = "Student not found" });
-        }
+            var student = await _studentService.UpdateAsync(
+                id,
+                request.Username,
+                request.Email,
+                request.FirstName,
+                request.LastName,
+                request.IsActive,
+                request.CourseId);
 
-        if (!string.IsNullOrWhiteSpace(request.Username))
-        {
-            var existingByUsername = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == request.Username && u.UserId != id);
+            _logger.LogInformation("Updated student {Username} with ID {Id}", student.Username, student.UserId);
 
-            if (existingByUsername != null)
+            return Ok(new StudentDetailDto
             {
-                return BadRequest(new { message = "Username already exists" });
-            }
-
-            student.Username = request.Username;
+                Id = student.UserId,
+                Username = student.Username,
+                Email = student.Email,
+                FirstName = student.FirstName,
+                LastName = student.LastName,
+                IsActive = student.IsActive,
+                CourseId = null,
+                CourseName = null,
+                LastLoginAt = student.LastLoginAt,
+                CreatedAt = student.CreatedAt,
+                UpdatedAt = student.UpdatedAt
+            });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.Email))
+        catch (KeyNotFoundException ex)
         {
-            var existingByEmail = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == request.Email && u.UserId != id);
-
-            if (existingByEmail != null)
-            {
-                return BadRequest(new { message = "Email already exists" });
-            }
-
-            student.Email = request.Email;
+            return NotFound(new { message = ex.Message });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.FirstName))
+        catch (InvalidOperationException ex)
         {
-            student.FirstName = request.FirstName;
+            return BadRequest(new { message = ex.Message });
         }
-
-        if (!string.IsNullOrWhiteSpace(request.LastName))
+        catch (Exception ex)
         {
-            student.LastName = request.LastName;
+            _logger.LogError(ex, "Error updating student {StudentId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        if (request.IsActive.HasValue)
-        {
-            student.IsActive = request.IsActive.Value;
-        }
-
-        if (request.CourseId.HasValue)
-        {
-            var course = await _context.Courses.FindAsync(request.CourseId.Value);
-            if (course == null)
-            {
-                return NotFound(new { message = "Course not found" });
-            }
-
-            student.CourseId = request.CourseId.Value;
-        }
-
-        student.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Updated student {Username} with ID {Id}", student.Username, student.UserId);
-
-        var updatedCourse = await _context.Courses.FindAsync(student.CourseId);
-
-        return Ok(new StudentDetailDto
-        {
-            Id = student.UserId,
-            Username = student.Username,
-            Email = student.Email,
-            FirstName = student.FirstName,
-            LastName = student.LastName,
-            IsActive = student.IsActive,
-            CourseId = student.CourseId ?? 0,
-            CourseName = updatedCourse?.Name,
-            LastLoginAt = student.LastLoginAt,
-            CreatedAt = student.CreatedAt,
-            UpdatedAt = student.UpdatedAt
-        });
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteStudent(int id)
     {
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
-        if (student == null)
+        try
         {
-            return NotFound(new { message = "Student not found" });
+            await _studentService.DeleteAsync(id);
+
+            _logger.LogInformation("Deleted student with ID {Id}", id);
+
+            return Ok(new { message = "Student deleted successfully" });
         }
-
-        _context.Users.Remove(student);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Deleted student {Username} with ID {Id}", student.Username, student.UserId);
-
-        return Ok(new { message = "Student deleted successfully" });
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting student {StudentId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
-
-    // Students don't have passwords - they don't login
-    // Password management is not available for student user type
 }

@@ -1,42 +1,123 @@
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Services;
 
 public class CourseService : ICourseService
 {
     private readonly ICourseRepository _courseRepository;
-    private readonly TutoriaDbContext _context;
+    private readonly IUniversityRepository _universityRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IModuleRepository _moduleRepository;
 
-    public CourseService(ICourseRepository courseRepository, TutoriaDbContext context)
+    public CourseService(
+        ICourseRepository courseRepository,
+        IUniversityRepository universityRepository,
+        IUserRepository userRepository,
+        IModuleRepository moduleRepository)
     {
         _courseRepository = courseRepository;
-        _context = context;
+        _universityRepository = universityRepository;
+        _userRepository = userRepository;
+        _moduleRepository = moduleRepository;
     }
 
-    public async Task<Course?> GetByIdAsync(int id)
+    public async Task<CourseWithCountsViewModel?> GetCourseWithCountsAsync(int id)
     {
-        return await _courseRepository.GetByIdAsync(id);
+        var course = await _courseRepository.GetWithDetailsAsync(id);
+
+        if (course == null)
+        {
+            return null;
+        }
+
+        var modulesCount = await _courseRepository.GetModulesCountAsync(id);
+        var professorsCount = await _courseRepository.GetProfessorsCountAsync(id);
+        var studentsCount = await _courseRepository.GetStudentsCountAsync(id);
+
+        return new CourseWithCountsViewModel
+        {
+            Course = course,
+            UniversityName = course.University?.Name,
+            ModulesCount = modulesCount,
+            ProfessorsCount = professorsCount,
+            StudentsCount = studentsCount
+        };
     }
 
-    public async Task<Course?> GetWithDetailsAsync(int id)
+    public async Task<CourseDetailViewModel?> GetCourseWithFullDetailsAsync(int id)
     {
-        return await _courseRepository.GetWithDetailsAsync(id);
+        var course = await _courseRepository.GetWithFullDetailsAsync(id);
+
+        if (course == null)
+        {
+            return null;
+        }
+
+        // Get module IDs
+        var moduleIds = course.Modules?.Select(m => m.Id).ToList() ?? new List<int>();
+
+        // Get counts from repository
+        var fileCounts = await _moduleRepository.GetFileCountsAsync(moduleIds);
+        var tokenCounts = await _moduleRepository.GetTokenCountsAsync(moduleIds);
+
+        // Get students for this course via StudentCourses
+        var students = new List<User>(); // TODO: Implement student retrieval via repository
+
+        return new CourseDetailViewModel
+        {
+            Course = course,
+            University = course.University,
+            Modules = course.Modules?.ToList() ?? new List<Module>(),
+            ModuleFileCounts = fileCounts,
+            ModuleTokenCounts = tokenCounts,
+            Students = students
+        };
     }
 
-    public async Task<(IEnumerable<Course> Items, int Total)> GetPagedAsync(
+    public async Task<(List<CourseWithCountsViewModel> Items, int Total)> GetPagedWithCountsAsync(
         int? universityId,
+        int? professorId,
         string? search,
         int page,
         int pageSize)
     {
-        return await _courseRepository.SearchAsync(universityId, search, page, pageSize);
+        var (courses, total) = await _courseRepository.SearchAsync(universityId, professorId, search, page, pageSize);
+
+        var viewModels = new List<CourseWithCountsViewModel>();
+
+        foreach (var course in courses)
+        {
+            // Get university name
+            var university = await _universityRepository.GetByIdAsync(course.UniversityId);
+
+            // Get counts
+            var modulesCount = await _courseRepository.GetModulesCountAsync(course.Id);
+            var professorsCount = await _courseRepository.GetProfessorsCountAsync(course.Id);
+            var studentsCount = await _courseRepository.GetStudentsCountAsync(course.Id);
+
+            viewModels.Add(new CourseWithCountsViewModel
+            {
+                Course = course,
+                UniversityName = university?.Name,
+                ModulesCount = modulesCount,
+                ProfessorsCount = professorsCount,
+                StudentsCount = studentsCount
+            });
+        }
+
+        return (viewModels, total);
     }
 
     public async Task<Course> CreateAsync(Course course)
     {
+        // Validate: Check if university exists
+        var university = await _universityRepository.GetByIdAsync(course.UniversityId);
+        if (university == null)
+        {
+            throw new KeyNotFoundException("University not found");
+        }
+
         // Validate: Check if course with same code exists in university
         var exists = await _courseRepository.ExistsByCodeAndUniversityAsync(course.Code, course.UniversityId);
         if (exists)
@@ -47,7 +128,7 @@ public class CourseService : ICourseService
         return await _courseRepository.AddAsync(course);
     }
 
-    public async Task<Course> UpdateAsync(int id, Course course)
+    public async Task<CourseWithCountsViewModel> UpdateAsync(int id, Course course)
     {
         var existing = await _courseRepository.GetByIdAsync(id);
         if (existing == null)
@@ -55,13 +136,32 @@ public class CourseService : ICourseService
             throw new KeyNotFoundException("Course not found");
         }
 
-        existing.Name = course.Name;
-        existing.Code = course.Code;
-        existing.Description = course.Description;
-        existing.UniversityId = course.UniversityId;
+        // Check if code is being changed and if it conflicts with another course
+        if (!string.IsNullOrEmpty(course.Code) && course.Code != existing.Code)
+        {
+            var codeExists = await _courseRepository.ExistsByCodeAndUniversityAsync(course.Code, existing.UniversityId);
+            if (codeExists)
+            {
+                throw new InvalidOperationException("Course with this code already exists in this university");
+            }
+            existing.Code = course.Code;
+        }
+
+        // Update properties
+        if (!string.IsNullOrEmpty(course.Name))
+        {
+            existing.Name = course.Name;
+        }
+
+        if (course.Description != null)
+        {
+            existing.Description = course.Description;
+        }
 
         await _courseRepository.UpdateAsync(existing);
-        return existing;
+
+        // Return updated course with counts
+        return (await GetCourseWithCountsAsync(id))!;
     }
 
     public async Task DeleteAsync(int id)
@@ -84,46 +184,31 @@ public class CourseService : ICourseService
             throw new KeyNotFoundException("Course not found");
         }
 
-        // Check if professor exists in Users table
-        var professor = await _context.Users
-            .FirstOrDefaultAsync(u => u.UserId == professorId && u.UserType == "professor");
-
-        if (professor == null)
+        // Check if professor exists in Users table (unified table)
+        var professor = await _userRepository.GetByIdAsync(professorId);
+        if (professor == null || professor.UserType != "professor")
         {
             throw new KeyNotFoundException("Professor not found");
         }
 
-        // Check if assignment already exists
-        var exists = await _context.ProfessorCourses
-            .AnyAsync(pc => pc.ProfessorId == professorId && pc.CourseId == courseId);
-
-        if (exists)
+        // Check if already assigned
+        var isAssigned = await _courseRepository.IsProfessorAssignedAsync(courseId, professorId);
+        if (isAssigned)
         {
             throw new InvalidOperationException("Professor is already assigned to this course");
         }
 
-        // Create assignment
-        var professorCourse = new ProfessorCourse
-        {
-            ProfessorId = professorId,
-            CourseId = courseId
-        };
-
-        await _context.ProfessorCourses.AddAsync(professorCourse);
-        await _context.SaveChangesAsync();
+        await _courseRepository.AssignProfessorAsync(courseId, professorId);
     }
 
     public async Task UnassignProfessorAsync(int courseId, int professorId)
     {
-        var professorCourse = await _context.ProfessorCourses
-            .FirstOrDefaultAsync(pc => pc.ProfessorId == professorId && pc.CourseId == courseId);
-
-        if (professorCourse == null)
+        var isAssigned = await _courseRepository.IsProfessorAssignedAsync(courseId, professorId);
+        if (!isAssigned)
         {
             throw new KeyNotFoundException("Professor is not assigned to this course");
         }
 
-        _context.ProfessorCourses.Remove(professorCourse);
-        await _context.SaveChangesAsync();
+        await _courseRepository.UnassignProfessorAsync(courseId, professorId);
     }
 }

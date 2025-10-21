@@ -1,9 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Security.Cryptography;
-using TutoriaApi.Core.Entities;
-using TutoriaApi.Infrastructure.Data;
+using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.Management.DTOs;
 
 namespace TutoriaApi.Web.Management.Controllers;
@@ -30,18 +27,18 @@ namespace TutoriaApi.Web.Management.Controllers;
 /// - Create temporary guest access for specific modules
 /// </remarks>
 [ApiController]
-[Route("api/module-access-tokens")]
+[Route("api/[controller]")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class ModuleAccessTokensController : ControllerBase
+public class ModuleAccessTokensController : BaseAuthController
 {
-    private readonly TutoriaDbContext _context;
+    private readonly IModuleAccessTokenService _tokenService;
     private readonly ILogger<ModuleAccessTokensController> _logger;
 
     public ModuleAccessTokensController(
-        TutoriaDbContext context,
+        IModuleAccessTokenService tokenService,
         ILogger<ModuleAccessTokensController> logger)
     {
-        _context = context;
+        _tokenService = tokenService;
         _logger = logger;
     }
 
@@ -50,99 +47,101 @@ public class ModuleAccessTokensController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int size = 10,
         [FromQuery] int? moduleId = null,
+        [FromQuery] int? universityId = null,
         [FromQuery] bool? isActive = null)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        var query = _context.ModuleAccessTokens
-            .Include(t => t.Module)
-            .AsQueryable();
-
-        // Apply filters
-        if (moduleId.HasValue)
+        try
         {
-            query = query.Where(t => t.ModuleId == moduleId.Value);
+            var currentUser = GetCurrentUserFromClaims();
+
+            var (viewModels, total) = await _tokenService.GetPagedAsync(
+                moduleId,
+                universityId,
+                isActive,
+                page,
+                size,
+                currentUser);
+
+            var items = viewModels.Select(vm => new ModuleAccessTokenListDto
+            {
+                Id = vm.Token.Id,
+                Token = vm.Token.Token,
+                Name = vm.Token.Name,
+                Description = vm.Token.Description,
+                ModuleId = vm.Token.ModuleId,
+                ModuleName = vm.ModuleName,
+                IsActive = vm.Token.IsActive,
+                ExpiresAt = vm.Token.ExpiresAt,
+                AllowChat = vm.Token.AllowChat,
+                AllowFileAccess = vm.Token.AllowFileAccess,
+                UsageCount = vm.Token.UsageCount,
+                LastUsedAt = vm.Token.LastUsedAt,
+                CreatedAt = vm.Token.CreatedAt
+            }).ToList();
+
+            return Ok(new PaginatedResponse<ModuleAccessTokenListDto>
+            {
+                Items = items,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
         }
-
-        if (isActive.HasValue)
+        catch (Exception ex)
         {
-            query = query.Where(t => t.IsActive == isActive.Value);
+            _logger.LogError(ex, "Error retrieving module access tokens");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        var total = await query.CountAsync();
-        var tokens = await query
-            .OrderBy(t => t.Id)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync();
-
-        var items = tokens.Select(t => new ModuleAccessTokenListDto
-        {
-            Id = t.Id,
-            Token = t.Token,
-            Name = t.Name,
-            Description = t.Description,
-            ModuleId = t.ModuleId,
-            ModuleName = t.Module?.Name,
-            IsActive = t.IsActive,
-            ExpiresAt = t.ExpiresAt,
-            AllowChat = t.AllowChat,
-            AllowFileAccess = t.AllowFileAccess,
-            UsageCount = t.UsageCount,
-            LastUsedAt = t.LastUsedAt,
-            CreatedAt = t.CreatedAt
-        }).ToList();
-
-        return Ok(new PaginatedResponse<ModuleAccessTokenListDto>
-        {
-            Items = items,
-            Total = total,
-            Page = page,
-            Size = size,
-            Pages = (int)Math.Ceiling(total / (double)size)
-        });
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<ModuleAccessTokenDetailDto>> GetModuleAccessToken(int id)
     {
-        var token = await _context.ModuleAccessTokens
-            .Include(t => t.Module)
-                .ThenInclude(m => m.Course)
-                    .ThenInclude(c => c.University)
-            .Include(t => t.CreatedBy)
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (token == null)
+        try
         {
-            return NotFound(new { message = "Module access token not found" });
+            var viewModel = await _tokenService.GetWithDetailsAsync(id);
+
+            if (viewModel == null)
+            {
+                return NotFound(new { message = "Module access token not found" });
+            }
+
+            var token = viewModel.Token;
+
+            return Ok(new ModuleAccessTokenDetailDto
+            {
+                Id = token.Id,
+                Token = token.Token,
+                Name = token.Name,
+                Description = token.Description,
+                ModuleId = token.ModuleId,
+                ModuleName = viewModel.ModuleName,
+                CourseId = token.Module?.CourseId,
+                CourseName = viewModel.CourseName,
+                UniversityId = token.Module?.Course?.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                CreatedByProfessorId = token.CreatedByProfessorId,
+                CreatedByName = viewModel.CreatedByName,
+                IsActive = token.IsActive,
+                ExpiresAt = token.ExpiresAt,
+                AllowChat = token.AllowChat,
+                AllowFileAccess = token.AllowFileAccess,
+                UsageCount = token.UsageCount,
+                LastUsedAt = token.LastUsedAt,
+                CreatedAt = token.CreatedAt,
+                UpdatedAt = token.UpdatedAt
+            });
         }
-
-        return Ok(new ModuleAccessTokenDetailDto
+        catch (Exception ex)
         {
-            Id = token.Id,
-            Token = token.Token,
-            Name = token.Name,
-            Description = token.Description,
-            ModuleId = token.ModuleId,
-            ModuleName = token.Module?.Name,
-            CourseId = token.Module?.CourseId,
-            CourseName = token.Module?.Course?.Name,
-            UniversityId = token.Module?.Course?.UniversityId,
-            UniversityName = token.Module?.Course?.University?.Name,
-            CreatedByProfessorId = token.CreatedByProfessorId,
-            CreatedByName = token.CreatedBy != null ? $"{token.CreatedBy.FirstName} {token.CreatedBy.LastName}" : null,
-            IsActive = token.IsActive,
-            ExpiresAt = token.ExpiresAt,
-            AllowChat = token.AllowChat,
-            AllowFileAccess = token.AllowFileAccess,
-            UsageCount = token.UsageCount,
-            LastUsedAt = token.LastUsedAt,
-            CreatedAt = token.CreatedAt,
-            UpdatedAt = token.UpdatedAt
-        });
+            _logger.LogError(ex, "Error retrieving module access token {TokenId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPost]
@@ -154,77 +153,60 @@ public class ModuleAccessTokensController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        // Verify module exists
-        var module = await _context.Modules
-            .Include(m => m.Course)
-                .ThenInclude(c => c.University)
-            .FirstOrDefaultAsync(m => m.Id == request.ModuleId);
-
-        if (module == null)
+        try
         {
-            return NotFound(new { message = "Module not found" });
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            var viewModel = await _tokenService.CreateAsync(
+                request.ModuleId,
+                request.Name,
+                request.Description,
+                request.AllowChat,
+                request.AllowFileAccess,
+                request.ExpiresInDays,
+                currentUser);
+
+            var token = viewModel.Token;
+
+            _logger.LogInformation("Created module access token {Name} for module {ModuleId}",
+                token.Name, token.ModuleId);
+
+            return CreatedAtAction(nameof(GetModuleAccessToken), new { id = token.Id }, new ModuleAccessTokenDetailDto
+            {
+                Id = token.Id,
+                Token = token.Token,
+                Name = token.Name,
+                Description = token.Description,
+                ModuleId = token.ModuleId,
+                ModuleName = viewModel.ModuleName,
+                CourseId = token.Module?.CourseId,
+                CourseName = viewModel.CourseName,
+                UniversityId = token.Module?.Course?.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                CreatedByProfessorId = token.CreatedByProfessorId,
+                IsActive = token.IsActive,
+                ExpiresAt = token.ExpiresAt,
+                AllowChat = token.AllowChat,
+                AllowFileAccess = token.AllowFileAccess,
+                UsageCount = token.UsageCount,
+                LastUsedAt = token.LastUsedAt,
+                CreatedAt = token.CreatedAt,
+                UpdatedAt = token.UpdatedAt
+            });
         }
-
-        // Generate secure random token (64 characters)
-        var tokenBytes = new byte[32];
-        using (var rng = RandomNumberGenerator.Create())
+        catch (KeyNotFoundException ex)
         {
-            rng.GetBytes(tokenBytes);
+            return NotFound(new { message = ex.Message });
         }
-        var generatedToken = Convert.ToBase64String(tokenBytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
-
-        // Calculate expiration date
-        DateTime? expiresAt = null;
-        if (request.ExpiresInDays.HasValue)
+        catch (Exception ex)
         {
-            expiresAt = DateTime.UtcNow.AddDays(request.ExpiresInDays.Value);
+            _logger.LogError(ex, "Error creating module access token");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        // Get current user ID from JWT (if needed for CreatedByProfessorId)
-        // For now, leaving it null - would need to extract from JWT claims
-        int? createdByProfessorId = null;
-
-        var token = new ModuleAccessToken
-        {
-            Token = generatedToken,
-            Name = request.Name,
-            Description = request.Description,
-            ModuleId = request.ModuleId,
-            CreatedByProfessorId = createdByProfessorId,
-            IsActive = true,
-            ExpiresAt = expiresAt,
-            AllowChat = request.AllowChat,
-            AllowFileAccess = request.AllowFileAccess,
-            UsageCount = 0
-        };
-
-        _context.ModuleAccessTokens.Add(token);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Created module access token {Name} for module {ModuleId}", token.Name, token.ModuleId);
-
-        return CreatedAtAction(nameof(GetModuleAccessToken), new { id = token.Id }, new ModuleAccessTokenDetailDto
-        {
-            Id = token.Id,
-            Token = token.Token,
-            Name = token.Name,
-            Description = token.Description,
-            ModuleId = token.ModuleId,
-            ModuleName = module.Name,
-            CourseId = module.CourseId,
-            CourseName = module.Course?.Name,
-            UniversityId = module.Course?.UniversityId,
-            UniversityName = module.Course?.University?.Name,
-            CreatedByProfessorId = token.CreatedByProfessorId,
-            IsActive = token.IsActive,
-            ExpiresAt = token.ExpiresAt,
-            AllowChat = token.AllowChat,
-            AllowFileAccess = token.AllowFileAccess,
-            UsageCount = token.UsageCount,
-            LastUsedAt = token.LastUsedAt,
-            CreatedAt = token.CreatedAt,
-            UpdatedAt = token.UpdatedAt
-        });
     }
 
     [HttpPut("{id}")]
@@ -237,88 +219,74 @@ public class ModuleAccessTokensController : ControllerBase
             return BadRequest(ModelState);
         }
 
-        var token = await _context.ModuleAccessTokens
-            .Include(t => t.Module)
-                .ThenInclude(m => m.Course)
-                    .ThenInclude(c => c.University)
-            .Include(t => t.CreatedBy)
-            .FirstOrDefaultAsync(t => t.Id == id);
-
-        if (token == null)
+        try
         {
-            return NotFound(new { message = "Module access token not found" });
+            var viewModel = await _tokenService.UpdateAsync(
+                id,
+                request.Name,
+                request.Description,
+                request.IsActive,
+                request.AllowChat,
+                request.AllowFileAccess);
+
+            var token = viewModel.Token;
+
+            _logger.LogInformation("Updated module access token {Name} with ID {Id}", token.Name, token.Id);
+
+            return Ok(new ModuleAccessTokenDetailDto
+            {
+                Id = token.Id,
+                Token = token.Token,
+                Name = token.Name,
+                Description = token.Description,
+                ModuleId = token.ModuleId,
+                ModuleName = viewModel.ModuleName,
+                CourseId = token.Module?.CourseId,
+                CourseName = viewModel.CourseName,
+                UniversityId = token.Module?.Course?.UniversityId,
+                UniversityName = viewModel.UniversityName,
+                CreatedByProfessorId = token.CreatedByProfessorId,
+                CreatedByName = viewModel.CreatedByName,
+                IsActive = token.IsActive,
+                ExpiresAt = token.ExpiresAt,
+                AllowChat = token.AllowChat,
+                AllowFileAccess = token.AllowFileAccess,
+                UsageCount = token.UsageCount,
+                LastUsedAt = token.LastUsedAt,
+                CreatedAt = token.CreatedAt,
+                UpdatedAt = token.UpdatedAt
+            });
         }
-
-        // Update fields if provided
-        if (!string.IsNullOrWhiteSpace(request.Name))
+        catch (KeyNotFoundException ex)
         {
-            token.Name = request.Name;
+            return NotFound(new { message = ex.Message });
         }
-
-        if (request.Description != null)
+        catch (Exception ex)
         {
-            token.Description = request.Description;
+            _logger.LogError(ex, "Error updating module access token {TokenId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-
-        if (request.IsActive.HasValue)
-        {
-            token.IsActive = request.IsActive.Value;
-        }
-
-        if (request.AllowChat.HasValue)
-        {
-            token.AllowChat = request.AllowChat.Value;
-        }
-
-        if (request.AllowFileAccess.HasValue)
-        {
-            token.AllowFileAccess = request.AllowFileAccess.Value;
-        }
-
-        token.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Updated module access token {Name} with ID {Id}", token.Name, token.Id);
-
-        return Ok(new ModuleAccessTokenDetailDto
-        {
-            Id = token.Id,
-            Token = token.Token,
-            Name = token.Name,
-            Description = token.Description,
-            ModuleId = token.ModuleId,
-            ModuleName = token.Module?.Name,
-            CourseId = token.Module?.CourseId,
-            CourseName = token.Module?.Course?.Name,
-            UniversityId = token.Module?.Course?.UniversityId,
-            UniversityName = token.Module?.Course?.University?.Name,
-            CreatedByProfessorId = token.CreatedByProfessorId,
-            CreatedByName = token.CreatedBy != null ? $"{token.CreatedBy.FirstName} {token.CreatedBy.LastName}" : null,
-            IsActive = token.IsActive,
-            ExpiresAt = token.ExpiresAt,
-            AllowChat = token.AllowChat,
-            AllowFileAccess = token.AllowFileAccess,
-            UsageCount = token.UsageCount,
-            LastUsedAt = token.LastUsedAt,
-            CreatedAt = token.CreatedAt,
-            UpdatedAt = token.UpdatedAt
-        });
     }
 
     [HttpDelete("{id}")]
     public async Task<ActionResult> DeleteModuleAccessToken(int id)
     {
-        var token = await _context.ModuleAccessTokens.FindAsync(id);
-        if (token == null)
+        try
         {
-            return NotFound(new { message = "Module access token not found" });
+            await _tokenService.DeleteAsync(id);
+
+            _logger.LogInformation("Deleted module access token with ID {Id}", id);
+
+            return Ok(new { message = "Module access token deleted successfully" });
         }
-
-        _context.ModuleAccessTokens.Remove(token);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("Deleted module access token {Name} with ID {Id}", token.Name, token.Id);
-
-        return Ok(new { message = "Module access token deleted successfully" });
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting module access token {TokenId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 }

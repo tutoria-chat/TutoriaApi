@@ -16,8 +16,8 @@ public class ModuleListDto
     public string? AIModelDisplayName { get; set; }
     public int FilesCount { get; set; }
     public int TokensCount { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleDetailDto
@@ -31,16 +31,18 @@ public class ModuleDetailDto
     public int? Year { get; set; }
     public int CourseId { get; set; }
     public CourseDto? Course { get; set; }
+    public string? CourseName { get; set; }
+    public int? UniversityId { get; set; }
     public int? AIModelId { get; set; }
-    public AIModelDto? AIModel { get; set; }
+    public AIModelListDto? AIModel { get; set; }
     public string? OpenAIAssistantId { get; set; }
     public string? OpenAIVectorStoreId { get; set; }
     public DateTime? LastPromptImprovedAt { get; set; }
     public int PromptImprovementCount { get; set; }
     public string TutorLanguage { get; set; } = "pt-br";
-    public List<FileDto> Files { get; set; } = new();
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public List<FileListDto> Files { get; set; } = new();
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class ModuleCreateRequest
@@ -58,7 +60,7 @@ public class ModuleCreateRequest
     [Required(ErrorMessage = "System prompt is required")]
     public string SystemPrompt { get; set; } = string.Empty;
 
-    [Range(1, 8, ErrorMessage = "Semester must be between 1 and 8")]
+    [Range(1, 2, ErrorMessage = "Semester must be 1 or 2")]
     public int? Semester { get; set; }
 
     [Range(2020, 2050, ErrorMessage = "Year must be between 2020 and 2050")]
@@ -85,7 +87,7 @@ public class ModuleUpdateRequest
 
     public string? SystemPrompt { get; set; }
 
-    [Range(1, 8, ErrorMessage = "Semester must be between 1 and 8")]
+    [Range(1, 2, ErrorMessage = "Semester must be 1 or 2")]
     public int? Semester { get; set; }
 
     [Range(2020, 2050, ErrorMessage = "Year must be between 2020 and 2050")]
@@ -100,11 +102,11 @@ public class ModuleUpdateRequest
 public class FileDto
 {
     public int Id { get; set; }
-    public string FileName { get; set; } = string.Empty;
-    public string BlobName { get; set; } = string.Empty;
-    public string ContentType { get; set; } = string.Empty;
-    public long Size { get; set; }
+    public string? FileName { get; set; }
+    public string? BlobPath { get; set; }
+    public string? ContentType { get; set; }
+    public long? FileSize { get; set; }
     public string? OpenAIFileId { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public bool IsActive { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }
