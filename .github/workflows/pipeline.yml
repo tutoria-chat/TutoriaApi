@@ -44,8 +44,6 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: ${{ env.DOTNET_VERSION }}
-        cache: true
-        cache-dependency-path: '**/packages.lock.json'
 
     - name: Restore dependencies
       run: dotnet restore TutoriaApi.sln

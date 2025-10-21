@@ -165,14 +165,12 @@ if (app.Environment.IsDevelopment())
 }
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+// Swagger enabled in all environments
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Tutoria API v1");
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Tutoria API v1");
+});
 
 // Disable HTTPS redirection in development (breaks CORS preflight)
 if (!app.Environment.IsDevelopment())
