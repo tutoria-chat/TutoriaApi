@@ -41,31 +41,35 @@ Or create via AWS Console:
 4. Platform: `.NET Core on Linux`
 5. Platform version: `.NET 8 running on 64bit Amazon Linux 2023`
 
-#### B. Elastic Beanstalk Environment
+#### B. Elastic Beanstalk Environment (Development)
 ```bash
 aws elasticbeanstalk create-environment \
   --application-name tutoria-api-dev \
   --environment-name tutoria-api-dev-env \
   --solution-stack-name "64bit Amazon Linux 2023 v3.1.3 running .NET 8" \
   --option-settings \
-    Namespace=aws:autoscaling:launchconfiguration,OptionName=InstanceType,Value=t3.small \
+    Namespace=aws:autoscaling:launchconfiguration,OptionName=InstanceType,Value=t3.micro \
     Namespace=aws:elasticbeanstalk:environment,OptionName=EnvironmentType,Value=SingleInstance
 ```
 
-**Important Settings**:
-- Instance Type: `t3.small` (minimum recommended for .NET 8)
+**Important Settings (Development)**:
+- Instance Type: `t3.micro` (1GB RAM, ~$7.50/month or FREE with AWS Free Tier)
 - Environment Type: `SingleInstance` (cheaper, suitable for dev)
 - Health Check URL: `/health`
 
+**For Production** (use when creating prod environment):
+- Instance Type: `t3.small` or larger (2GB RAM minimum recommended)
+- Environment Type: `LoadBalanced` with auto-scaling (higher availability)
+
 #### C. S3 Bucket for Deployments
 ```bash
-aws s3 mb s3://tutoria-api-deployments --region us-east-1
+aws s3 mb s3://tutoria-api-deployments --region us-east-2
 ```
 
 Or create via AWS Console:
 1. S3 > Create bucket
 2. Name: `tutoria-api-deployments` (or your preferred name)
-3. Region: `us-east-1` (same as EB)
+3. Region: `us-east-2` (same as EB)
 4. Keep defaults (private bucket)
 
 ---
@@ -74,33 +78,63 @@ Or create via AWS Console:
 
 Go to your GitHub repository settings > Secrets and variables > Actions, and add these secrets:
 
-### Required Secrets
+### Required Secrets for Development
 
 | Secret Name | Description | Example Value | Where to Get |
 |-------------|-------------|---------------|--------------|
 | **AWS Credentials** ||||
-| `AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console > Users > Security credentials |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | AWS IAM Console (shown once on creation) |
+| `DEV_AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console > Users > Security credentials |
+| `DEV_AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | AWS IAM Console (shown once on creation) |
 | **Elastic Beanstalk** ||||
-| `EB_S3_BUCKET` | S3 bucket for deployments | `tutoria-api-deployments` | The bucket you created above |
+| `DEV_EB_S3_BUCKET` | S3 bucket for deployments | `tutoria-api-deployments` | The bucket you created above |
 | **Database** ||||
-| `DB_CONNECTION_STRING` | SQL Server connection string | `Server=YOUR_SERVER.database.windows.net,1433;Database=YOUR_DB;User Id=YOUR_USER;Password=YOUR_PASSWORD;...` | Azure Portal > SQL Database > Connection strings |
+| `DEV_DB_CONNECTION_STRING` | SQL Server connection string | `Server=YOUR_SERVER.database.windows.net,1433;Database=YOUR_DB;User Id=YOUR_USER;Password=YOUR_PASSWORD;...` | Azure Portal > SQL Database > Connection strings |
 | **Azure Storage** ||||
-| `AZURE_STORAGE_CONNECTION_STRING` | Azure Blob Storage connection | `DefaultEndpointsProtocol=https;AccountName=tutoria;AccountKey=...` | Azure Portal > Storage Account > Access keys |
-| `AZURE_STORAGE_CONTAINER` | Blob container name | `nonprod` | Your container name |
+| `DEV_AZURE_STORAGE_CONNECTION_STRING` | Azure Blob Storage connection | `DefaultEndpointsProtocol=https;AccountName=tutoria;AccountKey=...` | Azure Portal > Storage Account > Access keys |
+| `DEV_AZURE_STORAGE_CONTAINER` | Blob container name | `nonprod` | Your container name |
 | **JWT Configuration** ||||
-| `JWT_SECRET_KEY` | JWT signing key (min 32 chars) | `YourSuperSecretKeyThatIsAtLeast32CharactersLong!` | Generate a strong random string |
-| `JWT_ISSUER` | JWT issuer | `TutoriaAuthApi` | Your chosen issuer name |
-| `JWT_AUDIENCE` | JWT audience | `TutoriaApi` | Your chosen audience name |
+| `DEV_JWT_SECRET_KEY` | JWT signing key (min 32 chars) | `YourSuperSecretKeyThatIsAtLeast32CharactersLong!` | Generate a strong random string |
+| `DEV_JWT_ISSUER` | JWT issuer | `TutoriaAuthApi` | Your chosen issuer name |
+| `DEV_JWT_AUDIENCE` | JWT audience | `TutoriaApi` | Your chosen audience name |
 | **OpenAI (Optional)** ||||
-| `OPENAI_API_KEY` | OpenAI API key | `sk-proj-...` | OpenAI Platform > API keys |
+| `DEV_OPENAI_API_KEY` | OpenAI API key | `sk-proj-...` | OpenAI Platform > API keys |
 | **AWS Services (Optional)** ||||
-| `AWS_SES_ACCESS_KEY_ID` | AWS SES access key (for emails) | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console (if using SES) |
-| `AWS_SES_SECRET_ACCESS_KEY` | AWS SES secret key | `wJalrXUtnFEMI/...` | AWS IAM Console (if using SES) |
+| `DEV_AWS_SES_ACCESS_KEY_ID` | AWS SES access key (for emails) | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console (if using SES) |
+| `DEV_AWS_SES_SECRET_ACCESS_KEY` | AWS SES secret key | `wJalrXUtnFEMI/...` | AWS IAM Console (if using SES) |
+| `DEV_AWS_SES_REGION` | AWS SES region | `us-east-2` | Your AWS SES region |
 | **Email Configuration** ||||
-| `EMAIL_FROM_ADDRESS` | Email sender address | `noreply@yourdomain.com` | Your verified SES email |
-| `EMAIL_FROM_NAME` | Email sender name | `Tutoria` | Your app name |
-| `EMAIL_FRONTEND_URL` | Frontend URL for email links | `https://tutoria-app.com` | Your frontend domain |
+| `DEV_EMAIL_FROM_ADDRESS` | Email sender address | `noreply@yourdomain.com` | Your verified SES email |
+| `DEV_EMAIL_FROM_NAME` | Email sender name | `Tutoria` | Your app name |
+| `DEV_EMAIL_FRONTEND_URL` | Frontend URL for email links | `https://tutoria-dev.com` | Your dev frontend domain |
+
+### Required Secrets for Production
+
+| Secret Name | Description | Example Value | Where to Get |
+|-------------|-------------|---------------|--------------|
+| **AWS Credentials** ||||
+| `PROD_AWS_ACCESS_KEY_ID` | AWS IAM access key | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console > Users > Security credentials |
+| `PROD_AWS_SECRET_ACCESS_KEY` | AWS IAM secret key | `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY` | AWS IAM Console (shown once on creation) |
+| **Elastic Beanstalk** ||||
+| `PROD_EB_S3_BUCKET` | S3 bucket for deployments | `tutoria-api-deployments-prod` | The bucket you created above |
+| **Database** ||||
+| `PROD_DB_CONNECTION_STRING` | SQL Server connection string | `Server=YOUR_SERVER.database.windows.net,1433;Database=YOUR_DB;User Id=YOUR_USER;Password=YOUR_PASSWORD;...` | Azure Portal > SQL Database > Connection strings |
+| **Azure Storage** ||||
+| `PROD_AZURE_STORAGE_CONNECTION_STRING` | Azure Blob Storage connection | `DefaultEndpointsProtocol=https;AccountName=tutoria;AccountKey=...` | Azure Portal > Storage Account > Access keys |
+| `PROD_AZURE_STORAGE_CONTAINER` | Blob container name | `prod` | Your container name |
+| **JWT Configuration** ||||
+| `PROD_JWT_SECRET_KEY` | JWT signing key (min 32 chars) | `YourSuperSecretKeyThatIsAtLeast32CharactersLong!` | Generate a strong random string |
+| `PROD_JWT_ISSUER` | JWT issuer | `TutoriaAuthApi` | Your chosen issuer name |
+| `PROD_JWT_AUDIENCE` | JWT audience | `TutoriaApi` | Your chosen audience name |
+| **OpenAI (Optional)** ||||
+| `PROD_OPENAI_API_KEY` | OpenAI API key | `sk-proj-...` | OpenAI Platform > API keys |
+| **AWS Services (Optional)** ||||
+| `PROD_AWS_SES_ACCESS_KEY_ID` | AWS SES access key (for emails) | `AKIAIOSFODNN7EXAMPLE` | AWS IAM Console (if using SES) |
+| `PROD_AWS_SES_SECRET_ACCESS_KEY` | AWS SES secret key | `wJalrXUtnFEMI/...` | AWS IAM Console (if using SES) |
+| `PROD_AWS_SES_REGION` | AWS SES region | `us-east-2` | Your AWS SES region |
+| **Email Configuration** ||||
+| `PROD_EMAIL_FROM_ADDRESS` | Email sender address | `noreply@yourdomain.com` | Your verified SES email |
+| `PROD_EMAIL_FROM_NAME` | Email sender name | `Tutoria` | Your app name |
+| `PROD_EMAIL_FRONTEND_URL` | Frontend URL for email links | `https://tutoria.com` | Your production frontend domain |
 
 ### How to Add Secrets in GitHub
 
@@ -309,22 +343,30 @@ aws elasticbeanstalk retrieve-environment-info \
 
 ## Cost Estimation
 
-### Elastic Beanstalk (Development - Single Instance)
+### Development Environment (Single Instance - t3.micro)
+
+| Resource | Type | Monthly Cost |
+|----------|------|--------------|
+| EC2 Instance | t3.micro (2 vCPU, 1GB RAM) | ~$7.50 (or **FREE** with AWS Free Tier) |
+| EBS Volume | 10GB gp3 | ~$0.80 |
+| Data Transfer | First 100GB free | $0 |
+| S3 Storage | Deployments | ~$0.50 |
+| CloudWatch Logs | Standard logging | ~$0.50 |
+| **Total** || **~$9/month** (or **$1-2/month with Free Tier**) |
+
+**💡 AWS Free Tier**: If your AWS account is less than 12 months old, t3.micro is FREE (750 hours/month)!
+
+### Production Environment (Recommended)
 
 | Resource | Type | Monthly Cost |
 |----------|------|--------------|
 | EC2 Instance | t3.small (2 vCPU, 2GB RAM) | ~$15 |
+| Load Balancer | Application Load Balancer | ~$16 |
 | EBS Volume | 10GB gp3 | ~$1 |
 | Data Transfer | First 100GB free | $0 |
-| **Total** || **~$16/month** |
+| **Total** || **~$32-40/month** |
 
-### Additional AWS Costs
-
-- S3 Storage (deployments): ~$0.50/month
-- CloudWatch Logs: ~$0.50/month
-- **Grand Total**: **~$17/month**
-
-**Production**: Use `LoadBalanced` environment type with auto-scaling (~$30-50/month)
+**Note**: Production should use `LoadBalanced` environment type with auto-scaling for high availability.
 
 ---
 
