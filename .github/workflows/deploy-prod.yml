@@ -76,6 +76,7 @@ jobs:
             "FromAddress": "${{ secrets.PROD_EMAIL_FROM_ADDRESS }}",
             "FromName": "${{ secrets.PROD_EMAIL_FROM_NAME }}",
             "FrontendUrl": "${{ secrets.PROD_EMAIL_FRONTEND_URL }}",
+            "LogoUrl": "${{ secrets.PROD_EMAIL_LOGO_URL }}",
             "Enabled": true
           }
         }

@@ -15,7 +15,7 @@ You need **TWO sets of secrets**: one for **Development** (DEV_*) and one for **
 - **DEV_*** secrets are used by the `main` branch deployment
 - **PROD_*** secrets are used by the `prod` branch deployment
 
-**Total Secrets Needed**: ~30 (15 for dev + 15 for prod)
+**Total Secrets Needed**: ~32 (16 for dev + 16 for prod)
 
 ---
 
@@ -138,6 +138,13 @@ Name: DEV_EMAIL_FRONTEND_URL
 Value: http://localhost:3000
 ```
 
+```
+Name: DEV_EMAIL_LOGO_URL
+Value: https://your-dev-domain.com/images/tutoria-logo.png
+```
+
+**Note**: Once deployed to Elastic Beanstalk, the logo will be publicly accessible at `https://your-eb-domain/images/tutoria-logo.png`. Update this secret with your actual EB domain after first deployment.
+
 ---
 
 ### ❓ Optional Secrets (Development)
@@ -255,6 +262,13 @@ Value: Tutoria
 Name: PROD_EMAIL_FRONTEND_URL
 Value: https://tutoria.com
 ```
+
+```
+Name: PROD_EMAIL_LOGO_URL
+Value: https://your-prod-domain.com/images/tutoria-logo.png
+```
+
+**Note**: Once deployed to production Elastic Beanstalk, the logo will be publicly accessible at `https://your-prod-eb-domain/images/tutoria-logo.png`. Update this secret with your actual production EB domain.
 
 ---
 

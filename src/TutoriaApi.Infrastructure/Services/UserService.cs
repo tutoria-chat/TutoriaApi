@@ -1,26 +1,25 @@
 using System.Security.Cryptography;
 using BCrypt.Net;
-using Microsoft.EntityFrameworkCore;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Services;
 
 public class UserService : IUserService
 {
-    private readonly TutoriaDbContext _context;
+    private readonly IUserRepository _userRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IEmailService _emailService;
 
     public UserService(
-        TutoriaDbContext context,
+        IUserRepository userRepository,
         IUniversityRepository universityRepository,
         ICourseRepository courseRepository,
         IEmailService emailService)
     {
-        _context = context;
+        _userRepository = userRepository;
         _universityRepository = universityRepository;
         _courseRepository = courseRepository;
         _emailService = emailService;
@@ -35,54 +34,23 @@ public class UserService : IUserService
         int page,
         int pageSize)
     {
-        var query = _context.Users
-            .Include(u => u.University)
-            .AsQueryable();
-
-        // Filter by user type
+        // Validate user type
         if (!string.IsNullOrWhiteSpace(userType))
         {
-            if (userType != "student" && userType != "professor" && userType != "super_admin")
+            if (userType != UserTypes.Student && userType != UserTypes.Professor && userType != UserTypes.SuperAdmin)
             {
-                throw new ArgumentException("Invalid user type. Must be: student, professor, or super_admin");
+                throw new ArgumentException($"Invalid user type. Must be: {UserTypes.Student}, {UserTypes.Professor}, or {UserTypes.SuperAdmin}");
             }
-            query = query.Where(u => u.UserType == userType);
         }
 
-        // Filter by university
-        if (universityId.HasValue)
-        {
-            query = query.Where(u => u.UniversityId == universityId.Value);
-        }
-
-        // Filter by isAdmin
-        if (isAdmin.HasValue)
-        {
-            query = query.Where(u => u.IsAdmin == isAdmin.Value);
-        }
-
-        // Filter by isActive
-        if (isActive.HasValue)
-        {
-            query = query.Where(u => u.IsActive == isActive.Value);
-        }
-
-        // Search filter
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(u =>
-                u.Username.Contains(search) ||
-                u.FirstName.Contains(search) ||
-                u.LastName.Contains(search) ||
-                u.Email.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-        var users = await query
-            .OrderBy(u => u.UserId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        var (users, total) = await _userRepository.GetPagedAsync(
+            userType,
+            universityId,
+            isAdmin,
+            isActive,
+            search,
+            page,
+            pageSize);
 
         var viewModels = users.Select(u => new UserListViewModel
         {
@@ -95,9 +63,7 @@ public class UserService : IUserService
 
     public async Task<UserListViewModel?> GetByIdAsync(int id)
     {
-        var user = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
+        var user = await _userRepository.GetByIdWithIncludesAsync(id);
 
         if (user == null) return null;
 
@@ -123,7 +89,7 @@ public class UserService : IUserService
         User currentUser)
     {
         // Permission checks based on current user
-        if (currentUser.UserType == "professor")
+        if (currentUser.UserType == UserTypes.Professor)
         {
             if (!(currentUser.IsAdmin ?? false))
             {
@@ -131,7 +97,7 @@ public class UserService : IUserService
             }
 
             // Admin professors can only create regular (non-admin) professors
-            if (userType != "professor" || isAdmin)
+            if (userType != UserTypes.Professor || isAdmin)
             {
                 throw new InvalidOperationException("Admin professors can only create regular (non-admin) professors");
             }
@@ -144,19 +110,19 @@ public class UserService : IUserService
         }
 
         // Validate user_type
-        if (userType != "student" && userType != "professor" && userType != "super_admin")
+        if (userType != UserTypes.Student && userType != UserTypes.Professor && userType != UserTypes.SuperAdmin)
         {
-            throw new ArgumentException("Invalid user_type. Must be: student, professor, or super_admin");
+            throw new ArgumentException($"Invalid user_type. Must be: {UserTypes.Student}, {UserTypes.Professor}, or {UserTypes.SuperAdmin}");
         }
 
         // Validate university_id for professors
-        if (userType == "professor" && !universityId.HasValue)
+        if (userType == UserTypes.Professor && !universityId.HasValue)
         {
             throw new ArgumentException("university_id is required for professors");
         }
 
         // Validate course_id for students
-        if (userType == "student" && courseId.HasValue)
+        if (userType == UserTypes.Student && courseId.HasValue)
         {
             var course = await _courseRepository.GetByIdAsync(courseId.Value);
             if (course == null)
@@ -176,17 +142,13 @@ public class UserService : IUserService
         }
 
         // Check if username or email already exists
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == username);
-
+        var existingByUsername = await _userRepository.GetByUsernameAsync(username);
         if (existingByUsername != null)
         {
             throw new InvalidOperationException("Username already exists");
         }
 
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
-
+        var existingByEmail = await _userRepository.GetByEmailAsync(email);
         if (existingByEmail != null)
         {
             throw new InvalidOperationException("Email already exists");
@@ -194,7 +156,7 @@ public class UserService : IUserService
 
         // Super admins must have is_admin=True
         var isAdminValue = isAdmin;
-        if (userType == "super_admin")
+        if (userType == UserTypes.SuperAdmin)
         {
             isAdminValue = true;
         }
@@ -214,8 +176,7 @@ public class UserService : IUserService
             LanguagePreference = languagePreference ?? "pt-br"
         };
 
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
+        await _userRepository.AddAsync(user);
 
         // Generate password reset token for email
         var tokenBytes = new byte[32];
@@ -227,7 +188,7 @@ public class UserService : IUserService
 
         user.PasswordResetToken = resetToken;
         user.PasswordResetExpires = DateTime.UtcNow.AddHours(24);
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         // Send welcome email
         try
@@ -248,9 +209,7 @@ public class UserService : IUserService
         }
 
         // Reload with includes
-        var createdUser = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == user.UserId);
+        var createdUser = await _userRepository.GetByIdWithIncludesAsync(user.UserId);
 
         return new UserListViewModel
         {
@@ -273,7 +232,7 @@ public class UserService : IUserService
         string? languagePreference,
         User currentUser)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userRepository.GetByIdAsync(id);
 
         if (user == null)
         {
@@ -281,7 +240,7 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == "professor")
+        if (currentUser.UserType == UserTypes.Professor)
         {
             if (!(currentUser.IsAdmin ?? false))
             {
@@ -289,7 +248,7 @@ public class UserService : IUserService
             }
 
             // Admin professors can only update regular professors
-            if (user.UserType != "professor" || (user.IsAdmin ?? false))
+            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
             {
                 throw new InvalidOperationException("Admin professors can only update regular professors");
             }
@@ -304,16 +263,14 @@ public class UserService : IUserService
         // Cannot update yourself
         if (currentUser.UserId == id)
         {
-            throw new InvalidOperationException("Cannot update your own account via this endpoint. Use /auth/me instead");
+            throw new InvalidOperationException("Cannot update your own account via this endpoint");
         }
 
         // Check for username conflicts
         if (!string.IsNullOrWhiteSpace(username) && username != user.Username)
         {
-            var existingByUsername = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == username && u.UserId != id);
-
-            if (existingByUsername != null)
+            var usernameExists = await _userRepository.ExistsByUsernameExcludingUserAsync(username, id);
+            if (usernameExists)
             {
                 throw new InvalidOperationException("Username already exists");
             }
@@ -324,10 +281,8 @@ public class UserService : IUserService
         // Check for email conflicts
         if (!string.IsNullOrWhiteSpace(email) && email != user.Email)
         {
-            var existingByEmail = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email && u.UserId != id);
-
-            if (existingByEmail != null)
+            var emailExists = await _userRepository.ExistsByEmailExcludingUserAsync(email, id);
+            if (emailExists)
             {
                 throw new InvalidOperationException("Email already exists");
             }
@@ -373,7 +328,8 @@ public class UserService : IUserService
             {
                 throw new KeyNotFoundException("Course not found");
             }
-            // TODO: Handle course assignment via StudentCourses junction table
+            // Note: Course assignment for students should be handled via StudentCourses junction table
+            // This is a placeholder for future implementation
         }
 
         if (!string.IsNullOrWhiteSpace(themePreference))
@@ -387,12 +343,10 @@ public class UserService : IUserService
         }
 
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         // Reload with includes
-        var updatedUser = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
+        var updatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
 
         return new UserListViewModel
         {
@@ -403,7 +357,7 @@ public class UserService : IUserService
 
     public async Task<UserListViewModel> ActivateAsync(int id, User currentUser)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userRepository.GetByIdAsync(id);
 
         if (user == null)
         {
@@ -411,7 +365,7 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == "professor")
+        if (currentUser.UserType == UserTypes.Professor)
         {
             if (!(currentUser.IsAdmin ?? false))
             {
@@ -419,7 +373,7 @@ public class UserService : IUserService
             }
 
             // Admin professors can only activate regular professors in their university
-            if (user.UserType != "professor" || (user.IsAdmin ?? false))
+            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
             {
                 throw new InvalidOperationException("Admin professors can only activate regular professors");
             }
@@ -432,12 +386,10 @@ public class UserService : IUserService
 
         user.IsActive = true;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         // Reload with includes
-        var activatedUser = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
+        var activatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
 
         return new UserListViewModel
         {
@@ -448,7 +400,7 @@ public class UserService : IUserService
 
     public async Task<UserListViewModel> DeactivateAsync(int id, User currentUser)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userRepository.GetByIdAsync(id);
 
         if (user == null)
         {
@@ -462,7 +414,7 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == "professor")
+        if (currentUser.UserType == UserTypes.Professor)
         {
             if (!(currentUser.IsAdmin ?? false))
             {
@@ -470,7 +422,7 @@ public class UserService : IUserService
             }
 
             // Admin professors can only deactivate regular professors in their university
-            if (user.UserType != "professor" || (user.IsAdmin ?? false))
+            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
             {
                 throw new InvalidOperationException("Admin professors can only deactivate regular professors");
             }
@@ -483,12 +435,10 @@ public class UserService : IUserService
 
         user.IsActive = false;
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
 
         // Reload with includes
-        var deactivatedUser = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
+        var deactivatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
 
         return new UserListViewModel
         {
@@ -499,7 +449,7 @@ public class UserService : IUserService
 
     public async Task DeleteAsync(int id, User currentUser)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userRepository.GetByIdAsync(id);
 
         if (user == null)
         {
@@ -512,13 +462,32 @@ public class UserService : IUserService
             throw new InvalidOperationException("Cannot delete your own account");
         }
 
-        _context.Users.Remove(user);
-        await _context.SaveChangesAsync();
+        // Permission checks
+        if (currentUser.UserType == UserTypes.Professor)
+        {
+            if (!(currentUser.IsAdmin ?? false))
+            {
+                throw new UnauthorizedAccessException("Insufficient permissions");
+            }
+
+            // Admin professors can only delete regular professors in their university
+            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
+            {
+                throw new InvalidOperationException("Admin professors can only delete regular professors");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only delete professors in their own university");
+            }
+        }
+
+        await _userRepository.DeleteAsync(user);
     }
 
     public async Task ChangePasswordAsync(int id, string newPassword, User currentUser)
     {
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userRepository.GetByIdAsync(id);
 
         if (user == null)
         {
@@ -526,7 +495,7 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == "professor")
+        if (currentUser.UserType == UserTypes.Professor)
         {
             if (!(currentUser.IsAdmin ?? false))
             {
@@ -534,7 +503,7 @@ public class UserService : IUserService
             }
 
             // Admin professors can only change passwords for regular professors in their university
-            if (user.UserType != "professor" || (user.IsAdmin ?? false))
+            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
             {
                 throw new InvalidOperationException("Admin professors can only change passwords for regular professors");
             }
@@ -547,6 +516,6 @@ public class UserService : IUserService
 
         user.HashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
         user.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.SaveChangesAsync();
     }
 }

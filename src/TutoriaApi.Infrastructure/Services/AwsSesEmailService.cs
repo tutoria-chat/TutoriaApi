@@ -17,6 +17,7 @@ public class AwsSesEmailService : IEmailService
     private readonly string _fromAddress;
     private readonly string _fromName;
     private readonly string _frontendUrl;
+    private readonly string _logoUrl;
     private readonly bool _isEnabled;
 
     public AwsSesEmailService(
@@ -30,6 +31,7 @@ public class AwsSesEmailService : IEmailService
         _fromAddress = configuration["Email:FromAddress"] ?? "noreply@tutoria.com";
         _fromName = configuration["Email:FromName"] ?? "Tutoria Platform";
         _frontendUrl = configuration["Email:FrontendUrl"] ?? "http://localhost:3000";
+        _logoUrl = configuration["Email:LogoUrl"] ?? "https://your-domain.com/images/tutoria-logo.png";
         _isEnabled = bool.TryParse(configuration["Email:Enabled"], out var enabled) && enabled && sesClient != null;
 
         if (_sesClient == null)
@@ -64,7 +66,7 @@ public class AwsSesEmailService : IEmailService
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping welcome email to {Email}", toEmail);
-            _logger.LogInformation("Account created for {Email}. Username: {Username}, Temporary Password: {Password}", toEmail, username, temporaryPassword);
+            _logger.LogInformation("Account created for {Email}. Username: {Username}. Temporary credentials sent via email.", toEmail, username);
             return;
         }
 
@@ -219,6 +221,7 @@ public class AwsSesEmailService : IEmailService
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Reset Your Password</h1>
                         </td>
                     </tr>
@@ -286,6 +289,7 @@ If you didn't request a password reset, you can safely ignore this email.
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Redefinir Sua Senha</h1>
                         </td>
                     </tr>
@@ -353,6 +357,7 @@ Se você não solicitou a redefinição de senha, pode ignorar este e-mail com s
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Restablecer Tu Contraseña</h1>
                         </td>
                     </tr>
@@ -416,7 +421,7 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
             _ => "User"
         };
 
-        var subject = "Welcome to Tutoria - Account Created";
+        var subject = "Welcome to Tutoria - Set Up Your Account";
         var html = $@"
 <!DOCTYPE html>
 <html lang=""en"">
@@ -431,29 +436,27 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Welcome to Tutoria!</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Hi {name},</p>
-                            <p>Your {roleDisplay} account has been created. Here are your login credentials:</p>
-                            <div style=""background-color: #f8f8f8; padding: 20px; border-radius: 6px; margin: 20px 0;"">
-                                <p style=""margin: 5px 0;""><strong>Username:</strong> {username}</p>
-                                <p style=""margin: 5px 0;""><strong>Temporary Password:</strong> {temporaryPassword}</p>
-                            </div>
-                            <p><strong>Important:</strong> For security reasons, you must change your password on first login.</p>
+                            <p>Your {roleDisplay} account has been created with the username: <strong>{username}</strong></p>
+                            <p>To activate your account and create your password, please click the button below. This secure link will expire in 24 hours.</p>
                         </td>
                     </tr>
                     <tr>
                         <td align=""center"" style=""padding: 20px 40px;"">
-                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Set New Password</a>
+                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Create My Password</a>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
                             <p>Or copy and paste this link into your browser:</p>
                             <p style=""word-break: break-all; color: #4F46E5;"">{resetLink}</p>
+                            <p style=""margin-top: 20px; color: #999999; font-size: 13px;""><strong>Security Note:</strong> This link can only be used once and expires in 24 hours. If you didn't request this account, please ignore this email.</p>
                         </td>
                     </tr>
                     <tr>
@@ -470,15 +473,13 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
 
         var text = $@"Hi {name},
 
-Your {roleDisplay} account has been created. Here are your login credentials:
+Your {roleDisplay} account has been created with the username: {username}
 
-Username: {username}
-Temporary Password: {temporaryPassword}
+To activate your account and create your password, please use the secure link below. This link will expire in 24 hours.
 
-Important: For security reasons, you must change your password on first login.
-
-Click this link to set a new password:
 {resetLink}
+
+Security Note: This link can only be used once and expires in 24 hours. If you didn't request this account, please ignore this email.
 
 © 2025 Tutoria Platform. All rights reserved.";
 
@@ -494,7 +495,7 @@ Click this link to set a new password:
             _ => "Usuário"
         };
 
-        var subject = "Bem-vindo ao Tutoria - Conta Criada";
+        var subject = "Bem-vindo ao Tutoria - Configure Sua Conta";
         var html = $@"
 <!DOCTYPE html>
 <html lang=""pt-BR"">
@@ -509,29 +510,27 @@ Click this link to set a new password:
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Bem-vindo ao Tutoria!</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Olá {name},</p>
-                            <p>Sua conta de {roleDisplay} foi criada. Aqui estão suas credenciais de login:</p>
-                            <div style=""background-color: #f8f8f8; padding: 20px; border-radius: 6px; margin: 20px 0;"">
-                                <p style=""margin: 5px 0;""><strong>Nome de usuário:</strong> {username}</p>
-                                <p style=""margin: 5px 0;""><strong>Senha temporária:</strong> {temporaryPassword}</p>
-                            </div>
-                            <p><strong>Importante:</strong> Por razões de segurança, você deve alterar sua senha no primeiro login.</p>
+                            <p>Sua conta de {roleDisplay} foi criada com o nome de usuário: <strong>{username}</strong></p>
+                            <p>Para ativar sua conta e criar sua senha, clique no botão abaixo. Este link seguro expira em 24 horas.</p>
                         </td>
                     </tr>
                     <tr>
                         <td align=""center"" style=""padding: 20px 40px;"">
-                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Definir Nova Senha</a>
+                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Criar Minha Senha</a>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
                             <p>Ou copie e cole este link no seu navegador:</p>
                             <p style=""word-break: break-all; color: #4F46E5;"">{resetLink}</p>
+                            <p style=""margin-top: 20px; color: #999999; font-size: 13px;""><strong>Nota de Segurança:</strong> Este link pode ser usado apenas uma vez e expira em 24 horas. Se você não solicitou esta conta, ignore este e-mail.</p>
                         </td>
                     </tr>
                     <tr>
@@ -548,15 +547,13 @@ Click this link to set a new password:
 
         var text = $@"Olá {name},
 
-Sua conta de {roleDisplay} foi criada. Aqui estão suas credenciais de login:
+Sua conta de {roleDisplay} foi criada com o nome de usuário: {username}
 
-Nome de usuário: {username}
-Senha temporária: {temporaryPassword}
+Para ativar sua conta e criar sua senha, use o link seguro abaixo. Este link expira em 24 horas.
 
-Importante: Por razões de segurança, você deve alterar sua senha no primeiro login.
-
-Clique neste link para definir uma nova senha:
 {resetLink}
+
+Nota de Segurança: Este link pode ser usado apenas uma vez e expira em 24 horas. Se você não solicitou esta conta, ignore este e-mail.
 
 © 2025 Plataforma Tutoria. Todos os direitos reservados.";
 
@@ -572,7 +569,7 @@ Clique neste link para definir uma nova senha:
             _ => "Usuario"
         };
 
-        var subject = "Bienvenido a Tutoria - Cuenta Creada";
+        var subject = "Bienvenido a Tutoria - Configura Tu Cuenta";
         var html = $@"
 <!DOCTYPE html>
 <html lang=""es"">
@@ -587,29 +584,27 @@ Clique neste link para definir uma nova senha:
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
                             <h1 style=""margin: 0; color: #333333; font-size: 24px;"">¡Bienvenido a Tutoria!</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Hola {name},</p>
-                            <p>Tu cuenta de {roleDisplay} ha sido creada. Aquí están tus credenciales de inicio de sesión:</p>
-                            <div style=""background-color: #f8f8f8; padding: 20px; border-radius: 6px; margin: 20px 0;"">
-                                <p style=""margin: 5px 0;""><strong>Nombre de usuario:</strong> {username}</p>
-                                <p style=""margin: 5px 0;""><strong>Contraseña temporal:</strong> {temporaryPassword}</p>
-                            </div>
-                            <p><strong>Importante:</strong> Por razones de seguridad, debes cambiar tu contraseña en el primer inicio de sesión.</p>
+                            <p>Tu cuenta de {roleDisplay} ha sido creada con el nombre de usuario: <strong>{username}</strong></p>
+                            <p>Para activar tu cuenta y crear tu contraseña, haz clic en el botón de abajo. Este enlace seguro expira en 24 horas.</p>
                         </td>
                     </tr>
                     <tr>
                         <td align=""center"" style=""padding: 20px 40px;"">
-                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Establecer Nueva Contraseña</a>
+                            <a href=""{resetLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Crear Mi Contraseña</a>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
                             <p>O copia y pega este enlace en tu navegador:</p>
                             <p style=""word-break: break-all; color: #4F46E5;"">{resetLink}</p>
+                            <p style=""margin-top: 20px; color: #999999; font-size: 13px;""><strong>Nota de Seguridad:</strong> Este enlace solo se puede usar una vez y expira en 24 horas. Si no solicitaste esta cuenta, ignora este correo.</p>
                         </td>
                     </tr>
                     <tr>
@@ -626,15 +621,13 @@ Clique neste link para definir uma nova senha:
 
         var text = $@"Hola {name},
 
-Tu cuenta de {roleDisplay} ha sido creada. Aquí están tus credenciales de inicio de sesión:
+Tu cuenta de {roleDisplay} ha sido creada con el nombre de usuario: {username}
 
-Nombre de usuario: {username}
-Contraseña temporal: {temporaryPassword}
+Para activar tu cuenta y crear tu contraseña, usa el enlace seguro de abajo. Este enlace expira en 24 horas.
 
-Importante: Por razones de seguridad, debes cambiar tu contraseña en el primer inicio de sesión.
-
-Haz clic en este enlace para establecer una nueva contraseña:
 {resetLink}
+
+Nota de Seguridad: Este enlace solo se puede usar una vez y expira en 24 horas. Si no solicitaste esta cuenta, ignora este correo.
 
 © 2025 Plataforma Tutoria. Todos los derechos reservados.";
 

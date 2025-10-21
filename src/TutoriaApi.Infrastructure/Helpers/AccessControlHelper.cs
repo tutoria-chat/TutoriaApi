@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Helpers;
@@ -10,10 +11,13 @@ namespace TutoriaApi.Infrastructure.Helpers;
 public class AccessControlHelper
 {
     private readonly TutoriaDbContext _context;
+    private readonly ILogger<AccessControlHelper> _logger;
+    private const int MaxCourseAssignments = 1000; // Reasonable limit for professor course assignments
 
-    public AccessControlHelper(TutoriaDbContext context)
+    public AccessControlHelper(TutoriaDbContext context, ILogger<AccessControlHelper> logger)
     {
         _context = context;
+        _logger = logger;
     }
 
     /// <summary>
@@ -85,15 +89,27 @@ public class AccessControlHelper
     }
 
     /// <summary>
-    /// Gets all course IDs assigned to a professor.
+    /// Gets all course IDs assigned to a professor (limited to prevent unbounded queries).
     /// </summary>
     /// <param name="professorId">The professor's user ID</param>
-    /// <returns>List of course IDs</returns>
+    /// <returns>List of course IDs (maximum 1000 courses)</returns>
     public async Task<List<int>> GetProfessorCourseIdsAsync(int professorId)
     {
-        return await _context.ProfessorCourses
+        var courseIds = await _context.ProfessorCourses
             .Where(pc => pc.ProfessorId == professorId)
             .Select(pc => pc.CourseId)
+            .Take(MaxCourseAssignments)
             .ToListAsync();
+
+        if (courseIds.Count == MaxCourseAssignments)
+        {
+            _logger.LogWarning(
+                "Professor {ProfessorId} has reached the maximum course assignment limit of {MaxLimit}. " +
+                "This may indicate a data issue or misconfiguration.",
+                professorId,
+                MaxCourseAssignments);
+        }
+
+        return courseIds;
     }
 }

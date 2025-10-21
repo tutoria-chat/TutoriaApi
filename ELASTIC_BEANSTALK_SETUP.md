@@ -171,11 +171,14 @@ AWS__Region = us-east-2
 Email__FromAddress = <EMAIL_FROM_ADDRESS>
 Email__FromName = <EMAIL_FROM_NAME>
 Email__FrontendUrl = <EMAIL_FRONTEND_URL>
+Email__LogoUrl = https://your-eb-domain/images/tutoria-logo.png
 Email__Enabled = True
 ASPNETCORE_ENVIRONMENT = Production
 ```
 
-**Note**: Environment variable names use `__` (double underscore) to represent `:` in appsettings.json hierarchy.
+**Notes**:
+- Environment variable names use `__` (double underscore) to represent `:` in appsettings.json hierarchy.
+- **Email__LogoUrl**: After first deployment, update this with your actual Elastic Beanstalk domain. The logo file is automatically deployed to `/wwwroot/images/tutoria-logo.png` and will be publicly accessible at `https://your-eb-domain/images/tutoria-logo.png`.
 
 ---
 

@@ -70,6 +70,63 @@ public class UserRepository : IUserRepository
             .ToListAsync();
     }
 
+    public async Task<(List<User> Items, int Total)> GetPagedAsync(
+        string? userType,
+        int? universityId,
+        bool? isAdmin,
+        bool? isActive,
+        string? search,
+        int page,
+        int pageSize)
+    {
+        var query = _context.Users
+            .Include(u => u.University)
+            .AsQueryable();
+
+        // Filter by user type
+        if (!string.IsNullOrWhiteSpace(userType))
+        {
+            query = query.Where(u => u.UserType == userType);
+        }
+
+        // Filter by university
+        if (universityId.HasValue)
+        {
+            query = query.Where(u => u.UniversityId == universityId.Value);
+        }
+
+        // Filter by isAdmin
+        if (isAdmin.HasValue)
+        {
+            query = query.Where(u => u.IsAdmin == isAdmin.Value);
+        }
+
+        // Filter by isActive
+        if (isActive.HasValue)
+        {
+            query = query.Where(u => u.IsActive == isActive.Value);
+        }
+
+        // Search filter
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(u =>
+                u.Username.Contains(search) ||
+                u.FirstName.Contains(search) ||
+                u.LastName.Contains(search) ||
+                u.Email.Contains(search));
+        }
+
+        var total = await query.CountAsync();
+        var users = await query
+            .OrderBy(u => u.UserId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (users, total);
+    }
+
     public async Task<User> AddAsync(User user)
     {
         user.CreatedAt = DateTime.UtcNow;
@@ -105,6 +162,11 @@ public class UserRepository : IUserRepository
     public async Task<bool> ExistsByEmailAsync(string email)
     {
         return await _context.Users.AnyAsync(u => u.Email == email);
+    }
+
+    public async Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId)
+    {
+        return await _context.Users.AnyAsync(u => u.Username == username && u.UserId != excludeUserId);
     }
 
     public async Task<bool> ExistsByEmailExcludingUserAsync(string email, int excludeUserId)
