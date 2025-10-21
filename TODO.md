@@ -770,13 +770,41 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 
 ## 🚀 Deployment & Infrastructure
 
-### Deployment Options
-- [ ] **Decision:** Choose deployment strategy
-  - Option A: Two separate apps (Management + Auth)
-  - Option B: Single Gateway combining both
-  - Option C: Reverse proxy setup
+### Current Deployment Strategy (Cost Optimization)
+- [x] **Decision:** Single unified deployment for both APIs
+  - ✅ Currently deploying Management API only to Elastic Beanstalk
+  - ✅ Both APIs combined in one EB instance to save costs (~$17/month vs ~$34/month)
+  - ✅ See `ELASTIC_BEANSTALK_SETUP.md` for full setup guide
+  - ⚠️ Auth API endpoints need to be added to unified deployment
 
-### Configuration
+### Future: Split API Deployments
+- [ ] **TODO: Split into separate deployments when budget allows**
+  - Create separate Elastic Beanstalk applications:
+    - `tutoria-api-management` - Management API (Universities, Courses, Modules, etc.)
+    - `tutoria-api-auth` - Auth API (Login, Registration, Password Reset)
+  - Benefits of splitting:
+    - Independent scaling (auth might need more resources during peak login times)
+    - Independent deployments (update auth without affecting management)
+    - Better isolation and security
+    - Easier to troubleshoot issues
+  - Cost impact: ~$17/month → ~$34/month (double the infrastructure)
+  - **When to split:**
+    - When traffic justifies separate scaling
+    - When deployment frequency causes conflicts
+    - When budget allows for additional infrastructure
+
+### Unified Deployment Implementation (Current)
+- [ ] **Create TutoriaApi.Web.Unified project** (combines both APIs)
+  - New project that references both Web.Management and Web.Auth
+  - Configure different base paths:
+    - `/api/*` → Management API controllers
+    - `/auth/*` → Auth API controllers
+  - Combine middleware from both projects
+  - Single Swagger UI showing both API sets
+  - Deploy this unified project to Elastic Beanstalk
+  - Update GitHub Actions workflow to publish unified project
+
+### Deployment Options (When Splitting)
 - [ ] Set up environment-specific appsettings (Development, Staging, Production)
 - [ ] Configure secrets management (Azure Key Vault, environment variables)
 - [ ] Set up connection string per environment
