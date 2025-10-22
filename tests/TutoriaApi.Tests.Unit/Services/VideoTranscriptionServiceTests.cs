@@ -18,6 +18,7 @@ public class VideoTranscriptionServiceTests
     private readonly Mock<IConfiguration> _configurationMock;
     private readonly Mock<IFileRepository> _fileRepositoryMock;
     private readonly Mock<IModuleRepository> _moduleRepositoryMock;
+    private readonly Mock<ICourseRepository> _courseRepositoryMock;
     private readonly Mock<ILogger<VideoTranscriptionService>> _loggerMock;
     private readonly VideoTranscriptionService _service;
 
@@ -27,6 +28,7 @@ public class VideoTranscriptionServiceTests
         _configurationMock = new Mock<IConfiguration>();
         _fileRepositoryMock = new Mock<IFileRepository>();
         _moduleRepositoryMock = new Mock<IModuleRepository>();
+        _courseRepositoryMock = new Mock<ICourseRepository>();
         _loggerMock = new Mock<ILogger<VideoTranscriptionService>>();
 
         // Setup default configuration
@@ -38,6 +40,7 @@ public class VideoTranscriptionServiceTests
             _configurationMock.Object,
             _fileRepositoryMock.Object,
             _moduleRepositoryMock.Object,
+            _courseRepositoryMock.Object,
             _loggerMock.Object);
     }
 
@@ -51,7 +54,7 @@ public class VideoTranscriptionServiceTests
         var moduleId = 1;
         var user = CreateSuperAdminUser();
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync((Module?)null);
 
         // Act & Assert
@@ -68,7 +71,7 @@ public class VideoTranscriptionServiceTests
         var user = CreateProfessorUser(universityId: 1, isAdmin: false);
         var module = CreateModule(moduleId, courseUniversityId: 2); // Different university
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act & Assert
@@ -85,7 +88,7 @@ public class VideoTranscriptionServiceTests
         var user = CreateSuperAdminUser();
         var module = CreateModule(moduleId, courseUniversityId: 999);
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         var pythonResponseJson = JsonSerializer.Serialize(new
@@ -127,7 +130,7 @@ public class VideoTranscriptionServiceTests
         var user = CreateSuperAdminUser();
         var module = CreateModule(moduleId);
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         var httpMessageHandlerMock = CreateMockHttpMessageHandler(
@@ -155,7 +158,7 @@ public class VideoTranscriptionServiceTests
         var user = CreateSuperAdminUser();
         var module = CreateModule(moduleId);
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         var pythonResponseJson = JsonSerializer.Serialize(new
@@ -225,7 +228,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act & Assert
@@ -245,7 +248,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act
@@ -273,7 +276,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act
@@ -296,7 +299,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act
@@ -340,7 +343,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act & Assert
@@ -368,7 +371,7 @@ public class VideoTranscriptionServiceTests
             .ReturnsAsync(file)              // First call: returns file with status "failed"
             .ReturnsAsync(updatedFile);      // Second call: returns updated file with status "completed"
 
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         var httpMessageHandlerMock = CreateMockHttpMessageHandler(
@@ -420,7 +423,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
 
         // Act & Assert
@@ -441,7 +444,7 @@ public class VideoTranscriptionServiceTests
 
         _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
             .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
             .ReturnsAsync(module);
         _fileRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<FileEntity>()))
             .Returns(Task.CompletedTask);

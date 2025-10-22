@@ -15,6 +15,7 @@ public class VideoTranscriptionService : IVideoTranscriptionService
     private readonly IConfiguration _configuration;
     private readonly IFileRepository _fileRepository;
     private readonly IModuleRepository _moduleRepository;
+    private readonly ICourseRepository _courseRepository;
     private readonly ILogger<VideoTranscriptionService> _logger;
 
     public VideoTranscriptionService(
@@ -22,12 +23,14 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         IConfiguration configuration,
         IFileRepository fileRepository,
         IModuleRepository moduleRepository,
+        ICourseRepository courseRepository,
         ILogger<VideoTranscriptionService> logger)
     {
         _httpClientFactory = httpClientFactory;
         _configuration = configuration;
         _fileRepository = fileRepository;
         _moduleRepository = moduleRepository;
+        _courseRepository = courseRepository;
         _logger = logger;
     }
 
@@ -38,14 +41,14 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         string? customName,
         User currentUser)
     {
-        // Verify module exists and user has access
-        var module = await _moduleRepository.GetByIdAsync(moduleId);
+        // Verify module exists and user has access (with eager loading to avoid N+1 queries)
+        var module = await _moduleRepository.GetWithDetailsAsync(moduleId);
         if (module == null)
         {
             throw new KeyNotFoundException($"Module {moduleId} not found");
         }
 
-        // Authorization check
+        // Authorization check (Course is already loaded via GetWithDetailsAsync)
         if (!await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this module");
@@ -130,8 +133,8 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             return null;
         }
 
-        // Authorization check
-        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        // Authorization check (with eager loading to avoid N+1 queries)
+        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -148,8 +151,8 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             return null;
         }
 
-        // Authorization check
-        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        // Authorization check (with eager loading to avoid N+1 queries)
+        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -171,8 +174,8 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             throw new KeyNotFoundException($"File {fileId} not found");
         }
 
-        // Authorization check
-        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        // Authorization check (with eager loading to avoid N+1 queries)
+        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -225,8 +228,8 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             return false;
         }
 
-        // Authorization check
-        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        // Authorization check (with eager loading to avoid N+1 queries)
+        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to delete this file");
@@ -260,8 +263,9 @@ public class VideoTranscriptionService : IVideoTranscriptionService
                 return false;
             }
 
-            // Get course to check university
-            var course = await GetCourseForModuleAsync(module.CourseId);
+            // Use Course navigation property (should be loaded via GetWithDetailsAsync)
+            // If not loaded, fall back to repository call
+            var course = module.Course ?? await _courseRepository.GetByIdAsync(module.CourseId);
             if (course == null)
             {
                 return false;
@@ -285,13 +289,5 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         }
 
         return false;
-    }
-
-    private async Task<Course?> GetCourseForModuleAsync(int courseId)
-    {
-        // This is a simple helper - ideally would use ICourseRepository
-        // but keeping it simple for now
-        var module = await _moduleRepository.GetByIdAsync(courseId);
-        return module?.Course;
     }
 }

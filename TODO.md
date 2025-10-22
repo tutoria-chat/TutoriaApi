@@ -284,6 +284,36 @@ public class PasswordResetDto
 - [x] Create PaginatedResponse<T> DTO
 - [ ] **Add FluentValidation** for advanced validation scenarios
 
+### AI Model Tier Management
+- [ ] **Create endpoint to get available AI models for a university based on subscription tier**
+  - Endpoint: `GET /api/universities/{universityId}/models`
+  - Filter AI models based on university subscription tier (basic, standard, premium)
+  - Return only models the university has access to
+  - Include model metadata (displayName, provider, maxTokens, costs)
+  - **Rationale**: Move tier logic from frontend to backend for better security and maintainability
+  - **Current State**: Frontend (tutoria-ui) handles tier logic in `course-type-selector.tsx`
+  - **Target State**: Backend returns filtered models, frontend displays them
+  - **Benefits**:
+    - ✅ Single source of truth for tier permissions
+    - ✅ Prevents unauthorized access to premium models via API manipulation
+    - ✅ Easier to update tier rules (no frontend deployment needed)
+    - ✅ Consistent tier enforcement across all clients
+  - **Implementation**:
+    ```csharp
+    // GET /api/universities/{universityId}/models
+    public class UniversityModelsController
+    {
+        public async Task<ActionResult<List<AIModelDto>>> GetModelsForUniversity(int universityId)
+        {
+            // 1. Get university subscription tier
+            // 2. Filter AI models based on tier
+            // 3. Return filtered list
+        }
+    }
+    ```
+  - **Dependencies**: Requires university subscription tier logic in database
+  - **Priority**: MEDIUM - Improves security and maintainability
+
 ## 📧 Email Integration (AWS SES)
 
 ### AWS SES Setup & Configuration

@@ -97,12 +97,17 @@ public class AddYoutubeVideoRequest
     [Required(ErrorMessage = "YouTube URL is required")]
     [MaxLength(1000, ErrorMessage = "URL cannot exceed 1000 characters")]
     [Url(ErrorMessage = "Please provide a valid URL")]
+    [RegularExpression(
+        @"^(https?://)?(www\.)?(youtube\.com/(watch\?v=|embed/|shorts/)|youtu\.be/)[a-zA-Z0-9_-]{11}",
+        ErrorMessage = "Please provide a valid YouTube URL")]
     public string YoutubeUrl { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Module ID is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Module ID must be a positive number")]
     public int ModuleId { get; set; }
 
-    [MaxLength(10, ErrorMessage = "Language cannot exceed 10 characters")]
+    [Required(ErrorMessage = "Language is required")]
+    [RegularExpression(@"^(pt-br|en|es)$", ErrorMessage = "Language must be one of: pt-br, en, es")]
     public string Language { get; set; } = "pt-br";
 
     [MaxLength(255, ErrorMessage = "Name cannot exceed 255 characters")]

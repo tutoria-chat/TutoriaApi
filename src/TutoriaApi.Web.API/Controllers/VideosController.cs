@@ -61,9 +61,11 @@ public class VideosController : BaseAuthController
                 Source = file.SourceType ?? "youtube",
                 CostUsd = 0, // Cost info not stored in entity
                 Language = file.TranscriptLanguage ?? request.Language,
-                TranscriptPreview = file.TranscriptText != null && file.TranscriptText.Length > 500
-                    ? file.TranscriptText.Substring(0, 500) + "..."
-                    : file.TranscriptText
+                TranscriptPreview = file.TranscriptText != null
+                    ? (file.TranscriptText.Length > 500
+                        ? file.TranscriptText.Substring(0, 500) + "..."
+                        : file.TranscriptText)
+                    : null
             };
 
             return CreatedAtAction(
@@ -217,9 +219,11 @@ public class VideosController : BaseAuthController
                 Source = file.SourceType ?? "unknown",
                 CostUsd = 0,
                 Language = file.TranscriptLanguage ?? "unknown",
-                TranscriptPreview = file.TranscriptText != null && file.TranscriptText.Length > 500
-                    ? file.TranscriptText.Substring(0, 500) + "..."
-                    : file.TranscriptText
+                TranscriptPreview = file.TranscriptText != null
+                    ? (file.TranscriptText.Length > 500
+                        ? file.TranscriptText.Substring(0, 500) + "..."
+                        : file.TranscriptText)
+                    : null
             };
 
             return Ok(resultDto);
