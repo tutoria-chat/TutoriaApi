@@ -105,6 +105,9 @@ jobs:
           "ConnectionStrings": {
             "DefaultConnection": "${{ secrets.DEV_DB_CONNECTION_STRING }}"
           },
+          "AiApi": {
+            "BaseUrl": "${{ secrets.DEV_AI_API_BASE_URL }}"
+          },
           "Jwt": {
             "SecretKey": "${{ secrets.DEV_JWT_SECRET_KEY }}",
             "Issuer": "${{ secrets.DEV_JWT_ISSUER }}",
@@ -236,6 +239,9 @@ jobs:
         {
           "ConnectionStrings": {
             "DefaultConnection": "${{ secrets.PROD_DB_CONNECTION_STRING }}"
+          },
+          "AiApi": {
+            "BaseUrl": "${{ secrets.PROD_AI_API_BASE_URL }}"
           },
           "Jwt": {
             "SecretKey": "${{ secrets.PROD_JWT_SECRET_KEY }}",

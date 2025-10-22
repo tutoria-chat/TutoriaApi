@@ -170,6 +170,16 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.OpenAIFileId).HasColumnName("OpenAIFileId").HasMaxLength(255);
             entity.Property(e => e.AnthropicFileId).HasColumnName("AnthropicFileId").HasMaxLength(255);
+            // Video/Transcription columns
+            entity.Property(e => e.SourceType).HasColumnName("SourceType").HasMaxLength(50);
+            entity.Property(e => e.SourceUrl).HasColumnName("SourceUrl").HasMaxLength(1000);
+            entity.Property(e => e.TranscriptionStatus).HasColumnName("TranscriptionStatus").HasMaxLength(50);
+            entity.Property(e => e.TranscriptText).HasColumnName("TranscriptText");
+            entity.Property(e => e.TranscriptLanguage).HasColumnName("TranscriptLanguage").HasMaxLength(10);
+            entity.Property(e => e.TranscriptJobId).HasColumnName("TranscriptJobId").HasMaxLength(255);
+            entity.Property(e => e.VideoDurationSeconds).HasColumnName("VideoDurationSeconds");
+            entity.Property(e => e.TranscriptedAt).HasColumnName("TranscriptedAt");
+            entity.Property(e => e.TranscriptWordCount).HasColumnName("TranscriptWordCount");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
