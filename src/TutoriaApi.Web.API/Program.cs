@@ -28,6 +28,9 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 // Add services to the container
 builder.Services.AddControllers();
 
+// Add HttpClient for VideoTranscriptionService (calls Python AI API)
+builder.Services.AddHttpClient();
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add Health Checks

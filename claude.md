@@ -153,6 +153,382 @@ public async Task<ActionResult> GetUniversity(int id)
 }
 ```
 
+## Unit Testing Requirements
+
+### MANDATORY: All New Features Must Have Unit Tests
+**CRITICAL**: Starting immediately, **ALL new features, endpoints, services, and repositories MUST include comprehensive unit tests**.
+
+**Test Coverage Requirements:**
+- ✅ **Repository Tests**: Mock EF Core DbContext and DbSet operations
+- ✅ **Service Tests**: Mock repository dependencies
+- ✅ **Controller Tests**: Mock service dependencies
+- ✅ Test all success paths and error scenarios
+- ✅ Test authorization and access control logic
+- ✅ Test exception handling
+
+**Test Project Location:**
+- `TutoriaApi/tests/TutoriaApi.Tests.Unit/`
+
+**Testing Framework:**
+- **XUnit**: Test framework
+- **Moq**: Mocking library
+- **Naming**: `*Tests.cs` suffix for test files
+
+### Repository Unit Tests
+
+**Purpose:** Test data access logic without hitting the database.
+
+**Key Points:**
+- Mock `DbContext` and `DbSet<T>` using Moq
+- Test LINQ queries and filtering logic
+- Test includes (eager loading)
+- Verify correct EF Core method calls
+
+**Example:**
+```csharp
+public class UniversityRepositoryTests
+{
+    private readonly Mock<TutoriaDbContext> _contextMock;
+    private readonly Mock<DbSet<University>> _dbSetMock;
+    private readonly UniversityRepository _repository;
+
+    public UniversityRepositoryTests()
+    {
+        _contextMock = new Mock<TutoriaDbContext>();
+        _dbSetMock = new Mock<DbSet<University>>();
+
+        _contextMock.Setup(c => c.Universities).Returns(_dbSetMock.Object);
+        _repository = new UniversityRepository(_contextMock.Object);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ExistingId_ReturnsUniversity()
+    {
+        // Arrange
+        var universityId = 1;
+        var university = new University { Id = universityId, Name = "Test University" };
+
+        _dbSetMock.Setup(d => d.FindAsync(universityId))
+            .ReturnsAsync(university);
+
+        // Act
+        var result = await _repository.GetByIdAsync(universityId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(universityId, result.Id);
+        Assert.Equal("Test University", result.Name);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_NonExistentId_ReturnsNull()
+    {
+        // Arrange
+        var universityId = 999;
+        _dbSetMock.Setup(d => d.FindAsync(universityId))
+            .ReturnsAsync((University?)null);
+
+        // Act
+        var result = await _repository.GetByIdAsync(universityId);
+
+        // Assert
+        Assert.Null(result);
+    }
+}
+```
+
+### Service Unit Tests
+
+**Purpose:** Test business logic without database dependencies.
+
+**Key Points:**
+- Mock repository interfaces
+- Test business rules and validations
+- Test authorization logic
+- Test exception scenarios
+- Mock external HTTP calls (IHttpClientFactory)
+
+**Example:**
+```csharp
+public class UniversityServiceTests
+{
+    private readonly Mock<IUniversityRepository> _repositoryMock;
+    private readonly Mock<ILogger<UniversityService>> _loggerMock;
+    private readonly UniversityService _service;
+
+    public UniversityServiceTests()
+    {
+        _repositoryMock = new Mock<IUniversityRepository>();
+        _loggerMock = new Mock<ILogger<UniversityService>>();
+        _service = new UniversityService(_repositoryMock.Object, _loggerMock.Object);
+    }
+
+    [Fact]
+    public async Task GetUniversityDetailAsync_ExistingUniversity_ReturnsDto()
+    {
+        // Arrange
+        var universityId = 1;
+        var university = new University
+        {
+            Id = universityId,
+            Name = "Test University",
+            Code = "TEST"
+        };
+
+        _repositoryMock.Setup(r => r.GetByIdWithCoursesAsync(universityId))
+            .ReturnsAsync(university);
+        _repositoryMock.Setup(r => r.GetProfessorsCountAsync(universityId))
+            .ReturnsAsync(5);
+
+        // Act
+        var result = await _service.GetUniversityDetailAsync(universityId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(universityId, result.Id);
+        Assert.Equal("Test University", result.Name);
+        Assert.Equal(5, result.ProfessorsCount);
+    }
+
+    [Fact]
+    public async Task GetUniversityDetailAsync_NonExistentUniversity_ReturnsNull()
+    {
+        // Arrange
+        var universityId = 999;
+        _repositoryMock.Setup(r => r.GetByIdWithCoursesAsync(universityId))
+            .ReturnsAsync((University?)null);
+
+        // Act
+        var result = await _service.GetUniversityDetailAsync(universityId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task CreateUniversityAsync_UnauthorizedUser_ThrowsUnauthorizedAccessException()
+    {
+        // Arrange
+        var university = new University { Name = "New University" };
+        var user = new User { UserId = 1, UserType = "professor" }; // Not super_admin
+
+        // Act & Assert
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.CreateUniversityAsync(university, user));
+    }
+}
+```
+
+### Controller Unit Tests
+
+**Purpose:** Test HTTP endpoint behavior and response mapping.
+
+**Key Points:**
+- Mock service interfaces
+- Test HTTP status codes (200, 400, 404, 500, etc.)
+- Test DTO mapping
+- Test exception handling
+- Test authorization (via claims or attributes)
+- Setup `ControllerContext` with claims for authentication tests
+
+**Example:**
+```csharp
+public class UniversitiesControllerTests
+{
+    private readonly Mock<IUniversityService> _serviceMock;
+    private readonly Mock<ILogger<UniversitiesController>> _loggerMock;
+    private readonly UniversitiesController _controller;
+
+    public UniversitiesControllerTests()
+    {
+        _serviceMock = new Mock<IUniversityService>();
+        _loggerMock = new Mock<ILogger<UniversitiesController>>();
+        _controller = new UniversitiesController(_serviceMock.Object, _loggerMock.Object);
+
+        // Setup authentication context
+        SetupControllerContext();
+    }
+
+    [Fact]
+    public async Task GetUniversity_ExistingId_ReturnsOkWithDto()
+    {
+        // Arrange
+        var universityId = 1;
+        var dto = new UniversityDetailDto
+        {
+            Id = universityId,
+            Name = "Test University"
+        };
+
+        _serviceMock.Setup(s => s.GetUniversityDetailAsync(universityId))
+            .ReturnsAsync(dto);
+
+        // Act
+        var result = await _controller.GetUniversity(universityId);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var returnedDto = Assert.IsType<UniversityDetailDto>(okResult.Value);
+        Assert.Equal(universityId, returnedDto.Id);
+    }
+
+    [Fact]
+    public async Task GetUniversity_NonExistentId_ReturnsNotFound()
+    {
+        // Arrange
+        var universityId = 999;
+        _serviceMock.Setup(s => s.GetUniversityDetailAsync(universityId))
+            .ReturnsAsync((UniversityDetailDto?)null);
+
+        // Act
+        var result = await _controller.GetUniversity(universityId);
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetUniversity_ServiceThrowsException_Returns500()
+    {
+        // Arrange
+        var universityId = 1;
+        _serviceMock.Setup(s => s.GetUniversityDetailAsync(universityId))
+            .ThrowsAsync(new Exception("Database error"));
+
+        // Act
+        var result = await _controller.GetUniversity(universityId);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    private void SetupControllerContext()
+    {
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Name, "testuser"),
+            new Claim(ClaimTypes.Email, "test@example.com"),
+            new Claim(ClaimTypes.Role, "super_admin")
+        };
+
+        var identity = new ClaimsIdentity(claims, "TestAuthType");
+        var claimsPrincipal = new ClaimsPrincipal(identity);
+
+        _controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = claimsPrincipal }
+        };
+    }
+}
+```
+
+### Mocking EF Core DbContext and DbSet
+
+**Important Notes:**
+- Use `Mock<DbSet<T>>` for queryable collections
+- Use `SetupSequence` when repository methods are called multiple times with different results
+- Use `Returns(Task.CompletedTask)` for void async methods (like `UpdateAsync`)
+- Use `ReturnsAsync` for methods returning `Task<T>`
+
+**Common Patterns:**
+
+```csharp
+// Mock UpdateAsync (returns Task, not Task<T>)
+_repositoryMock.Setup(r => r.UpdateAsync(It.IsAny<University>()))
+    .Returns(Task.CompletedTask);
+
+// Mock sequence of calls (first call returns X, second returns Y)
+_repositoryMock.SetupSequence(r => r.GetByIdAsync(fileId))
+    .ReturnsAsync(fileWithStatusPending)    // First call
+    .ReturnsAsync(fileWithStatusCompleted); // Second call
+
+// Mock HttpClient for external API calls
+var handlerMock = new Mock<HttpMessageHandler>();
+handlerMock.Protected()
+    .Setup<Task<HttpResponseMessage>>(
+        "SendAsync",
+        ItExpr.IsAny<HttpRequestMessage>(),
+        ItExpr.IsAny<CancellationToken>())
+    .ReturnsAsync(new HttpResponseMessage
+    {
+        StatusCode = HttpStatusCode.OK,
+        Content = new StringContent("{\"status\":\"success\"}")
+    });
+
+var httpClient = new HttpClient(handlerMock.Object);
+_httpClientFactoryMock.Setup(f => f.CreateClient(It.IsAny<string>()))
+    .Returns(httpClient);
+```
+
+### Test Organization
+
+**File Structure:**
+```
+TutoriaApi.Tests.Unit/
+├── Controllers/
+│   ├── UniversitiesControllerTests.cs
+│   ├── CoursesControllerTests.cs
+│   └── VideosControllerTests.cs
+├── Services/
+│   ├── UniversityServiceTests.cs
+│   ├── CourseServiceTests.cs
+│   └── VideoTranscriptionServiceTests.cs
+└── Repositories/
+    ├── UniversityRepositoryTests.cs
+    ├── CourseRepositoryTests.cs
+    └── FileRepositoryTests.cs
+```
+
+**Test Naming Convention:**
+- Test class: `{ClassName}Tests`
+- Test method: `{MethodName}_{Scenario}_{ExpectedResult}`
+- Examples:
+  - `GetByIdAsync_ExistingId_ReturnsEntity`
+  - `CreateAsync_InvalidData_ThrowsValidationException`
+  - `DeleteAsync_UnauthorizedUser_ThrowsForbidden`
+
+### Running Tests
+
+```bash
+# Build tests
+cd TutoriaApi/tests/TutoriaApi.Tests.Unit
+dotnet build
+
+# Run all tests
+dotnet test
+
+# Run with verbose output
+dotnet test --verbosity normal
+
+# Run with code coverage
+dotnet test --collect:"XPlat Code Coverage"
+```
+
+### Test Quality Standards
+
+**Required Test Scenarios:**
+1. ✅ Happy path (success case)
+2. ✅ Entity not found (null handling)
+3. ✅ Unauthorized access (wrong user/role)
+4. ✅ Invalid input (validation failures)
+5. ✅ External service errors (HTTP failures, timeouts)
+6. ✅ Unexpected exceptions
+
+**Assertions:**
+- Use specific assertions (`Assert.Equal`, `Assert.NotNull`, `Assert.True`)
+- Avoid generic `Assert.True(result != null)` - use `Assert.NotNull(result)`
+- Verify repository/service method calls with `Verify`
+- Check exception messages contain expected text
+
+**Anti-Patterns to Avoid:**
+- ❌ Testing implementation details instead of behavior
+- ❌ Testing framework code (EF Core, ASP.NET Core)
+- ❌ Hitting real databases or external APIs
+- ❌ Tests that depend on each other (must be independent)
+- ❌ Hardcoding dates/times (use test constants or freeze time)
+
 ## Running the API
 
 ### IMPORTANT: DO NOT Run as Background Task
@@ -168,6 +544,137 @@ public async Task<ActionResult> GetUniversity(int id)
 - If you need to test API changes, ask the user to restart their API instance
 - For build verification, use `dotnet build` (NOT `dotnet run`)
 - Only run `dotnet test` for unit tests if explicitly requested
+
+## Configuration & Secrets Management
+
+### appsettings.json Configuration Structure
+
+**Local Development** (`appsettings.json` / `appsettings.Development.json`):
+- Contains placeholder values and defaults
+- Safe to commit to source control
+- Example values like `"your-api-key-here"` or `"localhost:8000"`
+
+**Production Configuration** (`appsettings.Production.json`):
+- **NEVER committed to source control**
+- Generated at deployment time by CI/CD pipeline
+- Populated with secrets from GitHub Secrets
+
+### Required Configuration Sections
+
+```json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "SQL Server connection string"
+  },
+  "AiApi": {
+    "BaseUrl": "http://localhost:8000"  // tutoria-api (Python AI service)
+  },
+  "Jwt": {
+    "SecretKey": "Your secret key (min 32 chars)",
+    "Issuer": "TutoriaAuthApi",
+    "Audience": "TutoriaApi"
+  },
+  "AzureStorage": {
+    "ConnectionString": "Azure Storage connection string",
+    "ContainerName": "tutoria-files"
+  },
+  "OpenAI": {
+    "ApiKey": "sk-proj-..."
+  },
+  "AWS": {
+    "Region": "us-east-2",
+    "AccessKeyId": "AWS access key",
+    "SecretAccessKey": "AWS secret key"
+  },
+  "Email": {
+    "FromAddress": "noreply@example.com",
+    "FromName": "Tutoria",
+    "FrontendUrl": "https://app.tutoria.com",
+    "LogoUrl": "https://cdn.tutoria.com/logo.png",
+    "Enabled": true
+  }
+}
+```
+
+### GitHub Secrets for CI/CD
+
+**CRITICAL**: When adding new configuration values to `appsettings.json`, you **MUST** also add corresponding GitHub Secrets for both DEV and PROD environments.
+
+**GitHub Secrets Naming Convention:**
+- Development: `DEV_{SECTION}_{KEY}` (e.g., `DEV_AI_API_BASE_URL`)
+- Production: `PROD_{SECTION}_{KEY}` (e.g., `PROD_AI_API_BASE_URL`)
+
+**Current Required Secrets:**
+
+**Development Secrets (DEV_*):**
+- `DEV_DB_CONNECTION_STRING` - SQL Server connection string
+- `DEV_AI_API_BASE_URL` - AI API (Python) base URL
+- `DEV_JWT_SECRET_KEY` - JWT signing key
+- `DEV_JWT_ISSUER` - JWT issuer
+- `DEV_JWT_AUDIENCE` - JWT audience
+- `DEV_AZURE_STORAGE_CONNECTION_STRING` - Azure Blob Storage
+- `DEV_AZURE_STORAGE_CONTAINER` - Container name
+- `DEV_OPENAI_API_KEY` - OpenAI API key
+- `DEV_AWS_SES_REGION` - AWS SES region
+- `DEV_AWS_SES_ACCESS_KEY_ID` - AWS SES access key
+- `DEV_AWS_SES_SECRET_ACCESS_KEY` - AWS SES secret key
+- `DEV_EMAIL_FROM_ADDRESS` - Email sender address
+- `DEV_EMAIL_FROM_NAME` - Email sender name
+- `DEV_EMAIL_FRONTEND_URL` - Frontend URL for emails
+- `DEV_EMAIL_LOGO_URL` - Logo URL for emails
+- `DEV_AWS_ACCESS_KEY_ID` - AWS credentials for EB deployment
+- `DEV_AWS_SECRET_ACCESS_KEY` - AWS secret for EB deployment
+- `DEV_EB_S3_BUCKET` - Elastic Beanstalk S3 bucket
+
+**Production Secrets (PROD_*):**
+- Same as DEV secrets but with `PROD_` prefix
+
+**How to Add a New Secret:**
+
+1. **Add to `appsettings.json`** with placeholder value:
+   ```json
+   "NewService": {
+     "ApiKey": "your-api-key-here"
+   }
+   ```
+
+2. **Update CI/CD Pipeline** (`.github/workflows/pipeline.yml`):
+   ```yaml
+   # In both deploy-dev and deploy-prod jobs
+   "NewService": {
+     "ApiKey": "${{ secrets.DEV_NEW_SERVICE_API_KEY }}"
+   }
+   ```
+
+3. **Add GitHub Secret** in repository settings:
+   - Go to: Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `DEV_NEW_SERVICE_API_KEY`
+   - Value: The actual secret value
+   - Repeat for `PROD_NEW_SERVICE_API_KEY`
+
+4. **Document in CLAUDE.md**: Add the new secret to the list above
+
+**Important Notes:**
+- ⚠️ Secrets are injected at deployment time, not stored in Git
+- ⚠️ Local development uses `appsettings.Development.json` (not Production)
+- ⚠️ Never hardcode production values in source control
+- ⚠️ Test deployments will fail if required secrets are missing
+
+### Future: Migration to Secure Vaults
+
+**TODO**: Migrate secrets from GitHub Secrets to centralized secret management:
+- **Azure**: Azure Key Vault (AKV) + Azure App Configuration (AAC)
+- **AWS**: AWS Secrets Manager + AWS Systems Manager Parameter Store
+
+**Benefits:**
+- ✅ Centralized secret rotation
+- ✅ Audit logging for secret access
+- ✅ Fine-grained access control
+- ✅ Automatic secret versioning
+- ✅ Integration with multiple services (not just CI/CD)
+
+See `TODO.md` for migration plan.
 
 ## Code Standards
 

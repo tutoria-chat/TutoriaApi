@@ -65,6 +65,13 @@ public class FilesController : BaseAuthController
                 IsActive = f.IsActive,
                 OpenAIFileId = f.OpenAIFileId,
                 AnthropicFileId = f.AnthropicFileId,
+                // Video/Transcription fields
+                SourceType = f.SourceType,
+                SourceUrl = f.SourceUrl,
+                TranscriptionStatus = f.TranscriptionStatus,
+                TranscriptWordCount = f.TranscriptWordCount,
+                VideoDurationSeconds = f.VideoDurationSeconds,
+                TranscriptedAt = f.TranscriptedAt,
                 CreatedAt = f.CreatedAt,
                 UpdatedAt = f.UpdatedAt
             }).ToList();
@@ -125,6 +132,14 @@ public class FilesController : BaseAuthController
                 IsActive = file.IsActive,
                 OpenAIFileId = file.OpenAIFileId,
                 AnthropicFileId = file.AnthropicFileId,
+                // Video/Transcription fields
+                SourceType = file.SourceType,
+                SourceUrl = file.SourceUrl,
+                TranscriptionStatus = file.TranscriptionStatus,
+                TranscriptLanguage = file.TranscriptLanguage,
+                TranscriptWordCount = file.TranscriptWordCount,
+                VideoDurationSeconds = file.VideoDurationSeconds,
+                TranscriptedAt = file.TranscriptedAt,
                 CreatedAt = file.CreatedAt,
                 UpdatedAt = file.UpdatedAt
             });

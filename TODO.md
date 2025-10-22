@@ -1,5 +1,137 @@
 # Tutoria API - TODO List
 
+## 🔐 Secrets Management & Security
+
+### Migrate from GitHub Secrets to Centralized Vaults
+**Priority**: HIGH - Security & DevOps Best Practice
+
+**Current State**:
+- Secrets stored as GitHub repository secrets (DEV_* and PROD_* prefixes)
+- Injected into `appsettings.Production.json` during deployment by CI/CD
+- Works but has limitations (no rotation, no audit logging, manual updates)
+
+**Target State**: Migrate to cloud-native secret management services
+
+**Option 1: Azure Key Vault (AKV) + Azure App Configuration (AAC)**
+- [ ] **Set up Azure Key Vault**
+  - Create separate vaults for DEV and PROD environments
+  - Configure access policies for CI/CD service principal
+  - Migrate all secrets from GitHub to AKV:
+    - Database connection strings
+    - AI API base URL
+    - JWT signing keys
+    - Azure Storage connection strings
+    - OpenAI API keys
+    - AWS credentials (for email/DynamoDB)
+
+- [ ] **Set up Azure App Configuration**
+  - Store non-sensitive config (feature flags, URLs, etc.)
+  - Link to Key Vault for sensitive values
+  - Enable configuration refresh without redeployment
+
+- [ ] **Update .NET Application**
+  - Install `Azure.Identity` and `Azure.Extensions.AspNetCore.Configuration.Secrets`
+  - Configure Key Vault in `Program.cs`:
+    ```csharp
+    builder.Configuration.AddAzureKeyVault(
+        new Uri($"https://{keyVaultName}.vault.azure.net/"),
+        new DefaultAzureCredential());
+    ```
+  - Remove secrets from `appsettings.Production.json`
+  - Test locally with managed identity or service principal
+
+- [ ] **Update CI/CD Pipeline**
+  - Remove secret injection step from `.github/workflows/pipeline.yml`
+  - Configure deployment to use managed identity for Key Vault access
+  - Update `appsettings.Production.json` to reference Key Vault URIs
+
+- [ ] **Benefits**:
+  - ✅ Automatic secret rotation support
+  - ✅ Audit logging (who accessed what secret when)
+  - ✅ Fine-grained access control (RBAC)
+  - ✅ Secret versioning (rollback if needed)
+  - ✅ No secrets in CI/CD logs
+  - ✅ Integration with other Azure services
+
+**Option 2: AWS Secrets Manager + Systems Manager Parameter Store**
+- [ ] **Set up AWS Secrets Manager**
+  - Create separate secrets for DEV and PROD environments
+  - Configure IAM policies for ECS/EC2 access
+  - Migrate all secrets from GitHub to AWS Secrets Manager
+
+- [ ] **Set up AWS Systems Manager Parameter Store**
+  - Store non-sensitive config values
+  - Use hierarchy: `/tutoria/{env}/{service}/{key}`
+
+- [ ] **Update .NET Application**
+  - Install `AWSSDK.SecretsManager` and `AWSSDK.SimpleSystemsManagement`
+  - Configure AWS credentials provider (IAM role for EC2/ECS)
+  - Load secrets at startup:
+    ```csharp
+    var secretsManager = new AmazonSecretsManagerClient();
+    var secret = await secretsManager.GetSecretValueAsync(new GetSecretValueRequest
+    {
+        SecretId = "tutoria/prod/database"
+    });
+    builder.Configuration["ConnectionStrings:DefaultConnection"] = secret.SecretString;
+    ```
+
+- [ ] **Update CI/CD Pipeline**
+  - Remove secret injection step
+  - Configure Elastic Beanstalk to use IAM instance profile
+
+- [ ] **Benefits**:
+  - ✅ Automatic secret rotation (built-in for RDS, custom for others)
+  - ✅ CloudTrail audit logging
+  - ✅ Cross-region replication
+  - ✅ Integration with AWS services
+  - ✅ Leverages existing AWS sponsor credits
+
+**Comparison**:
+
+| Feature | Azure Key Vault | AWS Secrets Manager |
+|---------|----------------|---------------------|
+| Cost | $0.03/10k ops | $0.40/secret/month |
+| Rotation | Manual or automated | Built-in for AWS services |
+| Audit | Azure Monitor | CloudTrail |
+| Integration | Azure services | AWS services |
+| Learning Curve | Moderate | Easy (if using AWS) |
+| **Recommendation** | ✅ If using Azure infra | ✅ If using AWS EB/ECS |
+
+**Recommended Approach**:
+- Use **AWS Secrets Manager** since we're deploying to AWS Elastic Beanstalk
+- Leverage existing AWS sponsor credits
+- Better integration with existing AWS services (SES, DynamoDB)
+- Simpler IAM role-based access (no cross-cloud auth)
+
+**Estimated Effort**:
+- Setup & Migration: 1-2 days
+- Testing: 1 day
+- **Total**: 2-3 days
+
+**Priority Justification**:
+- Current GitHub Secrets approach works but is not production-ready
+- Manual secret rotation is error-prone
+- No audit trail for secret access
+- Secrets visible to anyone with repo admin access
+- Best to migrate before adding more secrets
+
+**Implementation Order**:
+1. Set up AWS Secrets Manager in DEV environment
+2. Migrate one secret (e.g., database connection string) as proof of concept
+3. Update application code to read from Secrets Manager
+4. Test thoroughly in DEV
+5. Migrate remaining secrets
+6. Repeat for PROD environment
+7. Remove secrets from GitHub repository
+8. Update documentation
+
+**Related Tasks**:
+- See CLAUDE.md "Configuration & Secrets Management" section for current setup
+- See `.github/workflows/pipeline.yml` for current secret injection logic
+
+---
+
 ## 🔐 Authentication & Security
 
 ### Client Credentials Flow (OAuth2)
@@ -61,6 +193,57 @@ options.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
 - [x] Implement `/auth/me` (PUT - update own profile)
 - [x] Implement `/auth/me/password` (PUT - change own password with current password verification)
 - [x] Implement `/auth/refresh` (refresh token endpoint)
+
+### Auth API Security Improvements
+- [ ] **Move reset token from query params to request body** (Security Best Practice)
+  - [ ] Update `/auth/reset-password` endpoint to accept `PasswordResetDto` in body
+  - [ ] Current: `POST /auth/reset-password?username={username}&resetToken={token}` with `{ newPassword }` in body
+  - [ ] Target: `POST /auth/reset-password` with `{ username, resetToken, newPassword }` in body
+  - [ ] Update `PasswordResetDto` to include `username` and `resetToken` fields
+  - [ ] Update controller method signature to use `[FromBody] PasswordResetDto request`
+  - [ ] Update frontend after backend changes are deployed
+  - [ ] **Rationale**: Tokens should not be in URLs (can be logged in server logs, browser history, referrer headers)
+
+**Current Implementation** (AuthController.cs):
+```csharp
+[HttpPost("reset-password")]
+public async Task<ActionResult> ResetPassword(
+    [FromQuery] string username,
+    [FromQuery] string resetToken,
+    [FromBody] PasswordResetDto request)
+{
+    // Implementation
+}
+```
+
+**Target Implementation**:
+```csharp
+[HttpPost("reset-password")]
+public async Task<ActionResult> ResetPassword([FromBody] PasswordResetDto request)
+{
+    // request.Username, request.ResetToken, request.NewPassword
+}
+```
+
+**Updated DTO** (DTOs/AuthDtos.cs):
+```csharp
+public class PasswordResetDto
+{
+    [Required(ErrorMessage = "Username is required")]
+    public string Username { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Token is required")]
+    public string ResetToken { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "New password is required")]
+    [PasswordComplexity(minLength: 8)]
+    public string NewPassword { get; set; } = string.Empty;
+}
+```
+
+**Estimated Effort**: 1-2 hours
+**Priority**: MEDIUM - Security improvement
+**Breaking Change**: Yes - Frontend must be updated after deployment
 
 ### Professor Application System
 - [ ] **Create ProfessorApplication entity**

@@ -159,6 +159,13 @@ public class ModulesController : BaseAuthController
                     IsActive = f.IsActive,
                     OpenAIFileId = f.OpenAIFileId,
                     AnthropicFileId = f.AnthropicFileId,
+                    // Video/Transcription fields
+                    SourceType = f.SourceType,
+                    SourceUrl = f.SourceUrl,
+                    TranscriptionStatus = f.TranscriptionStatus,
+                    TranscriptWordCount = f.TranscriptWordCount,
+                    VideoDurationSeconds = f.VideoDurationSeconds,
+                    TranscriptedAt = f.TranscriptedAt,
                     CreatedAt = f.CreatedAt,
                     UpdatedAt = f.UpdatedAt
                 }).ToList(),
@@ -340,6 +347,13 @@ public class ModulesController : BaseAuthController
                     IsActive = f.IsActive,
                     OpenAIFileId = f.OpenAIFileId,
                     AnthropicFileId = f.AnthropicFileId,
+                    // Video/Transcription fields
+                    SourceType = f.SourceType,
+                    SourceUrl = f.SourceUrl,
+                    TranscriptionStatus = f.TranscriptionStatus,
+                    TranscriptWordCount = f.TranscriptWordCount,
+                    VideoDurationSeconds = f.VideoDurationSeconds,
+                    TranscriptedAt = f.TranscriptedAt,
                     CreatedAt = f.CreatedAt,
                     UpdatedAt = f.UpdatedAt
                 }).ToList() ?? new List<FileListDto>(),

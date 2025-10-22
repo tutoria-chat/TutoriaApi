@@ -15,6 +15,17 @@ public class File : BaseEntity
     public string? OpenAIFileId { get; set; }
     public string? AnthropicFileId { get; set; }
 
+    // Video/Transcription Support
+    public string? SourceType { get; set; }  // 'upload', 'youtube', 'url'
+    public string? SourceUrl { get; set; }  // YouTube URL or external link
+    public string? TranscriptionStatus { get; set; }  // 'pending', 'processing', 'completed', 'failed'
+    public string? TranscriptText { get; set; }  // Full transcript text
+    public string? TranscriptLanguage { get; set; }  // 'pt-br', 'en', 'es'
+    public string? TranscriptJobId { get; set; }  // Background job ID for tracking
+    public int? VideoDurationSeconds { get; set; }  // Video/audio duration
+    public DateTime? TranscriptedAt { get; set; }  // Transcription completion timestamp
+    public int? TranscriptWordCount { get; set; }  // Word count for analytics
+
     // Navigation properties
     public Module Module { get; set; } = null!;
 }
