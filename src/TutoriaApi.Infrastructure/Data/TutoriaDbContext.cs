@@ -24,6 +24,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<ProfessorCourse> ProfessorCourses { get; set; }
     public DbSet<StudentCourse> StudentCourses { get; set; }
     public DbSet<ApiClient> ApiClients { get; set; }
+    public DbSet<ProfessorAgent> ProfessorAgents { get; set; }
+    public DbSet<ProfessorAgentToken> ProfessorAgentTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -289,6 +291,74 @@ public class TutoriaDbContext : DbContext
 
             entity.HasIndex(e => e.ModelName).IsUnique();
             entity.HasCheckConstraint("CK_AIModels_Provider", "[Provider] IN ('openai', 'anthropic')");
+        });
+
+        // ProfessorAgent configuration
+        modelBuilder.Entity<ProfessorAgent>(entity =>
+        {
+            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgents_UpdatedAt)
+            entity.ToTable("ProfessorAgents", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ProfessorId).HasColumnName("ProfessorId");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.SystemPrompt).HasColumnName("SystemPrompt");
+            entity.Property(e => e.OpenAIAssistantId).HasColumnName("OpenAIAssistantId").HasMaxLength(200);
+            entity.Property(e => e.OpenAIVectorStoreId).HasColumnName("OpenAIVectorStoreId").HasMaxLength(200);
+            entity.Property(e => e.TutorLanguage).HasColumnName("TutorLanguage").HasMaxLength(10).HasDefaultValue("pt-br");
+            entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasOne(e => e.Professor)
+                .WithMany()
+                .HasForeignKey(e => e.ProfessorId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(e => e.AIModel)
+                .WithMany()
+                .HasForeignKey(e => e.AIModelId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // ProfessorAgentToken configuration
+        modelBuilder.Entity<ProfessorAgentToken>(entity =>
+        {
+            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgentTokens_UpdatedAt)
+            entity.ToTable("ProfessorAgentTokens", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ProfessorAgentId).HasColumnName("ProfessorAgentId");
+            entity.Property(e => e.ProfessorId).HasColumnName("ProfessorId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.AllowChat).HasColumnName("AllowChat").HasDefaultValue(true);
+            entity.Property(e => e.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Token).IsUnique();
+
+            entity.HasOne(e => e.ProfessorAgent)
+                .WithMany(pa => pa.ProfessorAgentTokens)
+                .HasForeignKey(e => e.ProfessorAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Professor)
+                .WithMany()
+                .HasForeignKey(e => e.ProfessorId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }
