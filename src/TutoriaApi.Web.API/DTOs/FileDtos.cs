@@ -98,7 +98,7 @@ public class AddYoutubeVideoRequest
     [MaxLength(1000, ErrorMessage = "URL cannot exceed 1000 characters")]
     [Url(ErrorMessage = "Please provide a valid URL")]
     [RegularExpression(
-        @"^(https?://)?(www\.)?(youtube\.com/(watch\?v=|embed/|shorts/)|youtu\.be/)[a-zA-Z0-9_-]{11}",
+        @"^(https?://)?(www\.)?(youtube\.com/(watch\?v=|embed/|shorts/|live/)|youtu\.be/)[a-zA-Z0-9_-]{11}.*$",
         ErrorMessage = "Please provide a valid YouTube URL")]
     public string YoutubeUrl { get; set; } = string.Empty;
 

@@ -4,6 +4,7 @@ using Amazon.DynamoDBv2.Model;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Interfaces;
+using TutoriaApi.Core.DTOs;
 
 namespace TutoriaApi.Infrastructure.Services;
 
@@ -283,7 +284,7 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         };
     }
 
-    public async Task<List<FaqItemDto>> GenerateFaqFromQuestionsAsync(int moduleId, int minimumOccurrences = 3, int maxResults = 10)
+    public async Task<List<FaqItemDto>> GenerateFaqFromQuestionsAsync(int moduleId, int minimumOccurrences = 1, int maxResults = 10)
     {
         var messages = await GetModuleAnalyticsAsync(moduleId, limit: 5000);
 
@@ -292,22 +293,97 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
             return new List<FaqItemDto>();
         }
 
-        // Group similar questions (basic approach - can be enhanced with fuzzy matching or embeddings)
-        var questionGroups = messages
-            .GroupBy(m => NormalizeQuestion(m.Question))
-            .Where(g => g.Count() >= minimumOccurrences)
-            .OrderByDescending(g => g.Count())
+        // Group similar questions using fuzzy matching
+        var groups = GroupSimilarQuestions(messages, similarityThreshold: 75, minOccurrences: minimumOccurrences);
+
+        var questionGroups = groups
+            .OrderByDescending(g => g.Count)
             .Take(maxResults)
             .Select(g => new FaqItemDto
             {
-                Question = g.First().Question, // Take first occurrence as representative
-                Answer = g.First().Response,   // Take first response (could aggregate/improve this)
-                Occurrences = g.Count(),
-                SimilarityScore = 1.0 // Perfect match in this basic implementation
+                Question = g.RepresentativeQuestion,
+                Answer = g.RepresentativeAnswer,
+                Occurrences = g.Count,
+                SimilarityScore = 1.0 // All questions in group have >= 75% similarity
             })
             .ToList();
 
         return questionGroups;
+    }
+
+    /// <summary>
+    /// Group similar questions using fuzzy string matching
+    /// </summary>
+    private List<QuestionGroupDto> GroupSimilarQuestions(
+        List<ChatMessageDto> messages,
+        int similarityThreshold = 75,
+        int minOccurrences = 1)
+    {
+        var groups = new List<QuestionGroupDto>();
+        var processedIndices = new HashSet<int>();
+
+        // Filter out quiz answers first
+        var validMessages = messages
+            .Where(m => !IsQuizAnswer(m.Question))
+            .ToList();
+
+        for (int i = 0; i < validMessages.Count; i++)
+        {
+            if (processedIndices.Contains(i))
+                continue;
+
+            var message = validMessages[i];
+
+            // Create a new group
+            var group = new QuestionGroupDto
+            {
+                RepresentativeQuestion = message.Question,
+                RepresentativeAnswer = message.Response,
+                Count = 1
+            };
+
+            processedIndices.Add(i);
+
+            // Find similar questions
+            for (int j = i + 1; j < validMessages.Count; j++)
+            {
+                if (processedIndices.Contains(j))
+                    continue;
+
+                var otherMessage = validMessages[j];
+
+                var similarity = FuzzySharp.Fuzz.Ratio(
+                    NormalizeQuestion(message.Question),
+                    NormalizeQuestion(otherMessage.Question));
+
+                if (similarity >= similarityThreshold)
+                {
+                    group.Count++;
+                    processedIndices.Add(j);
+
+                    // Use the longer answer as representative (usually more detailed)
+                    if (otherMessage.Response.Length > group.RepresentativeAnswer.Length)
+                    {
+                        group.RepresentativeAnswer = otherMessage.Response;
+                    }
+                }
+            }
+
+            // Only include groups meeting minimum occurrences
+            if (group.Count >= minOccurrences)
+            {
+                groups.Add(group);
+            }
+        }
+
+        return groups;
+    }
+
+    private class QuestionGroupDto
+    {
+        public string RepresentativeQuestion { get; set; } = string.Empty;
+        public string RepresentativeAnswer { get; set; } = string.Empty;
+        public int Count { get; set; }
     }
 
     private static string NormalizeQuestion(string question)
@@ -318,6 +394,28 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
             .Trim()
             .TrimEnd('?', '.', '!')
             .Replace("  ", " ");
+    }
+
+    private static bool IsQuizAnswer(string question)
+    {
+        if (string.IsNullOrWhiteSpace(question))
+            return false;
+
+        var trimmed = question.Trim().ToUpperInvariant();
+
+        // Filter out single letters (A, B, C, D, E, etc.) which are quiz answers
+        if (trimmed.Length == 1 && char.IsLetter(trimmed[0]))
+            return true;
+
+        // Filter out single letters with punctuation (A., B., etc.)
+        if (trimmed.Length == 2 && char.IsLetter(trimmed[0]) && trimmed[1] == '.')
+            return true;
+
+        // Filter out patterns like "LETRA A", "LETRA B", "A)", "B)", etc.
+        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^(LETRA\s)?[A-E][\)\.]*$"))
+            return true;
+
+        return false;
     }
 
     #region New Analytics Methods

@@ -51,6 +51,7 @@ public class CourseWithDetailsDto
     public string Code { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int UniversityId { get; set; }
+    public string? UniversityName { get; set; }
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();

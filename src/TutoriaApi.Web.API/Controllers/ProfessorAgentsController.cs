@@ -15,20 +15,14 @@ namespace TutoriaApi.Web.API.Controllers;
 [Authorize]
 public class ProfessorAgentsController : ControllerBase
 {
-    private readonly IProfessorAgentRepository _professorAgentRepository;
-    private readonly IProfessorAgentTokenRepository _tokenRepository;
-    private readonly IUserRepository _userRepository;
+    private readonly IProfessorAgentService _professorAgentService;
     private readonly ILogger<ProfessorAgentsController> _logger;
 
     public ProfessorAgentsController(
-        IProfessorAgentRepository professorAgentRepository,
-        IProfessorAgentTokenRepository tokenRepository,
-        IUserRepository userRepository,
+        IProfessorAgentService professorAgentService,
         ILogger<ProfessorAgentsController> logger)
     {
-        _professorAgentRepository = professorAgentRepository;
-        _tokenRepository = tokenRepository;
-        _userRepository = userRepository;
+        _professorAgentService = professorAgentService;
         _logger = logger;
     }
 
@@ -49,12 +43,12 @@ public class ProfessorAgentsController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            var agent = await _professorAgentRepository.GetByProfessorIdAsync(userId);
+            var agent = await _professorAgentService.GetByProfessorIdAsync(userId);
 
             if (agent == null)
                 return NotFound(new { message = "Professor agent not found" });
 
-            var tokens = await _tokenRepository.GetByProfessorAgentIdAsync(agent.Id);
+            var tokens = await _professorAgentService.GetTokensByAgentIdAsync(agent.Id);
 
             return Ok(new ProfessorAgentDetailDto
             {
@@ -99,9 +93,7 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            var agents = universityId.HasValue
-                ? await _professorAgentRepository.GetByUniversityIdAsync(universityId.Value)
-                : await _professorAgentRepository.GetActiveAgentsAsync();
+            var agents = await _professorAgentService.GetAllAgentsAsync(universityId);
 
             var result = agents.Select(a => new ProfessorAgentListDto
             {
@@ -132,34 +124,13 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            // Get professor to get university ID
-            var professor = await _userRepository.GetByIdAsync(request.ProfessorId);
-            if (professor == null || professor.UserType != "professor")
-                return BadRequest(new { message = "Invalid professor ID" });
-
-            if (!professor.UniversityId.HasValue)
-                return BadRequest(new { message = "Professor must be associated with a university" });
-
-            // Check if agent already exists for this professor
-            var existing = await _professorAgentRepository.GetByProfessorIdAsync(request.ProfessorId);
-            if (existing != null)
-                return BadRequest(new { message = "Professor already has an agent" });
-
-            var agent = new ProfessorAgent
-            {
-                ProfessorId = request.ProfessorId,
-                UniversityId = professor.UniversityId.Value,
-                Name = request.Name,
-                Description = request.Description,
-                SystemPrompt = request.SystemPrompt ?? GetDefaultSystemPrompt(),
-                TutorLanguage = request.TutorLanguage,
-                AIModelId = request.AIModelId,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            await _professorAgentRepository.AddAsync(agent);
+            var agent = await _professorAgentService.CreateAgentAsync(
+                request.ProfessorId,
+                request.Name,
+                request.Description,
+                request.SystemPrompt,
+                request.TutorLanguage,
+                request.AIModelId);
 
             return CreatedAtAction(nameof(GetMyAgent), new ProfessorAgentDetailDto
             {
@@ -176,6 +147,10 @@ public class ProfessorAgentsController : ControllerBase
                 UpdatedAt = agent.UpdatedAt
             });
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating professor agent");
@@ -189,18 +164,14 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            var agent = await _professorAgentRepository.GetByIdAsync(id);
-            if (agent == null)
-                return NotFound(new { message = "Professor agent not found" });
-
-            if (request.Name != null) agent.Name = request.Name;
-            if (request.Description != null) agent.Description = request.Description;
-            if (request.SystemPrompt != null) agent.SystemPrompt = request.SystemPrompt;
-            if (request.TutorLanguage != null) agent.TutorLanguage = request.TutorLanguage;
-            if (request.AIModelId.HasValue) agent.AIModelId = request.AIModelId;
-            if (request.IsActive.HasValue) agent.IsActive = request.IsActive.Value;
-
-            await _professorAgentRepository.UpdateAsync(agent);
+            var agent = await _professorAgentService.UpdateAgentAsync(
+                id,
+                request.Name,
+                request.Description,
+                request.SystemPrompt,
+                request.TutorLanguage,
+                request.AIModelId,
+                request.IsActive);
 
             return Ok(new ProfessorAgentDetailDto
             {
@@ -217,6 +188,10 @@ public class ProfessorAgentsController : ControllerBase
                 UpdatedAt = agent.UpdatedAt
             });
         }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Professor agent not found" });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating professor agent with ID {Id}", id);
@@ -230,13 +205,12 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            var agent = await _professorAgentRepository.GetByIdAsync(id);
-            if (agent == null)
-                return NotFound(new { message = "Professor agent not found" });
-
-            await _professorAgentRepository.DeleteAsync(id);
-
+            await _professorAgentService.DeleteAgentAsync(id);
             return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Professor agent not found" });
         }
         catch (Exception ex)
         {
@@ -251,30 +225,16 @@ public class ProfessorAgentsController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            var agent = await _professorAgentRepository.GetByIdAsync(id);
-
-            if (agent == null)
-                return NotFound(new { message = "Professor agent not found" });
-
-            // Check authorization: must be the owner or admin
             var userType = GetCurrentUserType();
-            if (agent.ProfessorId != userId && userType != "super_admin" && userType != "admin_professor")
-                return Forbid();
 
-            var token = new ProfessorAgentToken
-            {
-                Token = GenerateSecureToken(),
-                ProfessorAgentId = id,
-                ProfessorId = agent.ProfessorId,
-                Name = request.Name,
-                Description = request.Description,
-                AllowChat = request.AllowChat,
-                ExpiresAt = request.ExpiresAt,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-
-            await _tokenRepository.AddAsync(token);
+            var token = await _professorAgentService.CreateTokenAsync(
+                id,
+                userId,
+                userType ?? string.Empty,
+                request.Name,
+                request.Description,
+                request.AllowChat,
+                request.ExpiresAt);
 
             return Ok(new ProfessorAgentTokenDetailDto
             {
@@ -291,37 +251,18 @@ public class ProfessorAgentsController : ControllerBase
                 UpdatedAt = token.UpdatedAt
             });
         }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating professor agent token");
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
-    }
-
-    private string GenerateSecureToken()
-    {
-        var randomBytes = new byte[32];
-        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(randomBytes);
-        }
-        return Convert.ToBase64String(randomBytes)
-            .Replace('+', '-')
-            .Replace('/', '_')
-            .Replace("=", "");
-    }
-
-    private string GetDefaultSystemPrompt()
-    {
-        return @"You are an AI assistant helping a professor analyze and improve their course materials.
-
-Your role:
-- Review course content and provide constructive feedback
-- Suggest improvements to clarity, structure, and pedagogy
-- Identify potential gaps in course coverage
-- Recommend additional resources or topics
-- Help align content with learning objectives
-
-Be professional, constructive, and supportive in your feedback.";
     }
 }

@@ -1,4 +1,5 @@
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Enums;
 using TutoriaApi.Core.Interfaces;
 
 namespace TutoriaApi.Infrastructure.Services;
@@ -133,5 +134,78 @@ public class AIModelService : IAIModelService
         await _aiModelRepository.UpdateAsync(aiModel);
 
         return (true, modulesCount);
+    }
+
+    public async Task<AIModel?> SelectModelByCourseTypeAsync(CourseType courseType, int universityTier)
+    {
+        // Course type to model preferences mapping
+        // This mirrors the logic from frontend: tutoria-ui/lib/course-type-utils.ts
+        var modelPreferences = new Dictionary<CourseType, Dictionary<string, string>>
+        {
+            [CourseType.MathLogic] = new Dictionary<string, string>
+            {
+                ["basic"] = "gpt-3.5-turbo",
+                ["standard"] = "gpt-4",
+                ["premium"] = "gpt-4o"
+            },
+            [CourseType.Programming] = new Dictionary<string, string>
+            {
+                ["basic"] = "claude-3-haiku-20240307",
+                ["standard"] = "claude-3-7-sonnet-20250219",
+                ["premium"] = "claude-sonnet-4-5"
+            },
+            [CourseType.TheoryText] = new Dictionary<string, string>
+            {
+                ["basic"] = "claude-3-haiku-20240307",
+                ["standard"] = "claude-3-5-haiku-20241022",
+                ["premium"] = "claude-haiku-4-5"
+            }
+        };
+
+        // Map subscription tier number to tier string
+        string tierString;
+        if (universityTier >= 3)
+        {
+            tierString = "premium";
+        }
+        else if (universityTier == 2)
+        {
+            tierString = "standard";
+        }
+        else
+        {
+            tierString = "basic";
+        }
+
+        // Get the preferred model name for this course type and tier
+        var modelName = modelPreferences[courseType][tierString];
+
+        // Find the model in the database
+        var model = await _aiModelRepository.GetByModelNameAsync(modelName);
+
+        // If the preferred model isn't found, try fallback models for lower tiers
+        if (model == null)
+        {
+            if (tierString == "premium")
+            {
+                // Try standard, then basic
+                var standardModelName = modelPreferences[courseType]["standard"];
+                model = await _aiModelRepository.GetByModelNameAsync(standardModelName);
+
+                if (model == null)
+                {
+                    var basicModelName = modelPreferences[courseType]["basic"];
+                    model = await _aiModelRepository.GetByModelNameAsync(basicModelName);
+                }
+            }
+            else if (tierString == "standard")
+            {
+                // Try basic
+                var basicModelName = modelPreferences[courseType]["basic"];
+                model = await _aiModelRepository.GetByModelNameAsync(basicModelName);
+            }
+        }
+
+        return model;
     }
 }

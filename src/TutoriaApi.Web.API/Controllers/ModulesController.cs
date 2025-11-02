@@ -15,13 +15,19 @@ namespace TutoriaApi.Web.API.Controllers;
 public class ModulesController : BaseAuthController
 {
     private readonly IModuleService _moduleService;
+    private readonly ICourseRepository _courseRepository;
+    private readonly IAIModelService _aiModelService;
     private readonly ILogger<ModulesController> _logger;
 
     public ModulesController(
         IModuleService moduleService,
+        ICourseRepository courseRepository,
+        IAIModelService aiModelService,
         ILogger<ModulesController> logger)
     {
         _moduleService = moduleService;
+        _courseRepository = courseRepository;
+        _aiModelService = aiModelService;
         _logger = logger;
     }
 
@@ -191,6 +197,36 @@ public class ModulesController : BaseAuthController
 
         try
         {
+            int? aiModelId = request.AIModelId;
+
+            // If CourseType is provided, auto-select AI model based on university tier
+            if (request.CourseType.HasValue && !request.AIModelId.HasValue)
+            {
+                // Get course with university to determine tier
+                var course = await _courseRepository.GetWithDetailsAsync(request.CourseId);
+                if (course == null)
+                {
+                    return BadRequest(new { message = "Course not found" });
+                }
+
+                // Select AI model based on course type and university tier
+                var selectedModel = await _aiModelService.SelectModelByCourseTypeAsync(
+                    request.CourseType.Value,
+                    course.University?.SubscriptionTier ?? 1);
+
+                if (selectedModel != null)
+                {
+                    aiModelId = selectedModel.Id;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Could not auto-select AI model for course type {CourseType} and tier {Tier}",
+                        request.CourseType,
+                        course.University?.SubscriptionTier ?? 1);
+                }
+            }
+
             var module = new Module
             {
                 Name = request.Name,
@@ -200,7 +236,7 @@ public class ModulesController : BaseAuthController
                 Semester = request.Semester,
                 Year = request.Year,
                 CourseId = request.CourseId,
-                AIModelId = request.AIModelId,
+                AIModelId = aiModelId,
                 TutorLanguage = request.TutorLanguage,
                 PromptImprovementCount = 0
             };
@@ -281,8 +317,34 @@ public class ModulesController : BaseAuthController
             if (!string.IsNullOrWhiteSpace(request.TutorLanguage))
                 existing.TutorLanguage = request.TutorLanguage;
 
+            // Handle AI Model selection
             if (request.AIModelId.HasValue)
+            {
                 existing.AIModelId = request.AIModelId;
+            }
+            else if (request.CourseType.HasValue)
+            {
+                // Auto-select AI model based on course type and university tier
+                var course = await _courseRepository.GetWithDetailsAsync(existing.CourseId);
+                if (course != null)
+                {
+                    var selectedModel = await _aiModelService.SelectModelByCourseTypeAsync(
+                        request.CourseType.Value,
+                        course.University?.SubscriptionTier ?? 1);
+
+                    if (selectedModel != null)
+                    {
+                        existing.AIModelId = selectedModel.Id;
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Could not auto-select AI model for course type {CourseType} and tier {Tier}",
+                            request.CourseType,
+                            course.University?.SubscriptionTier ?? 1);
+                    }
+                }
+            }
 
             var updated = await _moduleService.UpdateAsync(id, existing);
 

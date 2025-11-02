@@ -1,52 +1,551 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using TutoriaApi.Core.DTOs;
 using TutoriaApi.Core.Interfaces;
 
 namespace TutoriaApi.Web.API.Controllers;
 
 /// <summary>
-/// Provides analytics and insights from DynamoDB chat data.
+/// Provides comprehensive analytics and insights with role-based access control
 /// </summary>
 /// <remarks>
-/// This controller queries DynamoDB to provide usage analytics, conversation history,
-/// student activity tracking, and FAQ generation based on common questions.
+/// This controller provides analytics endpoints with automatic role-based filtering:
+/// - **SuperAdmin**: Can see all universities' data
+/// - **ProfessorAdmin**: Can only see their university's data
+/// - **Professor**: Can only see their assigned courses' data
 ///
-/// **Authorization**: All endpoints require authentication. Most endpoints require ProfessorOrAbove policy.
-///
-/// **Key Features**:
-/// - Module usage analytics and summaries
-/// - Student activity tracking
-/// - Conversation history retrieval
-/// - AI provider/model usage statistics
-/// - FAQ generation from common questions
-///
-/// **Note**: DynamoDB must be configured and enabled in appsettings for these endpoints to work.
-/// When disabled, endpoints return empty results with appropriate warnings in logs.
+/// All endpoints require authentication and implement the ProfessorOrAbove policy.
 /// </remarks>
 [ApiController]
 [Route("api/analytics")]
-[Authorize]
+[Authorize(Policy = "ProfessorOrAbove")]
 public class AnalyticsController : ControllerBase
 {
-    private readonly IDynamoDbAnalyticsService _analyticsService;
+    private readonly IAnalyticsService _analyticsService;
+    private readonly IDynamoDbAnalyticsService _dynamoDbService;
     private readonly ILogger<AnalyticsController> _logger;
 
     public AnalyticsController(
-        IDynamoDbAnalyticsService analyticsService,
-        ILogger<AnalyticsController> _logger)
+        IAnalyticsService analyticsService,
+        IDynamoDbAnalyticsService dynamoDbService,
+        ILogger<AnalyticsController> logger)
     {
         _analyticsService = analyticsService;
-        this._logger = _logger;
+        _dynamoDbService = dynamoDbService;
+        _logger = logger;
     }
+
+    #region Cost Analysis Endpoints
+
+    /// <summary>
+    /// Get comprehensive cost breakdown with hierarchical filtering
+    /// </summary>
+    /// <remarks>
+    /// SuperAdmin: Can filter by any university/course/module
+    /// ProfessorAdmin: Can only see their university's data
+    /// Professor: Can only see their assigned courses' data
+    /// </remarks>
+    [HttpGet("costs/detailed")]
+    [ProducesResponseType(typeof(CostAnalysisDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<CostAnalysisDto>> GetCostAnalysis(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                UniversityId = universityId,
+                CourseId = courseId,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetCostAnalysisAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to cost analysis by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting cost analysis");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get today's costs with real-time updates and comparison to yesterday
+    /// </summary>
+    [HttpGet("costs/today")]
+    [ProducesResponseType(typeof(TodayCostDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<TodayCostDto>> GetTodayCost(
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                UniversityId = universityId,
+                CourseId = courseId,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetTodayCostAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to today's cost by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting today's cost");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Usage Statistics Endpoints
+
+    /// <summary>
+    /// Get comprehensive today's usage stats with real-time updates
+    /// </summary>
+    [HttpGet("usage/today")]
+    [ProducesResponseType(typeof(UsageStatsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<UsageStatsDto>> GetTodayUsageStats(
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                UniversityId = universityId,
+                CourseId = courseId,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetTodayUsageStatsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to usage stats by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting today's usage stats");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get usage trends over time (daily aggregation)
+    /// </summary>
+    [HttpGet("usage/trends")]
+    [ProducesResponseType(typeof(UsageTrendsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<UsageTrendsResponseDto>> GetUsageTrends(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate ?? DateTime.UtcNow.AddDays(-30),
+                EndDate = endDate ?? DateTime.UtcNow,
+                UniversityId = universityId,
+                CourseId = courseId,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetUsageTrendsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to usage trends by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting usage trends");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get hourly usage breakdown for peak time analysis
+    /// </summary>
+    [HttpGet("usage/hourly")]
+    [ProducesResponseType(typeof(HourlyUsageResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<HourlyUsageResponseDto>> GetHourlyUsage(
+        [FromQuery] DateTime? date = null,
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                UniversityId = universityId,
+                CourseId = courseId,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetHourlyUsageAsync(userId, userRole, userUniversityId, date, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to hourly usage by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting hourly usage");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Student & Engagement Endpoints
+
+    /// <summary>
+    /// Get top active students by message count
+    /// </summary>
+    [HttpGet("students/top-active")]
+    [ProducesResponseType(typeof(TopActiveStudentsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<TopActiveStudentsResponseDto>> GetTopActiveStudents(
+        [FromQuery] int limit = 10,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            if (limit < 1 || limit > 100)
+            {
+                return BadRequest(new { message = "Limit must be between 1 and 100" });
+            }
+
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new TopStudentsFilterDto
+            {
+                Limit = limit,
+                StartDate = startDate,
+                EndDate = endDate,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetTopActiveStudentsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to top students by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting top active students");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get conversation engagement metrics (avg messages per conversation, completion rate)
+    /// </summary>
+    [HttpGet("engagement/conversations")]
+    [ProducesResponseType(typeof(ConversationMetricsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ConversationMetricsDto>> GetConversationEngagementMetrics(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetConversationEngagementMetricsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to conversation metrics by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting conversation engagement metrics");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Performance & Quality Endpoints
+
+    /// <summary>
+    /// Get response quality and performance metrics (response time, token efficiency)
+    /// </summary>
+    [HttpGet("performance/response-quality")]
+    [ProducesResponseType(typeof(ResponseQualityDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ResponseQualityDto>> GetResponseQualityMetrics(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetResponseQualityMetricsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to response quality metrics by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting response quality metrics");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Module Comparison Endpoints
+
+    /// <summary>
+    /// Compare multiple modules side-by-side
+    /// </summary>
+    [HttpGet("modules/compare")]
+    [ProducesResponseType(typeof(ModuleComparisonResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ModuleComparisonResponseDto>> GetModuleComparison(
+        [FromQuery] string moduleIds, // Comma-separated list (e.g., "1,2,3,4")
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(moduleIds))
+            {
+                return BadRequest(new { message = "moduleIds parameter is required" });
+            }
+
+            List<int> moduleIdList;
+            try
+            {
+                moduleIdList = moduleIds.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(id => int.Parse(id.Trim()))
+                    .ToList();
+            }
+            catch (FormatException)
+            {
+                return BadRequest(new { message = "Invalid moduleIds format. Expected comma-separated integers (e.g., '1,2,3')" });
+            }
+
+            if (moduleIdList.Count < 2)
+            {
+                return BadRequest(new { message = "At least 2 module IDs are required for comparison" });
+            }
+
+            if (moduleIdList.Count > 10)
+            {
+                return BadRequest(new { message = "Maximum 10 modules can be compared at once" });
+            }
+
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new ModuleComparisonFilterDto
+            {
+                ModuleIds = moduleIdList,
+                StartDate = startDate,
+                EndDate = endDate
+            };
+
+            var result = await _analyticsService.GetModuleComparisonAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to module comparison by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to one or more of the requested modules" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting module comparison");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Dashboard Endpoints
+
+    /// <summary>
+    /// Get high-level executive dashboard summary
+    /// </summary>
+    /// <remarks>
+    /// Period values: "today", "week", "month", "quarter", "year"
+    /// </remarks>
+    [HttpGet("dashboard/summary")]
+    [ProducesResponseType(typeof(DashboardSummaryDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<DashboardSummaryDto>> GetDashboardSummary(
+        [FromQuery] string period = "month",
+        [FromQuery] int? universityId = null)
+    {
+        try
+        {
+            var validPeriods = new[] { "today", "week", "month", "quarter", "year" };
+            if (!validPeriods.Contains(period.ToLower()))
+            {
+                return BadRequest(new { message = $"Invalid period. Must be one of: {string.Join(", ", validPeriods)}" });
+            }
+
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new DashboardFilterDto
+            {
+                Period = period.ToLower(),
+                UniversityId = universityId
+            };
+
+            var result = await _analyticsService.GetDashboardSummaryAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to dashboard summary by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting dashboard summary");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Frequently Asked Questions Endpoints
+
+    /// <summary>
+    /// Get most frequently asked questions by students
+    /// </summary>
+    [HttpGet("questions/frequently-asked")]
+    [ProducesResponseType(typeof(FrequentlyAskedQuestionsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<FrequentlyAskedQuestionsResponseDto>> GetFrequentlyAskedQuestions(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetFrequentlyAskedQuestionsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to FAQs by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting frequently asked questions");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
+    #region Legacy Endpoints (Direct DynamoDB Access)
 
     /// <summary>
     /// Get conversation history for a specific conversation ID
     /// </summary>
-    /// <param name="conversationId">The UUID of the conversation</param>
-    /// <param name="limit">Maximum number of messages to retrieve (default: 50)</param>
-    /// <returns>List of chat messages in chronological order</returns>
     [HttpGet("conversations/{conversationId}")]
-    [Authorize(Policy = "ProfessorOrAbove")]
     public async Task<ActionResult<List<ChatMessageDto>>> GetConversationHistory(
         string conversationId,
         [FromQuery] int limit = 50)
@@ -64,9 +563,7 @@ public class AnalyticsController : ControllerBase
         try
         {
             _logger.LogInformation("Retrieving conversation history for {ConversationId}", conversationId);
-
-            var messages = await _analyticsService.GetConversationHistoryAsync(conversationId, limit);
-
+            var messages = await _dynamoDbService.GetConversationHistoryAsync(conversationId, limit);
             return Ok(messages);
         }
         catch (Exception ex)
@@ -79,12 +576,7 @@ public class AnalyticsController : ControllerBase
     /// <summary>
     /// Get aggregated analytics summary for a module
     /// </summary>
-    /// <param name="moduleId">The ID of the module</param>
-    /// <param name="startDate">Optional start date for filtering (ISO 8601 format)</param>
-    /// <param name="endDate">Optional end date for filtering (ISO 8601 format)</param>
-    /// <returns>Summary statistics including total messages, unique students, response times, etc.</returns>
     [HttpGet("modules/{moduleId}/summary")]
-    [Authorize(Policy = "ProfessorOrAbove")]
     public async Task<ActionResult<ModuleAnalyticsSummaryDto>> GetModuleSummary(
         int moduleId,
         [FromQuery] DateTime? startDate = null,
@@ -98,9 +590,7 @@ public class AnalyticsController : ControllerBase
         try
         {
             _logger.LogInformation("Retrieving analytics summary for module {ModuleId}", moduleId);
-
-            var summary = await _analyticsService.GetModuleSummaryAsync(moduleId, startDate, endDate);
-
+            var summary = await _dynamoDbService.GetModuleSummaryAsync(moduleId, startDate, endDate);
             return Ok(summary);
         }
         catch (Exception ex)
@@ -110,204 +600,37 @@ public class AnalyticsController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// Get detailed chat messages for a module
-    /// </summary>
-    /// <param name="moduleId">The ID of the module</param>
-    /// <param name="startDate">Optional start date for filtering (ISO 8601 format)</param>
-    /// <param name="endDate">Optional end date for filtering (ISO 8601 format)</param>
-    /// <param name="limit">Maximum number of messages to retrieve (default: 1000)</param>
-    /// <returns>List of chat messages for the module</returns>
-    [HttpGet("modules/{moduleId}/messages")]
-    [Authorize(Policy = "ProfessorOrAbove")]
-    public async Task<ActionResult<List<ChatMessageDto>>> GetModuleMessages(
-        int moduleId,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
-        [FromQuery] int limit = 1000)
-    {
-        if (moduleId < 1)
-        {
-            return BadRequest(new { message = "Invalid module ID" });
-        }
+    #endregion
 
-        if (limit < 1 || limit > 5000)
-        {
-            return BadRequest(new { message = "Limit must be between 1 and 5000" });
-        }
-
-        try
-        {
-            _logger.LogInformation("Retrieving messages for module {ModuleId}", moduleId);
-
-            var messages = await _analyticsService.GetModuleAnalyticsAsync(moduleId, startDate, endDate, limit);
-
-            return Ok(messages);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving messages for module {ModuleId}", moduleId);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
-        }
-    }
+    #region Helper Methods
 
     /// <summary>
-    /// Get chat activity for a specific student
+    /// Extract user context from JWT claims
     /// </summary>
-    /// <param name="studentId">The ID of the student</param>
-    /// <param name="startDate">Optional start date for filtering (ISO 8601 format)</param>
-    /// <param name="endDate">Optional end date for filtering (ISO 8601 format)</param>
-    /// <param name="limit">Maximum number of messages to retrieve (default: 100)</param>
-    /// <returns>List of chat messages from the student</returns>
-    [HttpGet("students/{studentId}/activity")]
-    [Authorize(Policy = "ProfessorOrAbove")]
-    public async Task<ActionResult<List<ChatMessageDto>>> GetStudentActivity(
-        int studentId,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
-        [FromQuery] int limit = 100)
+    private (int userId, string userRole, int? userUniversityId) GetUserContext()
     {
-        if (studentId < 1)
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userRoleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
+        var universityIdClaim = User.FindFirst("university_id")?.Value;
+
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
         {
-            return BadRequest(new { message = "Invalid student ID" });
+            throw new UnauthorizedAccessException("Invalid user ID in token");
         }
 
-        if (limit < 1 || limit > 1000)
+        if (string.IsNullOrEmpty(userRoleClaim))
         {
-            return BadRequest(new { message = "Limit must be between 1 and 1000" });
+            throw new UnauthorizedAccessException("Invalid user role in token");
         }
 
-        try
+        int? universityId = null;
+        if (!string.IsNullOrEmpty(universityIdClaim) && int.TryParse(universityIdClaim, out var univId))
         {
-            _logger.LogInformation("Retrieving activity for student {StudentId}", studentId);
-
-            var messages = await _analyticsService.GetStudentActivityAsync(studentId, startDate, endDate, limit);
-
-            return Ok(messages);
+            universityId = univId;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving activity for student {StudentId}", studentId);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
-        }
+
+        return (userId, userRoleClaim, universityId);
     }
 
-    /// <summary>
-    /// Get usage statistics for a specific AI provider (OpenAI or Anthropic)
-    /// </summary>
-    /// <param name="provider">The provider name (openai or anthropic)</param>
-    /// <param name="startDate">Optional start date for filtering (ISO 8601 format)</param>
-    /// <param name="endDate">Optional end date for filtering (ISO 8601 format)</param>
-    /// <param name="limit">Maximum number of messages to retrieve (default: 1000)</param>
-    /// <returns>List of chat messages using the specified provider</returns>
-    [HttpGet("providers/{provider}/usage")]
-    [Authorize(Policy = "ProfessorOrAbove")]
-    public async Task<ActionResult<List<ChatMessageDto>>> GetProviderUsage(
-        string provider,
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null,
-        [FromQuery] int limit = 1000)
-    {
-        if (string.IsNullOrWhiteSpace(provider))
-        {
-            return BadRequest(new { message = "Provider is required" });
-        }
-
-        var normalizedProvider = provider.ToLowerInvariant();
-        if (normalizedProvider != "openai" && normalizedProvider != "anthropic")
-        {
-            return BadRequest(new { message = "Provider must be 'openai' or 'anthropic'" });
-        }
-
-        if (limit < 1 || limit > 5000)
-        {
-            return BadRequest(new { message = "Limit must be between 1 and 5000" });
-        }
-
-        try
-        {
-            _logger.LogInformation("Retrieving usage statistics for provider {Provider}", provider);
-
-            var messages = await _analyticsService.GetProviderUsageAsync(normalizedProvider, startDate, endDate, limit);
-
-            return Ok(messages);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving provider usage for {Provider}", provider);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
-        }
-    }
-
-    /// <summary>
-    /// Generate FAQ (Frequently Asked Questions) from common questions for a module
-    /// </summary>
-    /// <param name="moduleId">The ID of the module</param>
-    /// <param name="minimumOccurrences">Minimum number of times a question must appear (default: 3)</param>
-    /// <param name="maxResults">Maximum number of FAQ items to return (default: 10)</param>
-    /// <returns>List of FAQ items with questions, answers, and occurrence counts</returns>
-    [HttpGet("modules/{moduleId}/faq")]
-    [Authorize(Policy = "ProfessorOrAbove")]
-    public async Task<ActionResult<List<FaqItemDto>>> GenerateFaq(
-        int moduleId,
-        [FromQuery] int minimumOccurrences = 3,
-        [FromQuery] int maxResults = 10)
-    {
-        if (moduleId < 1)
-        {
-            return BadRequest(new { message = "Invalid module ID" });
-        }
-
-        if (minimumOccurrences < 1 || minimumOccurrences > 100)
-        {
-            return BadRequest(new { message = "Minimum occurrences must be between 1 and 100" });
-        }
-
-        if (maxResults < 1 || maxResults > 50)
-        {
-            return BadRequest(new { message = "Max results must be between 1 and 50" });
-        }
-
-        try
-        {
-            _logger.LogInformation("Generating FAQ for module {ModuleId} with min occurrences {MinOccurrences}",
-                moduleId, minimumOccurrences);
-
-            var faqItems = await _analyticsService.GenerateFaqFromQuestionsAsync(moduleId, minimumOccurrences, maxResults);
-
-            return Ok(faqItems);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error generating FAQ for module {ModuleId}", moduleId);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
-        }
-    }
-
-    /// <summary>
-    /// Get cost analysis summary for AI provider usage
-    /// </summary>
-    /// <param name="startDate">Optional start date for filtering (ISO 8601 format)</param>
-    /// <param name="endDate">Optional end date for filtering (ISO 8601 format)</param>
-    /// <returns>Summary of costs by provider and model</returns>
-    [HttpGet("costs")]
-    [Authorize(Policy = "ProfessorOrAbove")]
-    public async Task<ActionResult<object>> GetCostAnalysis(
-        [FromQuery] DateTime? startDate = null,
-        [FromQuery] DateTime? endDate = null)
-    {
-        try
-        {
-            _logger.LogInformation("Retrieving cost analysis");
-
-            var summary = await _analyticsService.GetCostAnalysisAsync(startDate, endDate);
-
-            return Ok(summary);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving cost analysis");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
-        }
-    }
+    #endregion
 }

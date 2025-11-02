@@ -57,7 +57,7 @@ public class ProfessorAgentCreateRequest
     public string? SystemPrompt { get; set; }
 
     [MaxLength(10)]
-    public string TutorLanguage { get; set; } = "pt-br";
+    public string? TutorLanguage { get; set; }
 
     public int? AIModelId { get; set; }
 }

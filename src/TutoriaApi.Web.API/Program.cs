@@ -8,10 +8,12 @@ using AspNetCoreRateLimit;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Configure Kestrel to allow large file uploads (50MB)
+// Configure Kestrel to allow large file uploads (10MB)
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 52428800; // 50 MB in bytes
+    serverOptions.Limits.MaxRequestBodySize = 10485760; // 10 MB in bytes
+    serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5); // 5 minutes for slow connections
+    serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5); // 5 minutes keep-alive
 });
 
 // Configure built-in logging (console output goes to CloudWatch on EB)
@@ -34,13 +36,20 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 // Configure form options to allow large file uploads
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 52428800; // 50 MB
-    options.ValueLengthLimit = 52428800;
-    options.MultipartHeadersLengthLimit = 52428800;
+    options.MultipartBodyLengthLimit = 10485760; // 10 MB
+    options.ValueLengthLimit = 10485760;
+    options.MultipartHeadersLengthLimit = 10485760;
 });
 
 // Add services to the container
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Configure enum serialization to use string values (e.g., "MathLogic" instead of 0)
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // Use camelCase for JSON property names
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 
 // Add HttpClient for VideoTranscriptionService (calls Python AI API)
 builder.Services.AddHttpClient();

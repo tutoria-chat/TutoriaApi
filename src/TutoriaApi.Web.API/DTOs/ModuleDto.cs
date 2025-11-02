@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TutoriaApi.Core.Enums;
 
 namespace TutoriaApi.Web.API.DTOs;
 
@@ -71,6 +72,8 @@ public class ModuleCreateRequest
 
     public int? AIModelId { get; set; }
 
+    public CourseType? CourseType { get; set; }
+
     [MaxLength(10)]
     public string TutorLanguage { get; set; } = "pt-br";
 }
@@ -94,6 +97,8 @@ public class ModuleUpdateRequest
     public int? Year { get; set; }
 
     public int? AIModelId { get; set; }
+
+    public CourseType? CourseType { get; set; }
 
     [MaxLength(10)]
     public string? TutorLanguage { get; set; }
