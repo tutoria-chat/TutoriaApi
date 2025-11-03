@@ -581,4 +581,287 @@ public class ProfessorAgentServiceTests
     }
 
     #endregion
+
+    #region GetProfessorAgentStatusAsync Tests
+
+    [Fact]
+    public async Task GetProfessorAgentStatusAsync_WithoutUniversityId_ReturnsAllProfessorsWithAgentStatus()
+    {
+        // Arrange
+        var professors = new List<User>
+        {
+            new User
+            {
+                UserId = 1,
+                Username = "john.doe",
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "john@test.com",
+                UserType = "professor",
+                UniversityId = 1
+            },
+            new User
+            {
+                UserId = 2,
+                Username = "jane.smith",
+                FirstName = "Jane",
+                LastName = "Smith",
+                Email = "jane@test.com",
+                UserType = "professor",
+                UniversityId = 1
+            }
+        };
+
+        var agents = new List<ProfessorAgent>
+        {
+            new ProfessorAgent
+            {
+                Id = 1,
+                ProfessorId = 1,
+                Name = "John's Agent",
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByTypeAsync("professor"))
+            .ReturnsAsync(professors);
+        _agentRepositoryMock.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(agents);
+
+        // Act
+        var result = await _service.GetProfessorAgentStatusAsync(null);
+
+        // Assert
+        Assert.NotNull(result);
+        var statusList = result.ToList();
+        Assert.Equal(2, statusList.Count);
+
+        var profWithAgent = statusList.First(s => s.ProfessorId == 1);
+        Assert.True(profWithAgent.HasAgent);
+        Assert.Equal(1, profWithAgent.AgentId);
+        Assert.Equal("John's Agent", profWithAgent.AgentName);
+        Assert.True(profWithAgent.AgentIsActive);
+
+        var profWithoutAgent = statusList.First(s => s.ProfessorId == 2);
+        Assert.False(profWithoutAgent.HasAgent);
+        Assert.Null(profWithoutAgent.AgentId);
+    }
+
+    [Fact]
+    public async Task GetProfessorAgentStatusAsync_WithUniversityId_ReturnsFilteredProfessorsWithAgentStatus()
+    {
+        // Arrange
+        var universityId = 1;
+        var professors = new List<User>
+        {
+            new User
+            {
+                UserId = 1,
+                Username = "john.doe",
+                FirstName = "John",
+                LastName = "Doe",
+                Email = "john@test.com",
+                UserType = "professor",
+                UniversityId = universityId
+            }
+        };
+
+        var agents = new List<ProfessorAgent>
+        {
+            new ProfessorAgent
+            {
+                Id = 1,
+                ProfessorId = 1,
+                Name = "John's Agent",
+                IsActive = false,
+                CreatedAt = DateTime.UtcNow
+            }
+        };
+
+        _userRepositoryMock.Setup(r => r.GetByUniversityIdAsync(universityId))
+            .ReturnsAsync(professors);
+        _agentRepositoryMock.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(agents);
+
+        // Act
+        var result = await _service.GetProfessorAgentStatusAsync(universityId);
+
+        // Assert
+        Assert.NotNull(result);
+        var statusList = result.ToList();
+        Assert.Single(statusList);
+
+        var profStatus = statusList.First();
+        Assert.True(profStatus.HasAgent);
+        Assert.Equal(1, profStatus.AgentId);
+        Assert.False(profStatus.AgentIsActive);
+    }
+
+    [Fact]
+    public async Task GetProfessorAgentStatusAsync_NoProfessors_ReturnsEmptyList()
+    {
+        // Arrange
+        _userRepositoryMock.Setup(r => r.GetByTypeAsync("professor"))
+            .ReturnsAsync(new List<User>());
+        _agentRepositoryMock.Setup(r => r.GetAllAsync())
+            .ReturnsAsync(new List<ProfessorAgent>());
+
+        // Act
+        var result = await _service.GetProfessorAgentStatusAsync(null);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    #endregion
+
+    #region ActivateAgentAsync Tests
+
+    [Fact]
+    public async Task ActivateAgentAsync_ExistingAgent_SetsIsActiveToTrue()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Test Agent",
+            IsActive = false,
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+        _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.ActivateAgentAsync(agentId);
+
+        // Assert
+        Assert.True(agent.IsActive);
+        Assert.True(agent.UpdatedAt > DateTime.UtcNow.AddMinutes(-1)); // Updated within last minute
+        _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
+    }
+
+    [Fact]
+    public async Task ActivateAgentAsync_NonExistentAgent_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var agentId = 999;
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync((ProfessorAgent?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _service.ActivateAgentAsync(agentId));
+    }
+
+    [Fact]
+    public async Task ActivateAgentAsync_AlreadyActive_StillUpdates()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Test Agent",
+            IsActive = true,
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+        _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.ActivateAgentAsync(agentId);
+
+        // Assert
+        Assert.True(agent.IsActive);
+        _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
+    }
+
+    #endregion
+
+    #region DeactivateAgentAsync Tests
+
+    [Fact]
+    public async Task DeactivateAgentAsync_ExistingAgent_SetsIsActiveToFalse()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Test Agent",
+            IsActive = true,
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+        _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.DeactivateAgentAsync(agentId);
+
+        // Assert
+        Assert.False(agent.IsActive);
+        Assert.True(agent.UpdatedAt > DateTime.UtcNow.AddMinutes(-1)); // Updated within last minute
+        _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeactivateAgentAsync_NonExistentAgent_ThrowsKeyNotFoundException()
+    {
+        // Arrange
+        var agentId = 999;
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync((ProfessorAgent?)null);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(
+            () => _service.DeactivateAgentAsync(agentId));
+    }
+
+    [Fact]
+    public async Task DeactivateAgentAsync_AlreadyInactive_StillUpdates()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Test Agent",
+            IsActive = false,
+            UpdatedAt = DateTime.UtcNow.AddDays(-1)
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+        _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        await _service.DeactivateAgentAsync(agentId);
+
+        // Assert
+        Assert.False(agent.IsActive);
+        _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
+    }
+
+    #endregion
 }

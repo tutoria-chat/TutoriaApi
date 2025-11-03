@@ -5,6 +5,10 @@ using System.Text;
 using TutoriaApi.Infrastructure;
 using TutoriaApi.Infrastructure.Middleware;
 using AspNetCoreRateLimit;
+using Hangfire;
+using Hangfire.Dashboard;
+using Hangfire.SqlServer;
+using TutoriaApi.Core.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -166,6 +170,29 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Add seeder service for development data
 builder.Services.AddScoped<TutoriaApi.Infrastructure.Services.DbSeederService>();
 
+// Add Hangfire services (background jobs)
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+    {
+        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+        QueuePollInterval = TimeSpan.Zero,
+        UseRecommendedIsolationLevel = true,
+        DisableGlobalLocks = true,
+        SchemaName = "Hangfire"
+    }));
+
+// Add the processing server as IHostedService
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 1; // One worker for background jobs
+    options.ServerName = $"TutoriaApi-{Environment.MachineName}";
+});
+
 // Add CORS
 builder.Services.AddCors(options =>
 {
@@ -213,6 +240,13 @@ app.UseCors();
 // Add global exception handler (should be early in the pipeline)
 app.UseGlobalExceptionHandler();
 
+// Add Hangfire Dashboard (for monitoring background jobs)
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireDashboardNoAuthFilter() }, // TODO: Add proper authorization in production
+    DashboardTitle = "Tutoria Background Jobs"
+});
+
 app.UseRequestResponseLogging();
 app.UseIpRateLimiting();
 app.UseAuthentication();
@@ -227,12 +261,26 @@ app.MapGet("/ping", () => Results.Ok(new { status = "healthy", timestamp = DateT
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
+// Schedule recurring background jobs
+RecurringJob.AddOrUpdate<ITranscriptionRetryService>(
+    "retry-failed-transcriptions",
+    service => service.RetryFailedTranscriptionsAsync(),
+    Cron.Daily(3)); // Run daily at 3:00 AM UTC
+
 // Log registered services on startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("🚀 Tutoria Unified API starting...");
 logger.LogInformation("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
 logger.LogInformation("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
+logger.LogInformation("🔄 Background Jobs: /hangfire (Transcription retry job scheduled daily at 3:00 AM UTC)");
 logger.LogInformation("📦 All repositories and services auto-registered via DI");
 logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 
 app.Run();
+
+// Hangfire dashboard authorization filter (allows all in development)
+// TODO: In production, require authentication for Hangfire dashboard
+public class HangfireDashboardNoAuthFilter : IDashboardAuthorizationFilter
+{
+    public bool Authorize(DashboardContext context) => true; // Allow all for now
+}

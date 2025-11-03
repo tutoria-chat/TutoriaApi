@@ -70,4 +70,44 @@ public class FileRepository : Repository<FileEntity>, IFileRepository
     {
         return await _dbSet.AnyAsync(f => f.BlobPath == blobName);
     }
+
+    public async Task<List<FileEntity>> GetFailedYoutubeTranscriptionsFromLast72HoursAsync()
+    {
+        var cutoffDate = DateTime.UtcNow.AddHours(-72);
+
+        return await _dbSet
+            .Where(f => f.SourceType == "youtube"
+                     && f.TranscriptionStatus == "failed"
+                     && f.CreatedAt >= cutoffDate
+                     && f.IsActive)
+            .Include(f => f.Module)
+            .OrderBy(f => f.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<FileEntity>> GetCompletedTranscriptionsAsync(
+        List<int> moduleIds,
+        DateTime? startDate = null,
+        DateTime? endDate = null)
+    {
+        var query = _dbSet
+            .Where(f => moduleIds.Contains(f.ModuleId)
+                     && f.SourceType == "youtube"
+                     && f.TranscriptionStatus == "completed"
+                     && f.TranscriptionCostUSD != null
+                     && f.IsActive);
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(f => f.TranscriptedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endDateTime = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(f => f.TranscriptedAt <= endDateTime);
+        }
+
+        return await query.ToListAsync();
+    }
 }

@@ -25,6 +25,7 @@ public class File : BaseEntity
     public int? VideoDurationSeconds { get; set; }  // Video/audio duration
     public DateTime? TranscriptedAt { get; set; }  // Transcription completion timestamp
     public int? TranscriptWordCount { get; set; }  // Word count for analytics
+    public decimal? TranscriptionCostUSD { get; set; }  // Cost in USD (e.g., AssemblyAI $0.25/hour)
 
     // Navigation properties
     public Module Module { get; set; } = null!;

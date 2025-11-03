@@ -14,6 +14,7 @@ public class AnalyticsService : IAnalyticsService
     private readonly ICourseRepository _courseRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly IAIModelRepository _aiModelRepository;
+    private readonly IFileRepository _fileRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
     public AnalyticsService(
@@ -22,6 +23,7 @@ public class AnalyticsService : IAnalyticsService
         ICourseRepository courseRepository,
         IUniversityRepository universityRepository,
         IAIModelRepository aiModelRepository,
+        IFileRepository fileRepository,
         ILogger<AnalyticsService> logger)
     {
         _dynamoDbService = dynamoDbService;
@@ -29,6 +31,7 @@ public class AnalyticsService : IAnalyticsService
         _courseRepository = courseRepository;
         _universityRepository = universityRepository;
         _aiModelRepository = aiModelRepository;
+        _fileRepository = fileRepository;
         _logger = logger;
     }
 
@@ -62,13 +65,16 @@ public class AnalyticsService : IAnalyticsService
                 allMessages.AddRange(messages);
             }
 
-            if (!allMessages.Any())
-            {
-                return new CostAnalysisDto();
-            }
-
             // Get AI models for accurate pricing
-            var aiModels = (await _aiModelRepository.GetActiveModelsAsync()).ToDictionary(m => m.ModelName, m => m);
+            Dictionary<string, TutoriaApi.Core.Entities.AIModel> aiModels;
+            if (allMessages.Any())
+            {
+                aiModels = (await _aiModelRepository.GetActiveModelsAsync()).ToDictionary(m => m.ModelName, m => m);
+            }
+            else
+            {
+                aiModels = new Dictionary<string, TutoriaApi.Core.Entities.AIModel>();
+            }
 
             // Calculate costs by provider
             var costByProvider = allMessages
@@ -124,6 +130,9 @@ public class AnalyticsService : IAnalyticsService
                     g => g.Key,
                     g => (decimal)CalculateProviderCost(g.ToList(), aiModels));
 
+            // Get video transcription costs
+            var transcriptionCosts = await GetTranscriptionCostsAsync(moduleIds, filters.StartDate, filters.EndDate);
+
             return new CostAnalysisDto
             {
                 TotalMessages = allMessages.Count,
@@ -133,7 +142,11 @@ public class AnalyticsService : IAnalyticsService
                 CostByModel = costByModel,
                 CostByModule = costByModule,
                 CostByCourse = costByCourse,
-                CostByUniversity = costByUniversity
+                CostByUniversity = costByUniversity,
+                TranscriptionCostUSD = (double)transcriptionCosts.TotalCostUSD,
+                TranscriptionVideoCount = transcriptionCosts.VideoCount,
+                TranscriptionTotalDurationSeconds = transcriptionCosts.TotalDurationSeconds,
+                TranscriptionCostByModule = transcriptionCosts.CostByModule
             };
         }
         catch (Exception ex)
@@ -177,6 +190,11 @@ public class AnalyticsService : IAnalyticsService
                 ? (costAnalysis.EstimatedCostUSD / currentHour) * 24
                 : costAnalysis.EstimatedCostUSD;
 
+            // Calculate projected daily transcription cost
+            var projectedDailyTranscriptionCost = currentHour > 0
+                ? (costAnalysis.TranscriptionCostUSD / currentHour) * 24
+                : costAnalysis.TranscriptionCostUSD;
+
             // Calculate comparison
             CostComparisonDto? comparison = null;
             if (yesterdayCostAnalysis.EstimatedCostUSD > 0)
@@ -201,7 +219,10 @@ public class AnalyticsService : IAnalyticsService
                     kvp => kvp.Key,
                     kvp => kvp.Value.EstimatedCostUSD),
                 ProjectedDailyCost = projectedDailyCost,
-                ComparedToYesterday = comparison
+                ComparedToYesterday = comparison,
+                TranscriptionCostUSD = costAnalysis.TranscriptionCostUSD,
+                TranscriptionVideoCount = costAnalysis.TranscriptionVideoCount,
+                ProjectedDailyTranscriptionCost = projectedDailyTranscriptionCost
             };
         }
         catch (Exception ex)
@@ -1275,6 +1296,41 @@ public class AnalyticsService : IAnalyticsService
 
     #endregion
 
+    /// <summary>
+    /// Get video transcription costs for authorized modules within date range
+    /// </summary>
+    private async Task<TranscriptionCostsDto> GetTranscriptionCostsAsync(
+        List<int> moduleIds,
+        DateTime? startDate,
+        DateTime? endDate)
+    {
+        try
+        {
+            var transcriptions = await _fileRepository.GetCompletedTranscriptionsAsync(
+                moduleIds,
+                startDate,
+                endDate);
+
+            var totalCost = transcriptions.Sum(f => f.TranscriptionCostUSD ?? 0);
+            var costByModule = transcriptions
+                .GroupBy(f => f.ModuleId)
+                .ToDictionary(g => g.Key, g => g.Sum(f => f.TranscriptionCostUSD ?? 0));
+
+            return new TranscriptionCostsDto
+            {
+                TotalCostUSD = (decimal)totalCost,
+                VideoCount = transcriptions.Count,
+                TotalDurationSeconds = transcriptions.Sum(f => f.VideoDurationSeconds ?? 0),
+                CostByModule = costByModule
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error calculating transcription costs");
+            return new TranscriptionCostsDto();
+        }
+    }
+
     #region Helper Classes
 
     /// <summary>
@@ -1287,6 +1343,17 @@ public class AnalyticsService : IAnalyticsService
         public List<string> SimilarVariations { get; set; } = new();
         public long FirstTimestamp { get; set; }
         public long LastTimestamp { get; set; }
+    }
+
+    /// <summary>
+    /// DTO for video transcription costs
+    /// </summary>
+    private class TranscriptionCostsDto
+    {
+        public decimal TotalCostUSD { get; set; }
+        public int VideoCount { get; set; }
+        public int TotalDurationSeconds { get; set; }
+        public Dictionary<int, decimal> CostByModule { get; set; } = new();
     }
 
     #endregion

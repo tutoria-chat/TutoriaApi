@@ -19,6 +19,12 @@ public class CostAnalysisDto
     public Dictionary<int, decimal> CostByModule { get; set; } = new();
     public Dictionary<int, decimal> CostByCourse { get; set; } = new();
     public Dictionary<int, decimal> CostByUniversity { get; set; } = new();
+
+    // Video Transcription Costs
+    public double TranscriptionCostUSD { get; set; }
+    public int TranscriptionVideoCount { get; set; }
+    public int TranscriptionTotalDurationSeconds { get; set; }
+    public Dictionary<int, decimal> TranscriptionCostByModule { get; set; } = new();
 }
 
 public class CostByProviderDto
@@ -52,6 +58,11 @@ public class TodayCostDto
     public Dictionary<string, double> CostByProvider { get; set; } = new();
     public double ProjectedDailyCost { get; set; }
     public CostComparisonDto? ComparedToYesterday { get; set; }
+
+    // Video Transcription Costs
+    public double TranscriptionCostUSD { get; set; }
+    public int TranscriptionVideoCount { get; set; }
+    public double ProjectedDailyTranscriptionCost { get; set; }
 }
 
 public class CostComparisonDto

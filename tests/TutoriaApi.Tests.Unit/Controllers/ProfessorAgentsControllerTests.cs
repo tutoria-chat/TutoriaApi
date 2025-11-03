@@ -5,6 +5,7 @@ using Moq;
 using System.Security.Claims;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
+using CoreDTOs = TutoriaApi.Core.DTOs;
 using TutoriaApi.Web.API.Controllers;
 using TutoriaApi.Web.API.DTOs;
 
@@ -503,6 +504,197 @@ public class ProfessorAgentsControllerTests
 
         // Assert
         Assert.IsType<ForbidResult>(result.Result);
+    }
+
+    #endregion
+
+    #region GetProfessorAgentStatus Tests
+
+    [Fact]
+    public async Task GetProfessorAgentStatus_NoUniversityIdProvided_ReturnsAllProfessorStatuses()
+    {
+        // Arrange
+        var statuses = new List<CoreDTOs.ProfessorAgentStatusDto>
+        {
+            new CoreDTOs.ProfessorAgentStatusDto
+            {
+                ProfessorId = 1,
+                ProfessorName = "John Doe",
+                ProfessorEmail = "john@test.com",
+                HasAgent = true,
+                AgentId = 1,
+                AgentName = "John's Agent",
+                AgentIsActive = true,
+                AgentCreatedAt = DateTime.UtcNow
+            },
+            new CoreDTOs.ProfessorAgentStatusDto
+            {
+                ProfessorId = 2,
+                ProfessorName = "Jane Smith",
+                ProfessorEmail = "jane@test.com",
+                HasAgent = false
+            }
+        };
+
+        _serviceMock.Setup(s => s.GetProfessorAgentStatusAsync(null))
+            .Returns(Task.FromResult<IEnumerable<CoreDTOs.ProfessorAgentStatusDto>>(statuses));
+
+        // Act
+        var result = await _controller.GetProfessorAgentStatus(null);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<CoreDTOs.ProfessorAgentStatusDto>>(okResult.Value);
+        Assert.Equal(2, dtos.Count());
+    }
+
+    [Fact]
+    public async Task GetProfessorAgentStatus_WithUniversityId_ReturnsFilteredStatuses()
+    {
+        // Arrange
+        var universityId = 1;
+        var statuses = new List<CoreDTOs.ProfessorAgentStatusDto>
+        {
+            new CoreDTOs.ProfessorAgentStatusDto
+            {
+                ProfessorId = 1,
+                ProfessorName = "John Doe",
+                ProfessorEmail = "john@test.com",
+                HasAgent = true,
+                AgentId = 1,
+                AgentName = "John's Agent",
+                AgentIsActive = true,
+                AgentCreatedAt = DateTime.UtcNow
+            }
+        };
+
+        _serviceMock.Setup(s => s.GetProfessorAgentStatusAsync(universityId))
+            .Returns(Task.FromResult<IEnumerable<CoreDTOs.ProfessorAgentStatusDto>>(statuses));
+
+        // Act
+        var result = await _controller.GetProfessorAgentStatus(universityId);
+
+        // Assert
+        var okResult = Assert.IsType<OkObjectResult>(result.Result);
+        var dtos = Assert.IsAssignableFrom<IEnumerable<CoreDTOs.ProfessorAgentStatusDto>>(okResult.Value);
+        Assert.Single(dtos);
+    }
+
+    [Fact]
+    public async Task GetProfessorAgentStatus_ServiceThrowsException_Returns500()
+    {
+        // Arrange
+        _serviceMock.Setup(s => s.GetProfessorAgentStatusAsync(It.IsAny<int?>()))
+            .ThrowsAsync(new Exception("Database error"));
+
+        // Act
+        var result = await _controller.GetProfessorAgentStatus(null);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    #endregion
+
+    #region DeactivateAgent Tests
+
+    [Fact]
+    public async Task DeactivateAgent_ExistingAgent_ReturnsNoContent()
+    {
+        // Arrange
+        var agentId = 1;
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _controller.DeactivateAgent(agentId);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        _serviceMock.Verify(s => s.DeactivateAgentAsync(agentId), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeactivateAgent_NonExistentAgent_ReturnsNotFound()
+    {
+        // Arrange
+        var agentId = 999;
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+            .ThrowsAsync(new KeyNotFoundException("Professor agent not found"));
+
+        // Act
+        var result = await _controller.DeactivateAgent(agentId);
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task DeactivateAgent_ServiceThrowsException_Returns500()
+    {
+        // Arrange
+        var agentId = 1;
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+            .ThrowsAsync(new Exception("Database error"));
+
+        // Act
+        var result = await _controller.DeactivateAgent(agentId);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, objectResult.StatusCode);
+    }
+
+    #endregion
+
+    #region ActivateAgent Tests
+
+    [Fact]
+    public async Task ActivateAgent_ExistingAgent_ReturnsNoContent()
+    {
+        // Arrange
+        var agentId = 1;
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+            .Returns(Task.CompletedTask);
+
+        // Act
+        var result = await _controller.ActivateAgent(agentId);
+
+        // Assert
+        Assert.IsType<NoContentResult>(result);
+        _serviceMock.Verify(s => s.ActivateAgentAsync(agentId), Times.Once);
+    }
+
+    [Fact]
+    public async Task ActivateAgent_NonExistentAgent_ReturnsNotFound()
+    {
+        // Arrange
+        var agentId = 999;
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+            .ThrowsAsync(new KeyNotFoundException("Professor agent not found"));
+
+        // Act
+        var result = await _controller.ActivateAgent(agentId);
+
+        // Assert
+        Assert.IsType<NotFoundObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task ActivateAgent_ServiceThrowsException_Returns500()
+    {
+        // Arrange
+        var agentId = 1;
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+            .ThrowsAsync(new Exception("Database error"));
+
+        // Act
+        var result = await _controller.ActivateAgent(agentId);
+
+        // Assert
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(500, objectResult.StatusCode);
     }
 
     #endregion

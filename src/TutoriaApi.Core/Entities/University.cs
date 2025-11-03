@@ -5,7 +5,18 @@ public class University : BaseEntity
     public required string Name { get; set; }
     public required string Code { get; set; } // Fantasy Name (Nome Fantasia) - e.g., USP, BYU
     public string? Description { get; set; }
-    public string? Address { get; set; }
+
+    // Address fields
+    public string? Address { get; set; } // Deprecated: Use individual address fields below
+    public string? PostalCode { get; set; } // Postal code (ZIP in US, CEP in Brazil, etc.)
+    public string? Street { get; set; }
+    public string? StreetNumber { get; set; }
+    public string? Complement { get; set; }
+    public string? Neighborhood { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+
     public string? TaxId { get; set; } // CNPJ in Brazil, Tax ID in other countries
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }

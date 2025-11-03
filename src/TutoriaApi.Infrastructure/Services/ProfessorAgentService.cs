@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using TutoriaApi.Core.DTOs;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 
@@ -33,6 +34,66 @@ public class ProfessorAgentService : IProfessorAgentService
         }
 
         return await _professorAgentRepository.GetActiveAgentsAsync();
+    }
+
+    public async Task<IEnumerable<ProfessorAgentStatusDto>> GetProfessorAgentStatusAsync(int? universityId = null)
+    {
+        // Get all professors (optionally filtered by university)
+        var professors = universityId.HasValue
+            ? (await _userRepository.GetByUniversityIdAsync(universityId.Value))
+                .Where(u => u.UserType == "professor")
+            : await _userRepository.GetByTypeAsync("professor");
+
+        // Get all agents
+        var agents = await _professorAgentRepository.GetAllAsync();
+        var agentDict = agents.ToDictionary(a => a.ProfessorId, a => a);
+
+        // Map to status DTOs
+        var result = professors.Select(prof =>
+        {
+            var hasAgent = agentDict.TryGetValue(prof.UserId, out var agent);
+            return new ProfessorAgentStatusDto
+            {
+                ProfessorId = prof.UserId,
+                ProfessorName = $"{prof.FirstName} {prof.LastName}",
+                ProfessorEmail = prof.Email,
+                HasAgent = hasAgent,
+                AgentId = hasAgent ? agent?.Id : null,
+                AgentName = hasAgent ? agent?.Name : null,
+                AgentIsActive = hasAgent ? agent?.IsActive : null,
+                AgentCreatedAt = hasAgent ? agent?.CreatedAt : null
+            };
+        }).ToList();
+
+        return result;
+    }
+
+    public async Task DeactivateAgentAsync(int id)
+    {
+        var agent = await _professorAgentRepository.GetByIdAsync(id);
+        if (agent == null)
+        {
+            throw new KeyNotFoundException("Professor agent not found");
+        }
+
+        agent.IsActive = false;
+        agent.UpdatedAt = DateTime.UtcNow;
+
+        await _professorAgentRepository.UpdateAsync(agent);
+    }
+
+    public async Task ActivateAgentAsync(int id)
+    {
+        var agent = await _professorAgentRepository.GetByIdAsync(id);
+        if (agent == null)
+        {
+            throw new KeyNotFoundException("Professor agent not found");
+        }
+
+        agent.IsActive = true;
+        agent.UpdatedAt = DateTime.UtcNow;
+
+        await _professorAgentRepository.UpdateAsync(agent);
     }
 
     public async Task<ProfessorAgent> CreateAgentAsync(

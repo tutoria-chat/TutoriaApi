@@ -182,6 +182,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.VideoDurationSeconds).HasColumnName("VideoDurationSeconds");
             entity.Property(e => e.TranscriptedAt).HasColumnName("TranscriptedAt");
             entity.Property(e => e.TranscriptWordCount).HasColumnName("TranscriptWordCount");
+            entity.Property(e => e.TranscriptionCostUSD).HasColumnName("TranscriptionCostUSD").HasColumnType("decimal(10, 4)");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

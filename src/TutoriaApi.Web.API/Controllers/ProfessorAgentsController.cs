@@ -118,6 +118,71 @@ public class ProfessorAgentsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get all professors with their agent status (for listing in professor table)
+    /// </summary>
+    [HttpGet("by-professor")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult<IEnumerable<ProfessorAgentStatusDto>>> GetProfessorAgentStatus([FromQuery] int? universityId = null)
+    {
+        try
+        {
+            var status = await _professorAgentService.GetProfessorAgentStatusAsync(universityId);
+            return Ok(status);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving professor agent status");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Deactivate a professor agent
+    /// </summary>
+    [HttpPatch("{id}/deactivate")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult> DeactivateAgent(int id)
+    {
+        try
+        {
+            await _professorAgentService.DeactivateAgentAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deactivating professor agent with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Activate a professor agent
+    /// </summary>
+    [HttpPatch("{id}/activate")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult> ActivateAgent(int id)
+    {
+        try
+        {
+            await _professorAgentService.ActivateAgentAsync(id);
+            return NoContent();
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error activating professor agent with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     [HttpPost]
     [Authorize(Policy = "AdminOrAbove")]
     public async Task<ActionResult<ProfessorAgentDetailDto>> CreateAgent([FromBody] ProfessorAgentCreateRequest request)

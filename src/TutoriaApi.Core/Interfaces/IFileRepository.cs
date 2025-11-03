@@ -14,4 +14,9 @@ public interface IFileRepository : IRepository<FileEntity>
         List<int>? allowedModuleIds = null);
     Task<List<FileEntity>> GetByModuleIdAsync(int moduleId);
     Task<bool> ExistsByBlobNameAsync(string blobName);
+    Task<List<FileEntity>> GetFailedYoutubeTranscriptionsFromLast72HoursAsync();
+    Task<List<FileEntity>> GetCompletedTranscriptionsAsync(
+        List<int> moduleIds,
+        DateTime? startDate = null,
+        DateTime? endDate = null);
 }
