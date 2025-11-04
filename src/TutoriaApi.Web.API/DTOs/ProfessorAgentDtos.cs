@@ -45,6 +45,7 @@ public class ProfessorAgentDetailDto
 public class ProfessorAgentCreateRequest
 {
     [Required(ErrorMessage = "Professor ID is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Professor ID must be a positive number")]
     public int ProfessorId { get; set; }
 
     [Required(ErrorMessage = "Name is required")]
@@ -54,11 +55,13 @@ public class ProfessorAgentCreateRequest
     [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters")]
     public string? Description { get; set; }
 
+    [MaxLength(10000, ErrorMessage = "System prompt cannot exceed 10000 characters")]
     public string? SystemPrompt { get; set; }
 
-    [MaxLength(10)]
+    [MaxLength(10, ErrorMessage = "Tutor language code cannot exceed 10 characters")]
     public string? TutorLanguage { get; set; }
 
+    [Range(1, int.MaxValue, ErrorMessage = "AI Model ID must be a positive number")]
     public int? AIModelId { get; set; }
 }
 
@@ -70,11 +73,13 @@ public class ProfessorAgentUpdateRequest
     [MaxLength(500, ErrorMessage = "Description cannot exceed 500 characters")]
     public string? Description { get; set; }
 
+    [MaxLength(10000, ErrorMessage = "System prompt cannot exceed 10000 characters")]
     public string? SystemPrompt { get; set; }
 
-    [MaxLength(10)]
+    [MaxLength(10, ErrorMessage = "Tutor language code cannot exceed 10 characters")]
     public string? TutorLanguage { get; set; }
 
+    [Range(1, int.MaxValue, ErrorMessage = "AI Model ID must be a positive number")]
     public int? AIModelId { get; set; }
 
     public bool? IsActive { get; set; }
@@ -114,6 +119,7 @@ public class ProfessorAgentTokenDetailDto
 public class ProfessorAgentTokenCreateRequest
 {
     [Required(ErrorMessage = "Professor Agent ID is required")]
+    [Range(1, int.MaxValue, ErrorMessage = "Professor Agent ID must be a positive number")]
     public int ProfessorAgentId { get; set; }
 
     [Required(ErrorMessage = "Name is required")]

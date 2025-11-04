@@ -14,6 +14,8 @@ public class TranscriptionRetryService : ITranscriptionRetryService
     private readonly IConfiguration _configuration;
     private readonly ILogger<TranscriptionRetryService> _logger;
     private readonly string _aiApiBaseUrl;
+    private readonly int _delayBetweenRetriesMs;
+    private readonly int _maxRetryAgeHours;
 
     public TranscriptionRetryService(
         IFileRepository fileRepository,
@@ -26,6 +28,13 @@ public class TranscriptionRetryService : ITranscriptionRetryService
         _configuration = configuration;
         _logger = logger;
         _aiApiBaseUrl = configuration["AiApi:BaseUrl"] ?? throw new InvalidOperationException("AiApi:BaseUrl not configured");
+
+        // Load retry configuration with defaults
+        _delayBetweenRetriesMs = configuration.GetValue("TranscriptionRetry:DelayBetweenRetriesMs", 2000);
+        _maxRetryAgeHours = configuration.GetValue("TranscriptionRetry:MaxRetryAgeHours", 72);
+
+        _logger.LogInformation("TranscriptionRetryService initialized with DelayBetweenRetriesMs={DelayMs}, MaxRetryAgeHours={MaxAge}",
+            _delayBetweenRetriesMs, _maxRetryAgeHours);
     }
 
     public async Task<int> RetryFailedTranscriptionsAsync()
@@ -34,12 +43,12 @@ public class TranscriptionRetryService : ITranscriptionRetryService
 
         try
         {
-            // Get failed transcriptions from last 72 hours
+            // Get failed transcriptions from configured time window (default: 72 hours)
             var failedFiles = await _fileRepository.GetFailedYoutubeTranscriptionsFromLast72HoursAsync();
 
             if (!failedFiles.Any())
             {
-                _logger.LogInformation("✅ [TranscriptionRetry] No failed transcriptions found from last 72 hours");
+                _logger.LogInformation($"✅ [TranscriptionRetry] No failed transcriptions found from last {_maxRetryAgeHours} hours");
                 return 0;
             }
 
@@ -75,7 +84,7 @@ public class TranscriptionRetryService : ITranscriptionRetryService
                 }
 
                 // Small delay between retries to avoid overwhelming the Python API
-                await Task.Delay(2000); // 2 seconds between retries
+                await Task.Delay(_delayBetweenRetriesMs);
             }
 
             _logger.LogInformation($"🎉 [TranscriptionRetry] Job completed: {successCount} succeeded, {failureCount} failed out of {failedFiles.Count} total");

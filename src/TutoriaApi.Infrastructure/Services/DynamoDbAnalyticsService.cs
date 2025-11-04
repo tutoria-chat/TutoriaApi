@@ -14,6 +14,7 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
     private readonly ILogger<DynamoDbAnalyticsService> _logger;
     private readonly string _tableName;
     private readonly bool _isEnabled;
+    private readonly int _defaultQueryLimit;
 
     public DynamoDbAnalyticsService(
         IConfiguration configuration,
@@ -21,7 +22,8 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
     {
         _logger = logger;
         _tableName = configuration["AWS:DynamoDb:ChatTable"] ?? "ChatMessages";
-        _isEnabled = bool.Parse(configuration["AWS:DynamoDb:Enabled"] ?? "false");
+        _isEnabled = bool.TryParse(configuration["AWS:DynamoDb:Enabled"], out var enabled) && enabled;
+        _defaultQueryLimit = configuration.GetValue("AWS:DynamoDb:DefaultQueryLimit", 10000);
 
         if (_isEnabled)
         {
@@ -97,6 +99,8 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
+            // TODO: Implement pagination using LastEvaluatedKey for high-volume modules
+            // Current implementation may truncate results if more than 'limit' messages exist
             var request = new QueryRequest
             {
                 TableName = _tableName,
@@ -653,7 +657,7 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         // If moduleId is provided, use ModuleAnalyticsIndex
         if (moduleId.HasValue)
         {
-            return await GetModuleAnalyticsAsync(moduleId.Value, startDate, endDate, limit: 10000);
+            return await GetModuleAnalyticsAsync(moduleId.Value, startDate, endDate, limit: _defaultQueryLimit);
         }
 
         // Otherwise, we need to scan (not ideal, but necessary for university/course filtering)
@@ -667,10 +671,12 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
+            // TODO: Implement pagination using LastEvaluatedKey for large datasets
+            // WARNING: Scan operations are expensive and should be replaced with GSIs in production
             var request = new ScanRequest
             {
                 TableName = _tableName,
-                Limit = 10000
+                Limit = _defaultQueryLimit
             };
 
             var response = await _dynamoDbClient.ScanAsync(request);

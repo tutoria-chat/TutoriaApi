@@ -8,6 +8,7 @@ using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Services;
 using Xunit;
 using FileEntity = TutoriaApi.Core.Entities.File;
+using System.Collections.Generic;
 
 namespace TutoriaApi.Tests.Unit.Services;
 
@@ -15,7 +16,7 @@ public class TranscriptionRetryServiceTests
 {
     private readonly Mock<IFileRepository> _fileRepositoryMock;
     private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
-    private readonly Mock<IConfiguration> _configurationMock;
+    private readonly IConfiguration _configuration;
     private readonly Mock<ILogger<TranscriptionRetryService>> _loggerMock;
     private readonly TranscriptionRetryService _service;
 
@@ -23,17 +24,23 @@ public class TranscriptionRetryServiceTests
     {
         _fileRepositoryMock = new Mock<IFileRepository>();
         _httpClientFactoryMock = new Mock<IHttpClientFactory>();
-        _configurationMock = new Mock<IConfiguration>();
         _loggerMock = new Mock<ILogger<TranscriptionRetryService>>();
 
-        // Setup configuration mock
-        _configurationMock.Setup(c => c["AiApi:BaseUrl"])
-            .Returns("http://localhost:8000");
+        // Setup in-memory configuration
+        var configurationData = new Dictionary<string, string?>
+        {
+            { "AiApi:BaseUrl", "http://localhost:8000" },
+            { "TranscriptionRetry:DelayBetweenRetriesMs", "2000" },
+            { "TranscriptionRetry:MaxRetryAgeHours", "72" }
+        };
+        _configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(configurationData)
+            .Build();
 
         _service = new TranscriptionRetryService(
             _fileRepositoryMock.Object,
             _httpClientFactoryMock.Object,
-            _configurationMock.Object,
+            _configuration,
             _loggerMock.Object
         );
     }
@@ -251,18 +258,24 @@ public class TranscriptionRetryServiceTests
     }
 
     [Fact]
-    public async Task RetryFailedTranscriptionsAsync_ConfigurationMissing_ThrowsException()
+    public void RetryFailedTranscriptionsAsync_ConfigurationMissing_ThrowsException()
     {
-        // Arrange
-        var configMock = new Mock<IConfiguration>();
-        configMock.Setup(c => c["AiApi:BaseUrl"]).Returns((string?)null);
+        // Arrange - configuration without AiApi:BaseUrl
+        var configurationData = new Dictionary<string, string?>
+        {
+            { "TranscriptionRetry:DelayBetweenRetriesMs", "2000" },
+            { "TranscriptionRetry:MaxRetryAgeHours", "72" }
+        };
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(configurationData)
+            .Build();
 
         // Act & Assert
         Assert.Throws<InvalidOperationException>(() =>
             new TranscriptionRetryService(
                 _fileRepositoryMock.Object,
                 _httpClientFactoryMock.Object,
-                configMock.Object,
+                config,
                 _loggerMock.Object
             )
         );

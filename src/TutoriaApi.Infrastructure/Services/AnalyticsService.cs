@@ -57,11 +57,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 
@@ -94,15 +94,19 @@ public class AnalyticsService : IAnalyticsService
                 .GroupBy(m => m.ModelUsed)
                 .ToDictionary(
                     g => g.Key,
-                    g => new ModelCostDto
+                    g =>
                     {
-                        Model = g.Key,
-                        Provider = g.FirstOrDefault()?.Provider ?? "",
-                        MessageCount = g.Count(),
-                        TotalTokens = g.Sum(m => m.TokenCount ?? 0),
-                        EstimatedCostUSD = CalculateModelCost(g.Key, g.Sum(m => m.TokenCount ?? 0), aiModels),
-                        InputCostPer1M = aiModels.TryGetValue(g.Key, out var model) ? (double)(model.InputCostPer1M ?? 0) : 0,
-                        OutputCostPer1M = aiModels.TryGetValue(g.Key, out var model2) ? (double)(model2.OutputCostPer1M ?? 0) : 0
+                        var aiModel = aiModels.TryGetValue(g.Key, out var m) ? m : null;
+                        return new ModelCostDto
+                        {
+                            Model = g.Key,
+                            Provider = g.FirstOrDefault()?.Provider ?? "",
+                            MessageCount = g.Count(),
+                            TotalTokens = g.Sum(msg => msg.TokenCount ?? 0),
+                            EstimatedCostUSD = CalculateModelCost(g.Key, g.Sum(msg => msg.TokenCount ?? 0), aiModels),
+                            InputCostPer1M = aiModel != null ? (double)(aiModel.InputCostPer1M ?? 0) : 0,
+                            OutputCostPer1M = aiModel != null ? (double)(aiModel.OutputCostPer1M ?? 0) : 0
+                        };
                     });
 
             // Calculate costs by module
@@ -185,13 +189,16 @@ public class AnalyticsService : IAnalyticsService
             var yesterdayCostAnalysis = await GetCostAnalysisAsync(userId, userRole, userUniversityId, yesterdayFilters);
 
             // Calculate projected daily cost based on current hour
+            // Only project if we have at least 3 hours of data to avoid unrealistic early-day estimates
             var currentHour = DateTime.UtcNow.Hour;
-            var projectedDailyCost = currentHour > 0
+            const int MinimumHoursForProjection = 3;
+
+            var projectedDailyCost = currentHour >= MinimumHoursForProjection
                 ? (costAnalysis.EstimatedCostUSD / currentHour) * 24
                 : costAnalysis.EstimatedCostUSD;
 
             // Calculate projected daily transcription cost
-            var projectedDailyTranscriptionCost = currentHour > 0
+            var projectedDailyTranscriptionCost = currentHour >= MinimumHoursForProjection
                 ? (costAnalysis.TranscriptionCostUSD / currentHour) * 24
                 : costAnalysis.TranscriptionCostUSD;
 
@@ -306,11 +313,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 
@@ -432,11 +439,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 
@@ -490,11 +497,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 
@@ -566,11 +573,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 
@@ -657,11 +664,11 @@ public class AnalyticsService : IAnalyticsService
 
             foreach (var moduleId in requestedModuleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
 
                 var module = await _moduleRepository.GetByIdAsync(moduleId);
                 var uniqueStudents = messages.Select(m => m.StudentId).Distinct().Count();
@@ -845,11 +852,11 @@ public class AnalyticsService : IAnalyticsService
             var allMessages = new List<ChatMessageDto>();
             foreach (var moduleId in moduleIds)
             {
+                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
                 var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
                     moduleId,
                     filters.StartDate,
-                    filters.EndDate,
-                    limit: 10000);
+                    filters.EndDate);
                 allMessages.AddRange(messages);
             }
 

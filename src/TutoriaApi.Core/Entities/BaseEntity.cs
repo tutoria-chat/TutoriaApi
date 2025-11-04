@@ -1,6 +1,8 @@
+using TutoriaApi.Core.Interfaces;
+
 namespace TutoriaApi.Core.Entities;
 
-public abstract class BaseEntity
+public abstract class BaseEntity : IAuditable
 {
     public int Id { get; set; }
     public DateTime? CreatedAt { get; set; }

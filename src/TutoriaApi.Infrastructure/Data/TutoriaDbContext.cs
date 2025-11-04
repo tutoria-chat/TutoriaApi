@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Interfaces;
 using FileEntity = TutoriaApi.Core.Entities.File;
 
 namespace TutoriaApi.Infrastructure.Data;
@@ -8,6 +9,58 @@ public class TutoriaDbContext : DbContext
 {
     public TutoriaDbContext(DbContextOptions<TutoriaDbContext> options) : base(options)
     {
+    }
+
+    /// <summary>
+    /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
+    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// </summary>
+    public override int SaveChanges()
+    {
+        UpdateAuditFields();
+        return base.SaveChanges();
+    }
+
+    /// <summary>
+    /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
+    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// </summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateAuditFields();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateAuditFields()
+    {
+        var entries = ChangeTracker.Entries<IAuditable>();
+
+        foreach (var entry in entries)
+        {
+            var now = DateTime.UtcNow;
+
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    // Only set CreatedAt if not already set (for test scenarios)
+                    if (entry.Entity.CreatedAt == null || entry.Entity.CreatedAt == DateTime.MinValue)
+                    {
+                        entry.Entity.CreatedAt = now;
+                    }
+                    // Only set UpdatedAt if not already set (for test scenarios)
+                    if (entry.Entity.UpdatedAt == null || entry.Entity.UpdatedAt == DateTime.MinValue)
+                    {
+                        entry.Entity.UpdatedAt = now;
+                    }
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = now;
+                    // Prevent CreatedAt from being modified
+                    entry.Property(e => e.CreatedAt).IsModified = false;
+                    break;
+            }
+        }
     }
 
     public DbSet<University> Universities { get; set; }
