@@ -1,4 +1,5 @@
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Enums;
 
 namespace TutoriaApi.Core.Interfaces;
 
@@ -31,4 +32,6 @@ public interface IAIModelService
     Task<AIModel> UpdateAsync(int id, AIModel aiModel);
 
     Task<(bool Success, int AffectedModules)> SoftDeleteAsync(int id);
+
+    Task<AIModel?> SelectModelByCourseTypeAsync(CourseType courseType, int universityTier);
 }

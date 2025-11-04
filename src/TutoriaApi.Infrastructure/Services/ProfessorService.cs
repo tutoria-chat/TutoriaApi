@@ -1,25 +1,26 @@
 using BCrypt.Net;
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Infrastructure.Helpers;
 
 namespace TutoriaApi.Infrastructure.Services;
 
 public class ProfessorService : IProfessorService
 {
-    private readonly TutoriaDbContext _context;
+    private readonly IUserRepository _userRepository;
     private readonly IUniversityRepository _universityRepository;
+    private readonly IProfessorCourseRepository _professorCourseRepository;
     private readonly AccessControlHelper _accessControl;
 
     public ProfessorService(
-        TutoriaDbContext context,
+        IUserRepository userRepository,
         IUniversityRepository universityRepository,
+        IProfessorCourseRepository professorCourseRepository,
         AccessControlHelper accessControl)
     {
-        _context = context;
+        _userRepository = userRepository;
         _universityRepository = universityRepository;
+        _professorCourseRepository = professorCourseRepository;
         _accessControl = accessControl;
     }
 
@@ -47,56 +48,27 @@ public class ProfessorService : IProfessorService
             }
         }
 
-        var query = _context.Users
-            .Where(u => u.UserType == "professor")
-            .Include(u => u.University)
-            .AsQueryable();
-
-        // Filter by courseId if provided
+        // Get professor IDs for course filter if provided
+        List<int>? professorIdsForCourse = null;
         if (courseId.HasValue)
         {
-            var professorIdsForCourse = _context.ProfessorCourses
-                .Where(pc => pc.CourseId == courseId.Value)
-                .Select(pc => pc.ProfessorId);
-
-            query = query.Where(u => professorIdsForCourse.Contains(u.UserId));
+            professorIdsForCourse = await _professorCourseRepository.GetProfessorIdsByCourseIdAsync(courseId.Value);
         }
 
-        if (universityId.HasValue)
-        {
-            query = query.Where(u => u.UniversityId == universityId.Value);
-        }
-
-        if (isAdmin.HasValue)
-        {
-            query = query.Where(u => u.IsAdmin == isAdmin.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(u =>
-                u.Username.Contains(search) ||
-                u.FirstName.Contains(search) ||
-                u.LastName.Contains(search) ||
-                u.Email.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-        var professors = await query
-            .OrderBy(u => u.UserId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
+        // Use repository to get paged professors
+        var (professors, total) = await _userRepository.GetProfessorsPagedAsync(
+            universityId,
+            professorIdsForCourse,
+            isAdmin,
+            search,
+            page,
+            pageSize);
 
         // Get professor IDs to count courses
         var professorIds = professors.Select(p => p.UserId).ToList();
 
         // Count courses for each professor
-        var courseCounts = await _context.ProfessorCourses
-            .Where(pc => professorIds.Contains(pc.ProfessorId))
-            .GroupBy(pc => pc.ProfessorId)
-            .Select(g => new { ProfessorId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ProfessorId, x => x.Count);
+        var courseCounts = await _professorCourseRepository.GetCourseCountsByProfessorIdsAsync(professorIds);
 
         var viewModels = professors.Select(u => new ProfessorListViewModel
         {
@@ -120,18 +92,11 @@ public class ProfessorService : IProfessorService
             }
         }
 
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var professor = await _userRepository.GetProfessorByIdWithUniversityAsync(id);
         if (professor == null) return null;
 
         // Get assigned course IDs
-        var assignedCourseIds = await _context.ProfessorCourses
-            .Where(pc => pc.ProfessorId == id)
-            .Select(pc => pc.CourseId)
-            .ToListAsync();
+        var assignedCourseIds = await _professorCourseRepository.GetCourseIdsByProfessorIdAsync(id);
 
         return new ProfessorDetailViewModel
         {
@@ -148,10 +113,7 @@ public class ProfessorService : IProfessorService
             throw new UnauthorizedAccessException("User is not a professor");
         }
 
-        var professor = await _context.Users
-            .Include(u => u.University)
-            .FirstOrDefaultAsync(u => u.UserId == currentUser.UserId);
-
+        var professor = await _userRepository.GetByIdWithIncludesAsync(currentUser.UserId);
         if (professor == null) return null;
 
         return new ProfessorDetailViewModel
@@ -201,18 +163,12 @@ public class ProfessorService : IProfessorService
         }
 
         // Check if username or email already exists
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == username);
-
-        if (existingByUsername != null)
+        if (await _userRepository.ExistsByUsernameAsync(username))
         {
             throw new InvalidOperationException("Username already exists");
         }
 
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
-
-        if (existingByEmail != null)
+        if (await _userRepository.ExistsByEmailAsync(email))
         {
             throw new InvalidOperationException("Email already exists");
         }
@@ -230,8 +186,7 @@ public class ProfessorService : IProfessorService
             IsActive = true
         };
 
-        _context.Users.Add(professor);
-        await _context.SaveChangesAsync();
+        await _userRepository.AddAsync(professor);
 
         return new ProfessorDetailViewModel
         {
@@ -260,10 +215,7 @@ public class ProfessorService : IProfessorService
             }
         }
 
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var professor = await _userRepository.GetProfessorByIdWithUniversityAsync(id);
         if (professor == null)
         {
             throw new KeyNotFoundException("Professor not found");
@@ -289,14 +241,10 @@ public class ProfessorService : IProfessorService
 
             if (!string.IsNullOrWhiteSpace(email))
             {
-                var existingByEmail = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == email && u.UserId != id);
-
-                if (existingByEmail != null)
+                if (await _userRepository.ExistsByEmailExcludingUserAsync(email, id))
                 {
                     throw new InvalidOperationException("Email already exists");
                 }
-
                 professor.Email = email;
             }
         }
@@ -305,27 +253,19 @@ public class ProfessorService : IProfessorService
             // Admins can update all fields
             if (!string.IsNullOrWhiteSpace(username))
             {
-                var existingByUsername = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Username == username && u.UserId != id);
-
-                if (existingByUsername != null)
+                if (await _userRepository.ExistsByUsernameExcludingUserAsync(username, id))
                 {
                     throw new InvalidOperationException("Username already exists");
                 }
-
                 professor.Username = username;
             }
 
             if (!string.IsNullOrWhiteSpace(email))
             {
-                var existingByEmail = await _context.Users
-                    .FirstOrDefaultAsync(u => u.Email == email && u.UserId != id);
-
-                if (existingByEmail != null)
+                if (await _userRepository.ExistsByEmailExcludingUserAsync(email, id))
                 {
                     throw new InvalidOperationException("Email already exists");
                 }
-
                 professor.Email = email;
             }
 
@@ -354,8 +294,7 @@ public class ProfessorService : IProfessorService
             throw new UnauthorizedAccessException("Insufficient permissions to update this professor");
         }
 
-        professor.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.UpdateAsync(professor);
 
         University? university = null;
         if (professor.UniversityId.HasValue)
@@ -388,17 +327,13 @@ public class ProfessorService : IProfessorService
             }
         }
 
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var professor = await _userRepository.GetProfessorByIdWithUniversityAsync(id);
         if (professor == null)
         {
             throw new KeyNotFoundException("Professor not found");
         }
 
-        _context.Users.Remove(professor);
-        await _context.SaveChangesAsync();
+        await _userRepository.DeleteAsync(professor);
     }
 
     public async Task ChangePasswordAsync(int id, string newPassword, User currentUser)
@@ -413,17 +348,13 @@ public class ProfessorService : IProfessorService
             }
         }
 
-        var professor = await _context.Users
-            .Where(u => u.UserType == "professor")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var professor = await _userRepository.GetProfessorByIdWithUniversityAsync(id);
         if (professor == null)
         {
             throw new KeyNotFoundException("Professor not found");
         }
 
         professor.HashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-        professor.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.UpdateAsync(professor);
     }
 }

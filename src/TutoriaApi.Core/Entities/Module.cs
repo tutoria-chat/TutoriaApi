@@ -1,3 +1,5 @@
+using TutoriaApi.Core.Enums;
+
 namespace TutoriaApi.Core.Entities;
 
 public class Module : BaseEntity
@@ -15,6 +17,7 @@ public class Module : BaseEntity
     public int PromptImprovementCount { get; set; } = 0;
     public string TutorLanguage { get; set; } = "pt-br";
     public int? AIModelId { get; set; }
+    public CourseType? CourseType { get; set; }
 
     // Navigation properties
     public Course Course { get; set; } = null!;

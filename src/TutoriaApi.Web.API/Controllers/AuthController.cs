@@ -1070,4 +1070,71 @@ public class AuthController : ControllerBase
 
         return Ok(new { message = "Password changed successfully" });
     }
+
+    /// <summary>
+    /// Validate JWT token and return user information (for Python API integration).
+    /// </summary>
+    /// <returns>User information extracted from token.</returns>
+    /// <remarks>
+    /// This endpoint allows the Python API to validate tokens without maintaining JWT secrets.
+    /// The .NET API becomes the single source of truth for authentication.
+    ///
+    /// **No Authentication Required**: This endpoint validates the token passed in the header.
+    /// </remarks>
+    [HttpGet("validate-token")]
+    [AllowAnonymous]
+    public IActionResult ValidateToken()
+    {
+        try
+        {
+            // Extract token from Authorization header
+            var authHeader = Request.Headers["Authorization"].ToString();
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
+            {
+                return Unauthorized(new { detail = "Authorization header missing or invalid" });
+            }
+
+            var token = authHeader.Substring("Bearer ".Length).Trim();
+
+            // Validate token using JWT service
+            var principal = _jwtService.ValidateToken(token, validateLifetime: true);
+            if (principal == null)
+            {
+                return Unauthorized(new { detail = "Invalid or expired token" });
+            }
+
+            // Extract claims
+            var userId = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var userType = principal.FindFirst("type")?.Value; // Custom "type" claim for Python compatibility
+            var email = principal.FindFirst(ClaimTypes.Email)?.Value;
+            var firstName = principal.FindFirst(ClaimTypes.GivenName)?.Value;
+            var lastName = principal.FindFirst(ClaimTypes.Surname)?.Value;
+            var username = principal.FindFirst(ClaimTypes.Name)?.Value;
+            var universityId = principal.FindFirst("university_id")?.Value;
+            var isAdmin = principal.FindFirst("is_admin")?.Value;
+
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(userType))
+            {
+                return Unauthorized(new { detail = "Token missing required claims" });
+            }
+
+            // Return user info in format Python API expects
+            return Ok(new
+            {
+                sub = userId,
+                type = userType,
+                email = email,
+                first_name = firstName,
+                last_name = lastName,
+                username = username,
+                university_id = universityId,
+                is_admin = isAdmin
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error validating token");
+            return Unauthorized(new { detail = "Token validation failed" });
+        }
+    }
 }

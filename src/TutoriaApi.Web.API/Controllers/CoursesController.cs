@@ -124,6 +124,7 @@ public class CoursesController : ControllerBase
                 Code = viewModel.Course.Code,
                 Description = viewModel.Course.Description,
                 UniversityId = viewModel.Course.UniversityId,
+                UniversityName = viewModel.University?.Name,
                 University = viewModel.University != null ? new UniversityDto
                 {
                     Id = viewModel.University.Id,

@@ -178,4 +178,102 @@ public class UserRepository : IUserRepository
     {
         await _context.SaveChangesAsync();
     }
+
+    public async Task<(List<User> Items, int Total)> GetProfessorsPagedAsync(
+        int? universityId,
+        List<int>? filterByProfessorIds,
+        bool? isAdmin,
+        string? search,
+        int page,
+        int pageSize)
+    {
+        var query = _context.Users
+            .Where(u => u.UserType == "professor")
+            .Include(u => u.University)
+            .AsQueryable();
+
+        // Filter by professor IDs (for course-specific queries)
+        if (filterByProfessorIds != null && filterByProfessorIds.Any())
+        {
+            query = query.Where(u => filterByProfessorIds.Contains(u.UserId));
+        }
+
+        if (universityId.HasValue)
+        {
+            query = query.Where(u => u.UniversityId == universityId.Value);
+        }
+
+        if (isAdmin.HasValue)
+        {
+            query = query.Where(u => u.IsAdmin == isAdmin.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(u =>
+                u.Username.Contains(search) ||
+                u.FirstName.Contains(search) ||
+                u.LastName.Contains(search) ||
+                u.Email.Contains(search));
+        }
+
+        var total = await query.CountAsync();
+        var professors = await query
+            .OrderBy(u => u.UserId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (professors, total);
+    }
+
+    public async Task<(List<User> Items, int Total)> GetStudentsPagedAsync(
+        List<int>? filterByStudentIds,
+        string? search,
+        int page,
+        int pageSize)
+    {
+        var query = _context.Users
+            .Where(u => u.UserType == "student")
+            .AsQueryable();
+
+        // Filter by student IDs (for course-specific queries)
+        if (filterByStudentIds != null && filterByStudentIds.Any())
+        {
+            query = query.Where(u => filterByStudentIds.Contains(u.UserId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(u =>
+                u.Username.Contains(search) ||
+                u.FirstName.Contains(search) ||
+                u.LastName.Contains(search) ||
+                u.Email.Contains(search));
+        }
+
+        var total = await query.CountAsync();
+        var students = await query
+            .OrderBy(u => u.UserId)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return (students, total);
+    }
+
+    public async Task<User?> GetProfessorByIdWithUniversityAsync(int professorId)
+    {
+        return await _context.Users
+            .Where(u => u.UserType == "professor")
+            .Include(u => u.University)
+            .FirstOrDefaultAsync(u => u.UserId == professorId);
+    }
+
+    public async Task<User?> GetStudentByIdAsync(int studentId)
+    {
+        return await _context.Users
+            .Where(u => u.UserType == "student")
+            .FirstOrDefaultAsync(u => u.UserId == studentId);
+    }
 }

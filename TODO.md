@@ -1485,6 +1485,53 @@ Implement comprehensive audit logging for all management actions (not chat), lev
 4. Authorization policies
 5. Deployment configuration
 
+## ⚡ Dashboard Performance Optimization
+
+### Phase 1: Unified Dashboard Endpoint ✅
+- [x] Created `UnifiedDashboardResponseDto` combining 4 separate API calls into 1
+- [x] Created `GET /api/analytics/dashboard/unified` endpoint with parallel execution
+- [x] Updated frontend to use unified endpoint (reduce ~100 DynamoDB queries to ~25)
+- [ ] Add unit tests for unified endpoint
+
+### Phase 1.5: Code Review Fixes (Jan 2025) ✅
+- [x] **Fixed architecture violations** - Services no longer access DbContext directly
+  - Refactored `ProfessorService` to use `IUserRepository` and new `IProfessorCourseRepository`
+  - Refactored `StudentService` to use `IUserRepository` and new `IStudentCourseRepository`
+  - Created junction table repositories for proper data access patterns
+  - All services now follow Onion Architecture (Services → Repositories → DbContext)
+
+- [x] **Added missing database indexes** - Fixed performance bottlenecks
+  - Added indexes on `ProfessorAgents` table (ProfessorId, UniversityId, composite)
+  - Added indexes on `ProfessorAgentTokens` table (ProfessorId, ProfessorAgentId, composite)
+  - Prevents table scans on common queries
+
+- [x] **Fixed N+1 query problems in AnalyticsService** - 10 sequential queries converted to parallel
+  - All `foreach await` loops replaced with `Task.WhenAll` parallel execution
+  - Dramatically reduced DynamoDB query latency for multi-module professors
+  - Methods fixed: GetCostAnalysisAsync, GetTodayAnalyticsAsync, GetUsageTrendsAsync, GetHourlyUsageAsync, GetTopActiveStudentsAsync, GetConversationPatternsAsync, GetResponseQualityAsync, GetDashboardSummaryAsync, GetFrequentQuestionsAsync
+
+- [x] **Fixed redundant LINQ includes** - Optimized EF Core queries
+  - Fixed `ProfessorAgentTokenRepository.GetByTokenWithDetailsAsync()` - removed duplicate `.Include()` calls
+  - More efficient query generation
+
+### Phase 2: DynamoDB GSI Optimization (Future)
+- [ ] Add GSI for university-level queries: `UniversityId-Timestamp-index`
+- [ ] Add GSI for course-level queries: `CourseId-Timestamp-index`
+- [ ] Reduce query fan-out by querying at higher aggregation level
+- [ ] Estimate: 10-20x reduction in DynamoDB reads for dashboard
+
+### Phase 3: Pre-Aggregated Analytics Table (Future)
+- [ ] Create `DailyAnalytics` DynamoDB table with pre-computed metrics
+- [ ] Run nightly aggregation job (Lambda or .NET console app)
+- [ ] Dashboard queries pre-aggregated data instead of raw messages
+- [ ] Estimate: 100x reduction in query complexity, sub-100ms dashboard loads
+
+### Phase 4: Real-Time Analytics with DynamoDB Streams (Future - Advanced)
+- [ ] Enable DynamoDB Streams on `ChatMessages` table
+- [ ] Create Lambda to process stream and update `DailyAnalytics` in real-time
+- [ ] Near-instant dashboard updates without expensive queries
+- [ ] Estimate: Real-time dashboard with minimal query overhead
+
 ### References
 - See `claude.md` for development guidelines
 - See `SETUP_SUMMARY.md` for architecture overview

@@ -30,4 +30,22 @@ public interface IUserRepository
     Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId);
     Task<bool> ExistsByEmailExcludingUserAsync(string email, int excludeUserId);
     Task SaveChangesAsync();
+
+    // Additional methods for Professor/Student services
+    Task<(List<User> Items, int Total)> GetProfessorsPagedAsync(
+        int? universityId,
+        List<int>? filterByProfessorIds,
+        bool? isAdmin,
+        string? search,
+        int page,
+        int pageSize);
+
+    Task<(List<User> Items, int Total)> GetStudentsPagedAsync(
+        List<int>? filterByStudentIds,
+        string? search,
+        int page,
+        int pageSize);
+
+    Task<User?> GetProfessorByIdWithUniversityAsync(int professorId);
+    Task<User?> GetStudentByIdAsync(int studentId);
 }

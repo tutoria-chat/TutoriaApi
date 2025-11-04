@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Interfaces;
 using FileEntity = TutoriaApi.Core.Entities.File;
 
 namespace TutoriaApi.Infrastructure.Data;
@@ -8,6 +9,58 @@ public class TutoriaDbContext : DbContext
 {
     public TutoriaDbContext(DbContextOptions<TutoriaDbContext> options) : base(options)
     {
+    }
+
+    /// <summary>
+    /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
+    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// </summary>
+    public override int SaveChanges()
+    {
+        UpdateAuditFields();
+        return base.SaveChanges();
+    }
+
+    /// <summary>
+    /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
+    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// </summary>
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateAuditFields();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateAuditFields()
+    {
+        var entries = ChangeTracker.Entries<IAuditable>();
+
+        foreach (var entry in entries)
+        {
+            var now = DateTime.UtcNow;
+
+            switch (entry.State)
+            {
+                case EntityState.Added:
+                    // Only set CreatedAt if not already set (for test scenarios)
+                    if (entry.Entity.CreatedAt == null || entry.Entity.CreatedAt == DateTime.MinValue)
+                    {
+                        entry.Entity.CreatedAt = now;
+                    }
+                    // Only set UpdatedAt if not already set (for test scenarios)
+                    if (entry.Entity.UpdatedAt == null || entry.Entity.UpdatedAt == DateTime.MinValue)
+                    {
+                        entry.Entity.UpdatedAt = now;
+                    }
+                    break;
+
+                case EntityState.Modified:
+                    entry.Entity.UpdatedAt = now;
+                    // Prevent CreatedAt from being modified
+                    entry.Property(e => e.CreatedAt).IsModified = false;
+                    break;
+            }
+        }
     }
 
     public DbSet<University> Universities { get; set; }
@@ -24,6 +77,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<ProfessorCourse> ProfessorCourses { get; set; }
     public DbSet<StudentCourse> StudentCourses { get; set; }
     public DbSet<ApiClient> ApiClients { get; set; }
+    public DbSet<ProfessorAgent> ProfessorAgents { get; set; }
+    public DbSet<ProfessorAgentToken> ProfessorAgentTokens { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +147,10 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.PromptImprovementCount).HasColumnName("PromptImprovementCount").HasDefaultValue(0);
             entity.Property(e => e.TutorLanguage).HasColumnName("TutorLanguage").HasMaxLength(10).HasDefaultValue("pt-br");
             entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.CourseType)
+                .HasColumnName("CourseType")
+                .HasMaxLength(50)
+                .HasConversion<string>(); // Store enum as string (e.g., "MathLogic", "Programming", "TheoryText")
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -180,6 +239,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.VideoDurationSeconds).HasColumnName("VideoDurationSeconds");
             entity.Property(e => e.TranscriptedAt).HasColumnName("TranscriptedAt");
             entity.Property(e => e.TranscriptWordCount).HasColumnName("TranscriptWordCount");
+            entity.Property(e => e.TranscriptionCostUSD).HasColumnName("TranscriptionCostUSD").HasColumnType("decimal(10, 4)");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -289,6 +349,84 @@ public class TutoriaDbContext : DbContext
 
             entity.HasIndex(e => e.ModelName).IsUnique();
             entity.HasCheckConstraint("CK_AIModels_Provider", "[Provider] IN ('openai', 'anthropic')");
+        });
+
+        // ProfessorAgent configuration
+        modelBuilder.Entity<ProfessorAgent>(entity =>
+        {
+            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgents_UpdatedAt)
+            entity.ToTable("ProfessorAgents", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ProfessorId).HasColumnName("ProfessorId");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.SystemPrompt).HasColumnName("SystemPrompt");
+            entity.Property(e => e.OpenAIAssistantId).HasColumnName("OpenAIAssistantId").HasMaxLength(200);
+            entity.Property(e => e.OpenAIVectorStoreId).HasColumnName("OpenAIVectorStoreId").HasMaxLength(200);
+            entity.Property(e => e.TutorLanguage).HasColumnName("TutorLanguage").HasMaxLength(10).HasDefaultValue("pt-br");
+            entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasOne(e => e.Professor)
+                .WithMany()
+                .HasForeignKey(e => e.ProfessorId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(e => e.AIModel)
+                .WithMany()
+                .HasForeignKey(e => e.AIModelId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Add indexes for performance (prevent table scans)
+            entity.HasIndex(e => e.ProfessorId);
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasIndex(e => new { e.ProfessorId, e.IsActive }); // Composite for active agents by professor
+        });
+
+        // ProfessorAgentToken configuration
+        modelBuilder.Entity<ProfessorAgentToken>(entity =>
+        {
+            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgentTokens_UpdatedAt)
+            entity.ToTable("ProfessorAgentTokens", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ProfessorAgentId).HasColumnName("ProfessorAgentId");
+            entity.Property(e => e.ProfessorId).HasColumnName("ProfessorId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.AllowChat).HasColumnName("AllowChat").HasDefaultValue(true);
+            entity.Property(e => e.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Token).IsUnique();
+
+            // Add indexes for performance (prevent table scans)
+            entity.HasIndex(e => e.ProfessorId);
+            entity.HasIndex(e => e.ProfessorAgentId);
+            entity.HasIndex(e => new { e.ProfessorAgentId, e.ExpiresAt }); // Composite for expiration checks
+
+            entity.HasOne(e => e.ProfessorAgent)
+                .WithMany(pa => pa.ProfessorAgentTokens)
+                .HasForeignKey(e => e.ProfessorAgentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Professor)
+                .WithMany()
+                .HasForeignKey(e => e.ProfessorId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
     }
 }

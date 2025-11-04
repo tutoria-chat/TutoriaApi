@@ -14,8 +14,8 @@ public class StudentDetailDto
     public int? CourseId { get; set; }  // Nullable - User doesn't have direct CourseId
     public string? CourseName { get; set; }
     public DateTime? LastLoginAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
 }
 
 public class StudentCreateRequest

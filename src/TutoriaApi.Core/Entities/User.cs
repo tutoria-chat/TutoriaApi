@@ -1,9 +1,11 @@
+using TutoriaApi.Core.Interfaces;
+
 namespace TutoriaApi.Core.Entities;
 
 /// <summary>
 /// Unified user model that consolidates Professors, SuperAdmins, and Students
 /// </summary>
-public class User
+public class User : IAuditable
 {
     public int UserId { get; set; }
     public required string Username { get; set; }
@@ -23,9 +25,9 @@ public class User
     public string? ExternalId { get; set; } // Student registration ID, employee ID, etc.
     public DateTime? Birthdate { get; set; }
 
-    // Common fields
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    // Common fields (nullable to match IAuditable interface - EF Core will set non-null values)
+    public DateTime? CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public string? PasswordResetToken { get; set; }
     public DateTime? PasswordResetExpires { get; set; }

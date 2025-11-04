@@ -618,6 +618,8 @@ dotnet test --collect:"XPlat Code Coverage"
 - `DEV_AWS_SES_REGION` - AWS SES region
 - `DEV_AWS_SES_ACCESS_KEY_ID` - AWS SES access key
 - `DEV_AWS_SES_SECRET_ACCESS_KEY` - AWS SES secret key
+- `DEV_AWS_DYNAMODB_ENABLED` - Enable/disable DynamoDB analytics ("true" or "false")
+- `DEV_AWS_DYNAMODB_CHAT_TABLE` - DynamoDB table name for chat messages (e.g., "ChatMessages")
 - `DEV_EMAIL_FROM_ADDRESS` - Email sender address
 - `DEV_EMAIL_FROM_NAME` - Email sender name
 - `DEV_EMAIL_FRONTEND_URL` - Frontend URL for emails

@@ -123,7 +123,11 @@ jobs:
           "AWS": {
             "Region": "${{ secrets.DEV_AWS_SES_REGION }}",
             "AccessKeyId": "${{ secrets.DEV_AWS_SES_ACCESS_KEY_ID }}",
-            "SecretAccessKey": "${{ secrets.DEV_AWS_SES_SECRET_ACCESS_KEY }}"
+            "SecretAccessKey": "${{ secrets.DEV_AWS_SES_SECRET_ACCESS_KEY }}",
+            "DynamoDb": {
+              "Enabled": "${{ secrets.DEV_AWS_DYNAMODB_ENABLED }}",
+              "ChatTable": "${{ secrets.DEV_AWS_DYNAMODB_CHAT_TABLE }}"
+            }
           },
           "Email": {
             "FromAddress": "${{ secrets.DEV_EMAIL_FROM_ADDRESS }}",
@@ -258,7 +262,11 @@ jobs:
           "AWS": {
             "Region": "${{ secrets.PROD_AWS_SES_REGION }}",
             "AccessKeyId": "${{ secrets.PROD_AWS_SES_ACCESS_KEY_ID }}",
-            "SecretAccessKey": "${{ secrets.PROD_AWS_SES_SECRET_ACCESS_KEY }}"
+            "SecretAccessKey": "${{ secrets.PROD_AWS_SES_SECRET_ACCESS_KEY }}",
+            "DynamoDb": {
+              "Enabled": "${{ secrets.PROD_AWS_DYNAMODB_ENABLED }}",
+              "ChatTable": "${{ secrets.PROD_AWS_DYNAMODB_CHAT_TABLE }}"
+            }
           },
           "Email": {
             "FromAddress": "${{ secrets.PROD_EMAIL_FROM_ADDRESS }}",

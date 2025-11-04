@@ -8,7 +8,18 @@ public class UniversityDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty; // Fantasy Name (Nome Fantasia)
     public string? Description { get; set; }
-    public string? Address { get; set; }
+
+    // Address fields
+    public string? Address { get; set; } // Deprecated
+    public string? PostalCode { get; set; }
+    public string? Street { get; set; }
+    public string? StreetNumber { get; set; }
+    public string? Complement { get; set; }
+    public string? Neighborhood { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+
     public string? TaxId { get; set; } // CNPJ in Brazil
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
@@ -31,8 +42,33 @@ public class UniversityCreateRequest
 
     public string? Description { get; set; }
 
+    // Address fields
     [MaxLength(500, ErrorMessage = "Address cannot exceed 500 characters")]
-    public string? Address { get; set; }
+    public string? Address { get; set; } // Deprecated
+
+    [MaxLength(20, ErrorMessage = "Postal code cannot exceed 20 characters")]
+    public string? PostalCode { get; set; }
+
+    [MaxLength(200, ErrorMessage = "Street cannot exceed 200 characters")]
+    public string? Street { get; set; }
+
+    [MaxLength(20, ErrorMessage = "Street number cannot exceed 20 characters")]
+    public string? StreetNumber { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Complement cannot exceed 100 characters")]
+    public string? Complement { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Neighborhood cannot exceed 100 characters")]
+    public string? Neighborhood { get; set; }
+
+    [MaxLength(100, ErrorMessage = "City cannot exceed 100 characters")]
+    public string? City { get; set; }
+
+    [MaxLength(50, ErrorMessage = "State cannot exceed 50 characters")]
+    public string? State { get; set; }
+
+    [MaxLength(50, ErrorMessage = "Country cannot exceed 50 characters")]
+    public string? Country { get; set; }
 
     [MaxLength(20, ErrorMessage = "Tax ID cannot exceed 20 characters")]
     public string? TaxId { get; set; }
@@ -64,8 +100,33 @@ public class UniversityUpdateRequest
 
     public string? Description { get; set; }
 
+    // Address fields
     [MaxLength(500, ErrorMessage = "Address cannot exceed 500 characters")]
-    public string? Address { get; set; }
+    public string? Address { get; set; } // Deprecated
+
+    [MaxLength(20, ErrorMessage = "Postal code cannot exceed 20 characters")]
+    public string? PostalCode { get; set; }
+
+    [MaxLength(200, ErrorMessage = "Street cannot exceed 200 characters")]
+    public string? Street { get; set; }
+
+    [MaxLength(20, ErrorMessage = "Street number cannot exceed 20 characters")]
+    public string? StreetNumber { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Complement cannot exceed 100 characters")]
+    public string? Complement { get; set; }
+
+    [MaxLength(100, ErrorMessage = "Neighborhood cannot exceed 100 characters")]
+    public string? Neighborhood { get; set; }
+
+    [MaxLength(100, ErrorMessage = "City cannot exceed 100 characters")]
+    public string? City { get; set; }
+
+    [MaxLength(50, ErrorMessage = "State cannot exceed 50 characters")]
+    public string? State { get; set; }
+
+    [MaxLength(50, ErrorMessage = "Country cannot exceed 50 characters")]
+    public string? Country { get; set; }
 
     [MaxLength(20, ErrorMessage = "Tax ID cannot exceed 20 characters")]
     public string? TaxId { get; set; }
@@ -93,7 +154,18 @@ public class UniversityWithCoursesDto
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty; // Fantasy Name (Nome Fantasia)
     public string? Description { get; set; }
-    public string? Address { get; set; }
+
+    // Address fields
+    public string? Address { get; set; } // Deprecated
+    public string? PostalCode { get; set; }
+    public string? Street { get; set; }
+    public string? StreetNumber { get; set; }
+    public string? Complement { get; set; }
+    public string? Neighborhood { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+
     public string? TaxId { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }

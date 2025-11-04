@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TutoriaApi.Core.Enums;
 
 namespace TutoriaApi.Web.API.DTOs;
 
@@ -14,6 +15,7 @@ public class ModuleListDto
     public string? CourseName { get; set; }
     public int? AIModelId { get; set; }
     public string? AIModelDisplayName { get; set; }
+    public CourseType? CourseType { get; set; }
     public int FilesCount { get; set; }
     public int TokensCount { get; set; }
     public DateTime? CreatedAt { get; set; }
@@ -35,6 +37,7 @@ public class ModuleDetailDto
     public int? UniversityId { get; set; }
     public int? AIModelId { get; set; }
     public AIModelListDto? AIModel { get; set; }
+    public CourseType? CourseType { get; set; }
     public string? OpenAIAssistantId { get; set; }
     public string? OpenAIVectorStoreId { get; set; }
     public DateTime? LastPromptImprovedAt { get; set; }
@@ -71,6 +74,8 @@ public class ModuleCreateRequest
 
     public int? AIModelId { get; set; }
 
+    public CourseType? CourseType { get; set; }
+
     [MaxLength(10)]
     public string TutorLanguage { get; set; } = "pt-br";
 }
@@ -94,6 +99,8 @@ public class ModuleUpdateRequest
     public int? Year { get; set; }
 
     public int? AIModelId { get; set; }
+
+    public CourseType? CourseType { get; set; }
 
     [MaxLength(10)]
     public string? TutorLanguage { get; set; }

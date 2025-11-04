@@ -134,10 +134,10 @@ public class FileService : IFileService
             throw new UnauthorizedAccessException("You do not have access to upload files to this module");
         }
 
-        // Validate file size (50MB limit)
-        if (fileSize > 50 * 1024 * 1024)
+        // Validate file size (10MB limit)
+        if (fileSize > 10 * 1024 * 1024)
         {
-            throw new InvalidOperationException("File size exceeds 50MB limit");
+            throw new InvalidOperationException("File size exceeds 10MB limit");
         }
 
         // Sanitize filename
