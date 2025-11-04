@@ -140,11 +140,16 @@ public class ProfessorAgentServiceTests
             LanguagePreference = "pt-br"
         };
 
+        var aiModel = new AIModel { Id = 1, ModelName = "gpt-4o-mini", DisplayName = "GPT-4o Mini", Provider = "openai" };
+
         _userRepositoryMock.Setup(r => r.GetByIdAsync(professorId))
             .ReturnsAsync(professor);
 
-        _agentRepositoryMock.Setup(r => r.GetByProfessorIdAsync(professorId))
+        _agentRepositoryMock.Setup(r => r.GetByProfessorIdIncludingInactiveAsync(professorId))
             .ReturnsAsync((ProfessorAgent?)null);
+
+        _aiModelRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(aiModel);
 
         _agentRepositoryMock.Setup(r => r.AddAsync(It.IsAny<ProfessorAgent>()))
             .ReturnsAsync((ProfessorAgent agent) => { agent.Id = 1; return agent; });
@@ -184,11 +189,16 @@ public class ProfessorAgentServiceTests
             LanguagePreference = "es" // Professor prefers Spanish
         };
 
+        var aiModel = new AIModel { Id = 1, ModelName = "gpt-4o-mini", DisplayName = "GPT-4o Mini", Provider = "openai" };
+
         _userRepositoryMock.Setup(r => r.GetByIdAsync(professorId))
             .ReturnsAsync(professor);
 
-        _agentRepositoryMock.Setup(r => r.GetByProfessorIdAsync(professorId))
+        _agentRepositoryMock.Setup(r => r.GetByProfessorIdIncludingInactiveAsync(professorId))
             .ReturnsAsync((ProfessorAgent?)null);
+
+        _aiModelRepositoryMock.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(aiModel);
 
         _agentRepositoryMock.Setup(r => r.AddAsync(It.IsAny<ProfessorAgent>()))
             .ReturnsAsync((ProfessorAgent agent) => { agent.Id = 1; return agent; });
@@ -299,7 +309,7 @@ public class ProfessorAgentServiceTests
         _userRepositoryMock.Setup(r => r.GetByIdAsync(professorId))
             .ReturnsAsync(professor);
 
-        _agentRepositoryMock.Setup(r => r.GetByProfessorIdAsync(professorId))
+        _agentRepositoryMock.Setup(r => r.GetByProfessorIdIncludingInactiveAsync(professorId))
             .ReturnsAsync(existingAgent);
 
         // Act & Assert
@@ -349,6 +359,9 @@ public class ProfessorAgentServiceTests
         // Act
         var result = await _service.UpdateAgentAsync(
             agentId,
+            1, // currentUserId
+            "super_admin", // currentUserType
+            1, // currentUserUniversityId
             "New Name",
             "New Description",
             "New Prompt",
@@ -377,7 +390,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.UpdateAgentAsync(agentId, "New Name", null, null, null, null, null));
+            () => _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, "New Name", null, null, null, null, null));
     }
 
     [Fact]
@@ -402,7 +415,7 @@ public class ProfessorAgentServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        var result = await _service.UpdateAgentAsync(agentId, null, null, null, null, null, null);
+        var result = await _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, null, null, null, null, null, null);
 
         // Assert
         Assert.Equal("Original Name", result.Name);
@@ -429,7 +442,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.UpdateAgentAsync(agentId, "", null, null, null, null, null));
+            () => _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, "", null, null, null, null, null));
         Assert.Contains("name cannot be empty", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -452,7 +465,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.UpdateAgentAsync(agentId, null, null, "   ", null, null, null));
+            () => _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, null, null, "   ", null, null, null));
         Assert.Contains("system prompt cannot be empty", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -476,7 +489,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.UpdateAgentAsync(agentId, null, null, null, "fr", null, null));
+            () => _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, null, null, null, "fr", null, null));
         Assert.Contains("Invalid tutor language", exception.Message);
     }
 
@@ -502,7 +515,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         var exception = await Assert.ThrowsAsync<ArgumentException>(
-            () => _service.UpdateAgentAsync(agentId, null, null, null, null, 999, null));
+            () => _service.UpdateAgentAsync(agentId, 1, "super_admin", 1, null, null, null, null, 999, null));
         Assert.Contains("AI Model with ID 999 not found", exception.Message);
     }
 
@@ -527,14 +540,15 @@ public class ProfessorAgentServiceTests
         _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
             .ReturnsAsync(agent);
 
-        _agentRepositoryMock.Setup(r => r.DeleteAsync(agent))
+        _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.DeleteAgentAsync(agentId);
+        await _service.DeleteAgentAsync(agentId, 1, "super_admin", 1);
 
         // Assert
-        _agentRepositoryMock.Verify(r => r.DeleteAsync(agent), Times.Once);
+        Assert.False(agent.IsActive); // Soft delete sets IsActive to false
+        _agentRepositoryMock.Verify(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()), Times.Once);
     }
 
     [Fact]
@@ -547,7 +561,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.DeleteAgentAsync(agentId));
+            () => _service.DeleteAgentAsync(agentId, 1, "super_admin", 1));
     }
 
     #endregion
@@ -851,11 +865,11 @@ public class ProfessorAgentServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.ActivateAgentAsync(agentId);
+        await _service.ActivateAgentAsync(agentId, 1, "super_admin", 1);
 
         // Assert
         Assert.True(agent.IsActive);
-        Assert.True(agent.UpdatedAt > DateTime.UtcNow.AddMinutes(-1)); // Updated within last minute
+        // UpdatedAt is handled by database triggers, not in code
         _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
     }
 
@@ -869,7 +883,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.ActivateAgentAsync(agentId));
+            () => _service.ActivateAgentAsync(agentId, 1, "super_admin", 1));
     }
 
     [Fact]
@@ -893,7 +907,7 @@ public class ProfessorAgentServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.ActivateAgentAsync(agentId);
+        await _service.ActivateAgentAsync(agentId, 1, "super_admin", 1);
 
         // Assert
         Assert.True(agent.IsActive);
@@ -925,11 +939,11 @@ public class ProfessorAgentServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.DeactivateAgentAsync(agentId);
+        await _service.DeactivateAgentAsync(agentId, 1, "super_admin", 1);
 
         // Assert
         Assert.False(agent.IsActive);
-        Assert.True(agent.UpdatedAt > DateTime.UtcNow.AddMinutes(-1)); // Updated within last minute
+        // UpdatedAt is handled by database triggers, not in code
         _agentRepositoryMock.Verify(r => r.UpdateAsync(agent), Times.Once);
     }
 
@@ -943,7 +957,7 @@ public class ProfessorAgentServiceTests
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.DeactivateAgentAsync(agentId));
+            () => _service.DeactivateAgentAsync(agentId, 1, "super_admin", 1));
     }
 
     [Fact]
@@ -967,7 +981,7 @@ public class ProfessorAgentServiceTests
             .Returns(Task.CompletedTask);
 
         // Act
-        await _service.DeactivateAgentAsync(agentId);
+        await _service.DeactivateAgentAsync(agentId, 1, "super_admin", 1);
 
         // Assert
         Assert.False(agent.IsActive);

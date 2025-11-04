@@ -17,9 +17,10 @@ public class AnalyticsService : IAnalyticsService
     private readonly IFileRepository _fileRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
-    // Token distribution constants for cost estimation (based on typical usage patterns)
-    private const double INPUT_TOKEN_RATIO = 0.4;  // 40% of tokens are input
-    private const double OUTPUT_TOKEN_RATIO = 0.6; // 60% of tokens are output
+    // Token distribution constants for cost estimation (based on typical chat usage patterns)
+    // Most chat interactions have longer outputs (AI responses) than inputs (user questions)
+    private const double INPUT_TOKEN_RATIO = 0.25;  // 25% of tokens are input (user questions)
+    private const double OUTPUT_TOKEN_RATIO = 0.75; // 75% of tokens are output (AI responses)
 
     // Compiled regex for FAQ quiz answer filtering (performance optimization)
     private static readonly System.Text.RegularExpressions.Regex QuizAnswerPattern =

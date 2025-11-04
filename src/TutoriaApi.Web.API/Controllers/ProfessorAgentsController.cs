@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using TutoriaApi.Core.DTOs;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.API.DTOs;
@@ -29,12 +30,27 @@ public class ProfessorAgentsController : ControllerBase
     private int GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(userIdClaim, out var userId) ? userId : 0;
+        if (!int.TryParse(userIdClaim, out var userId))
+        {
+            throw new UnauthorizedAccessException("User ID claim missing or invalid");
+        }
+        return userId;
     }
 
     private string? GetCurrentUserType()
     {
         return User.FindFirst(ClaimTypes.Role)?.Value;
+    }
+
+    private bool IsSuperAdmin()
+    {
+        return GetCurrentUserType() == "super_admin";
+    }
+
+    private int? GetCurrentUserUniversityId()
+    {
+        var universityIdClaim = User.FindFirst("UniversityId")?.Value;
+        return int.TryParse(universityIdClaim, out var universityId) ? universityId : null;
     }
 
     [HttpGet("my-agent")]
@@ -146,12 +162,19 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            await _professorAgentService.DeactivateAgentAsync(id);
+            var userId = GetCurrentUserId();
+            var userType = GetCurrentUserType() ?? string.Empty;
+            var universityId = GetCurrentUserUniversityId();
+            await _professorAgentService.DeactivateAgentAsync(id, userId, userType, universityId);
             return NoContent();
         }
         catch (KeyNotFoundException)
         {
             return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (Exception ex)
         {
@@ -169,12 +192,19 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            await _professorAgentService.ActivateAgentAsync(id);
+            var userId = GetCurrentUserId();
+            var userType = GetCurrentUserType() ?? string.Empty;
+            var universityId = GetCurrentUserUniversityId();
+            await _professorAgentService.ActivateAgentAsync(id, userId, userType, universityId);
             return NoContent();
         }
         catch (KeyNotFoundException)
         {
             return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (Exception ex)
         {
@@ -229,8 +259,15 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
+            var userId = GetCurrentUserId();
+            var userType = GetCurrentUserType() ?? string.Empty;
+            var universityId = GetCurrentUserUniversityId();
+
             var agent = await _professorAgentService.UpdateAgentAsync(
                 id,
+                userId,
+                userType,
+                universityId,
                 request.Name,
                 request.Description,
                 request.SystemPrompt,
@@ -257,6 +294,15 @@ public class ProfessorAgentsController : ControllerBase
         {
             return NotFound(new { message = "Professor agent not found" });
         }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Validation error updating agent with ID {Id}", id);
+            return BadRequest(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating professor agent with ID {Id}", id);
@@ -270,12 +316,19 @@ public class ProfessorAgentsController : ControllerBase
     {
         try
         {
-            await _professorAgentService.DeleteAgentAsync(id);
+            var userId = GetCurrentUserId();
+            var userType = GetCurrentUserType() ?? string.Empty;
+            var universityId = GetCurrentUserUniversityId();
+            await _professorAgentService.DeleteAgentAsync(id, userId, userType, universityId);
             return NoContent();
         }
         catch (KeyNotFoundException)
         {
             return NotFound(new { message = "Professor agent not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
         }
         catch (Exception ex)
         {

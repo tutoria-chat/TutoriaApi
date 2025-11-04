@@ -99,38 +99,55 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
-            // TODO: Implement pagination using LastEvaluatedKey for high-volume modules
-            // Current implementation may truncate results if more than 'limit' messages exist
-            var request = new QueryRequest
-            {
-                TableName = _tableName,
-                IndexName = "ModuleAnalyticsIndex",
-                KeyConditionExpression = "moduleId = :modId",
-                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-                {
-                    { ":modId", new AttributeValue { N = moduleId.ToString() } }
-                },
-                ScanIndexForward = false, // Descending order (newest first)
-                Limit = limit
-            };
+            var allItems = new List<ChatMessageDto>();
+            Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
-            // Add date filtering if provided
-            if (startDate.HasValue && endDate.HasValue)
+            do
             {
-                var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
-                var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
-
-                request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
-                request.ExpressionAttributeNames = new Dictionary<string, string>
+                var request = new QueryRequest
                 {
-                    { "#ts", "timestamp" }
+                    TableName = _tableName,
+                    IndexName = "ModuleAnalyticsIndex",
+                    KeyConditionExpression = "moduleId = :modId",
+                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                    {
+                        { ":modId", new AttributeValue { N = moduleId.ToString() } }
+                    },
+                    ScanIndexForward = false, // Descending order (newest first)
+                    Limit = Math.Min(limit - allItems.Count, 1000), // Request up to 1000 per page
+                    ExclusiveStartKey = lastEvaluatedKey
                 };
-                request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
-                request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
-            }
 
-            var response = await _dynamoDbClient.QueryAsync(request);
-            return response.Items.Select(MapToChatMessageDto).ToList();
+                // Add date filtering if provided
+                if (startDate.HasValue && endDate.HasValue)
+                {
+                    var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
+                    var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
+
+                    request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
+                    request.ExpressionAttributeNames = new Dictionary<string, string>
+                    {
+                        { "#ts", "timestamp" }
+                    };
+                    request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
+                    request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
+                }
+
+                var response = await _dynamoDbClient.QueryAsync(request);
+                allItems.AddRange(response.Items.Select(MapToChatMessageDto));
+
+                lastEvaluatedKey = response.LastEvaluatedKey;
+
+                // Stop if we've collected enough items or no more pages
+                if (allItems.Count >= limit || lastEvaluatedKey == null || lastEvaluatedKey.Count == 0)
+                    break;
+
+            } while (true);
+
+            _logger.LogInformation("Retrieved {Count} messages for module {ModuleId} (requested limit: {Limit})",
+                allItems.Count, moduleId, limit);
+
+            return allItems;
         }
         catch (Exception ex)
         {
@@ -153,36 +170,55 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
-            var request = new QueryRequest
-            {
-                TableName = _tableName,
-                IndexName = "StudentActivityIndex",
-                KeyConditionExpression = "studentId = :studId",
-                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-                {
-                    { ":studId", new AttributeValue { N = studentId.ToString() } }
-                },
-                ScanIndexForward = false, // Descending order (newest first)
-                Limit = limit
-            };
+            var allItems = new List<ChatMessageDto>();
+            Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
-            // Add date filtering if provided
-            if (startDate.HasValue && endDate.HasValue)
+            do
             {
-                var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
-                var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
-
-                request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
-                request.ExpressionAttributeNames = new Dictionary<string, string>
+                var request = new QueryRequest
                 {
-                    { "#ts", "timestamp" }
+                    TableName = _tableName,
+                    IndexName = "StudentActivityIndex",
+                    KeyConditionExpression = "studentId = :studId",
+                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                    {
+                        { ":studId", new AttributeValue { N = studentId.ToString() } }
+                    },
+                    ScanIndexForward = false, // Descending order (newest first)
+                    Limit = Math.Min(limit - allItems.Count, 1000), // Request up to 1000 per page
+                    ExclusiveStartKey = lastEvaluatedKey
                 };
-                request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
-                request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
-            }
 
-            var response = await _dynamoDbClient.QueryAsync(request);
-            return response.Items.Select(MapToChatMessageDto).ToList();
+                // Add date filtering if provided
+                if (startDate.HasValue && endDate.HasValue)
+                {
+                    var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
+                    var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
+
+                    request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
+                    request.ExpressionAttributeNames = new Dictionary<string, string>
+                    {
+                        { "#ts", "timestamp" }
+                    };
+                    request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
+                    request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
+                }
+
+                var response = await _dynamoDbClient.QueryAsync(request);
+                allItems.AddRange(response.Items.Select(MapToChatMessageDto));
+
+                lastEvaluatedKey = response.LastEvaluatedKey;
+
+                // Stop if we've collected enough items or no more pages
+                if (allItems.Count >= limit || lastEvaluatedKey == null || lastEvaluatedKey.Count == 0)
+                    break;
+
+            } while (true);
+
+            _logger.LogInformation("Retrieved {Count} messages for student {StudentId} (requested limit: {Limit})",
+                allItems.Count, studentId, limit);
+
+            return allItems;
         }
         catch (Exception ex)
         {
@@ -205,36 +241,55 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
-            var request = new QueryRequest
-            {
-                TableName = _tableName,
-                IndexName = "ProviderUsageIndex",
-                KeyConditionExpression = "provider = :prov",
-                ExpressionAttributeValues = new Dictionary<string, AttributeValue>
-                {
-                    { ":prov", new AttributeValue { S = provider } }
-                },
-                ScanIndexForward = false, // Descending order (newest first)
-                Limit = limit
-            };
+            var allItems = new List<ChatMessageDto>();
+            Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
-            // Add date filtering if provided
-            if (startDate.HasValue && endDate.HasValue)
+            do
             {
-                var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
-                var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
-
-                request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
-                request.ExpressionAttributeNames = new Dictionary<string, string>
+                var request = new QueryRequest
                 {
-                    { "#ts", "timestamp" }
+                    TableName = _tableName,
+                    IndexName = "ProviderUsageIndex",
+                    KeyConditionExpression = "provider = :prov",
+                    ExpressionAttributeValues = new Dictionary<string, AttributeValue>
+                    {
+                        { ":prov", new AttributeValue { S = provider } }
+                    },
+                    ScanIndexForward = false, // Descending order (newest first)
+                    Limit = Math.Min(limit - allItems.Count, 1000), // Request up to 1000 per page
+                    ExclusiveStartKey = lastEvaluatedKey
                 };
-                request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
-                request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
-            }
 
-            var response = await _dynamoDbClient.QueryAsync(request);
-            return response.Items.Select(MapToChatMessageDto).ToList();
+                // Add date filtering if provided
+                if (startDate.HasValue && endDate.HasValue)
+                {
+                    var startTimestamp = new DateTimeOffset(startDate.Value).ToUnixTimeMilliseconds();
+                    var endTimestamp = new DateTimeOffset(endDate.Value).ToUnixTimeMilliseconds();
+
+                    request.KeyConditionExpression += " AND #ts BETWEEN :start AND :end";
+                    request.ExpressionAttributeNames = new Dictionary<string, string>
+                    {
+                        { "#ts", "timestamp" }
+                    };
+                    request.ExpressionAttributeValues.Add(":start", new AttributeValue { N = startTimestamp.ToString() });
+                    request.ExpressionAttributeValues.Add(":end", new AttributeValue { N = endTimestamp.ToString() });
+                }
+
+                var response = await _dynamoDbClient.QueryAsync(request);
+                allItems.AddRange(response.Items.Select(MapToChatMessageDto));
+
+                lastEvaluatedKey = response.LastEvaluatedKey;
+
+                // Stop if we've collected enough items or no more pages
+                if (allItems.Count >= limit || lastEvaluatedKey == null || lastEvaluatedKey.Count == 0)
+                    break;
+
+            } while (true);
+
+            _logger.LogInformation("Retrieved {Count} messages for provider {Provider} (requested limit: {Limit})",
+                allItems.Count, provider, limit);
+
+            return allItems;
         }
         catch (Exception ex)
         {
@@ -316,7 +371,7 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
     }
 
     /// <summary>
-    /// Group similar questions using fuzzy string matching
+    /// Group similar questions using fuzzy string matching with optimization
     /// </summary>
     private List<QuestionGroupDto> GroupSimilarQuestions(
         List<ChatMessageDto> messages,
@@ -331,52 +386,65 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
             .Where(m => !IsQuizAnswer(m.Question))
             .ToList();
 
-        for (int i = 0; i < validMessages.Count; i++)
+        // OPTIMIZATION: Pre-normalize all questions once
+        var normalizedQuestions = validMessages
+            .Select(m => NormalizeQuestion(m.Question))
+            .ToList();
+
+        // OPTIMIZATION: Group by first N characters to reduce comparisons
+        // Questions starting similarly are more likely to be similar
+        var buckets = validMessages
+            .Select((msg, idx) => new { Message = msg, Index = idx, Normalized = normalizedQuestions[idx] })
+            .GroupBy(x => x.Normalized.Length > 10 ? x.Normalized.Substring(0, 10) : x.Normalized)
+            .ToList();
+
+        foreach (var bucket in buckets)
         {
-            if (processedIndices.Contains(i))
-                continue;
+            var bucketList = bucket.ToList();
 
-            var message = validMessages[i];
-
-            // Create a new group
-            var group = new QuestionGroupDto
+            for (int i = 0; i < bucketList.Count; i++)
             {
-                RepresentativeQuestion = message.Question,
-                RepresentativeAnswer = message.Response,
-                Count = 1
-            };
-
-            processedIndices.Add(i);
-
-            // Find similar questions
-            for (int j = i + 1; j < validMessages.Count; j++)
-            {
-                if (processedIndices.Contains(j))
+                var item = bucketList[i];
+                if (processedIndices.Contains(item.Index))
                     continue;
 
-                var otherMessage = validMessages[j];
-
-                var similarity = FuzzySharp.Fuzz.Ratio(
-                    NormalizeQuestion(message.Question),
-                    NormalizeQuestion(otherMessage.Question));
-
-                if (similarity >= similarityThreshold)
+                // Create a new group
+                var group = new QuestionGroupDto
                 {
-                    group.Count++;
-                    processedIndices.Add(j);
+                    RepresentativeQuestion = item.Message.Question,
+                    RepresentativeAnswer = item.Message.Response,
+                    Count = 1
+                };
 
-                    // Use the longer answer as representative (usually more detailed)
-                    if (otherMessage.Response.Length > group.RepresentativeAnswer.Length)
+                processedIndices.Add(item.Index);
+
+                // Only compare within the same bucket (much smaller N)
+                for (int j = i + 1; j < bucketList.Count; j++)
+                {
+                    var otherItem = bucketList[j];
+                    if (processedIndices.Contains(otherItem.Index))
+                        continue;
+
+                    var similarity = FuzzySharp.Fuzz.Ratio(item.Normalized, otherItem.Normalized);
+
+                    if (similarity >= similarityThreshold)
                     {
-                        group.RepresentativeAnswer = otherMessage.Response;
+                        group.Count++;
+                        processedIndices.Add(otherItem.Index);
+
+                        // Use the longer answer as representative (usually more detailed)
+                        if (otherItem.Message.Response.Length > group.RepresentativeAnswer.Length)
+                        {
+                            group.RepresentativeAnswer = otherItem.Message.Response;
+                        }
                     }
                 }
-            }
 
-            // Only include groups meeting minimum occurrences
-            if (group.Count >= minOccurrences)
-            {
-                groups.Add(group);
+                // Only include groups meeting minimum occurrences
+                if (group.Count >= minOccurrences)
+                {
+                    groups.Add(group);
+                }
             }
         }
 
@@ -671,16 +739,32 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
         try
         {
-            // TODO: Implement pagination using LastEvaluatedKey for large datasets
             // WARNING: Scan operations are expensive and should be replaced with GSIs in production
-            var request = new ScanRequest
-            {
-                TableName = _tableName,
-                Limit = _defaultQueryLimit
-            };
+            var allMessages = new List<ChatMessageDto>();
+            Dictionary<string, AttributeValue>? lastEvaluatedKey = null;
 
-            var response = await _dynamoDbClient.ScanAsync(request);
-            var allMessages = response.Items.Select(MapToChatMessageDto).ToList();
+            do
+            {
+                var request = new ScanRequest
+                {
+                    TableName = _tableName,
+                    Limit = Math.Min(_defaultQueryLimit - allMessages.Count, 1000), // Scan up to 1000 per page
+                    ExclusiveStartKey = lastEvaluatedKey
+                };
+
+                var response = await _dynamoDbClient.ScanAsync(request);
+                allMessages.AddRange(response.Items.Select(MapToChatMessageDto));
+
+                lastEvaluatedKey = response.LastEvaluatedKey;
+
+                // Stop if we've collected enough items or no more pages
+                if (allMessages.Count >= _defaultQueryLimit || lastEvaluatedKey == null || lastEvaluatedKey.Count == 0)
+                    break;
+
+            } while (true);
+
+            _logger.LogInformation("Scanned {Count} total messages from DynamoDB (requested limit: {Limit})",
+                allMessages.Count, _defaultQueryLimit);
 
             // Filter by date
             if (startDate.HasValue)

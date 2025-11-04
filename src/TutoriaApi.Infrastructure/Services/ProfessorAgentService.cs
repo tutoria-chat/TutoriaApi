@@ -73,7 +73,26 @@ public class ProfessorAgentService : IProfessorAgentService
         return result;
     }
 
-    public async Task DeactivateAgentAsync(int id)
+    /// <summary>
+    /// Checks if the current user can modify the agent based on role
+    /// IMPORTANT: Only admin_professor (university-scoped) and super_admin can modify agents.
+    /// Regular professors can only USE their agent, not modify it.
+    /// </summary>
+    private void ValidateAgentAccess(ProfessorAgent agent, int currentUserId, string currentUserType, int? currentUserUniversityId, string operation)
+    {
+        // Super admin can modify any agent
+        if (currentUserType == "super_admin")
+            return;
+
+        // Admin professor can modify agents in their university only
+        if (currentUserType == "admin_professor" && currentUserUniversityId.HasValue && agent.UniversityId == currentUserUniversityId.Value)
+            return;
+
+        // Regular professors cannot modify agents (only use them)
+        throw new UnauthorizedAccessException($"User is not authorized to {operation} this agent. Only university administrators can manage professor agents.");
+    }
+
+    public async Task DeactivateAgentAsync(int id, int currentUserId, string currentUserType, int? currentUserUniversityId)
     {
         var agent = await _professorAgentRepository.GetByIdAsync(id);
         if (agent == null)
@@ -81,13 +100,15 @@ public class ProfessorAgentService : IProfessorAgentService
             throw new KeyNotFoundException("Professor agent not found");
         }
 
+        ValidateAgentAccess(agent, currentUserId, currentUserType, currentUserUniversityId, "deactivate");
+
         agent.IsActive = false;
-        agent.UpdatedAt = DateTime.UtcNow;
+        // UpdatedAt will be set by database trigger
 
         await _professorAgentRepository.UpdateAsync(agent);
     }
 
-    public async Task ActivateAgentAsync(int id)
+    public async Task ActivateAgentAsync(int id, int currentUserId, string currentUserType, int? currentUserUniversityId)
     {
         var agent = await _professorAgentRepository.GetByIdAsync(id);
         if (agent == null)
@@ -95,8 +116,10 @@ public class ProfessorAgentService : IProfessorAgentService
             throw new KeyNotFoundException("Professor agent not found");
         }
 
+        ValidateAgentAccess(agent, currentUserId, currentUserType, currentUserUniversityId, "activate");
+
         agent.IsActive = true;
-        agent.UpdatedAt = DateTime.UtcNow;
+        // UpdatedAt will be set by database trigger
 
         await _professorAgentRepository.UpdateAsync(agent);
     }
@@ -121,11 +144,49 @@ public class ProfessorAgentService : IProfessorAgentService
             throw new InvalidOperationException("Professor must be associated with a university");
         }
 
-        // Check if agent already exists for this professor
-        var existing = await _professorAgentRepository.GetByProfessorIdAsync(professorId);
+        // Check if agent already exists for this professor (check ANY agent, not just active)
+        var existing = await _professorAgentRepository.GetByProfessorIdIncludingInactiveAsync(professorId);
         if (existing != null)
         {
             throw new InvalidOperationException("Professor already has an agent");
+        }
+
+        // Validate name - prevent empty/whitespace strings
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Agent name cannot be empty or whitespace", nameof(name));
+        }
+
+        // Validate systemPrompt if provided
+        if (systemPrompt != null && string.IsNullOrWhiteSpace(systemPrompt))
+        {
+            throw new ArgumentException("System prompt cannot be empty or whitespace", nameof(systemPrompt));
+        }
+
+        // Validate tutorLanguage if provided
+        if (tutorLanguage != null)
+        {
+            if (string.IsNullOrWhiteSpace(tutorLanguage))
+            {
+                throw new ArgumentException("Tutor language cannot be empty or whitespace", nameof(tutorLanguage));
+            }
+
+            if (!ValidLanguages.Contains(tutorLanguage))
+            {
+                throw new ArgumentException(
+                    $"Invalid tutor language '{tutorLanguage}'. Valid languages are: {string.Join(", ", ValidLanguages)}",
+                    nameof(tutorLanguage));
+            }
+        }
+
+        // Validate aiModelId if provided
+        if (aiModelId.HasValue)
+        {
+            var aiModel = await _aiModelRepository.GetByIdAsync(aiModelId.Value);
+            if (aiModel == null)
+            {
+                throw new ArgumentException($"AI Model with ID {aiModelId.Value} not found", nameof(aiModelId));
+            }
         }
 
         var agent = new ProfessorAgent
@@ -138,15 +199,31 @@ public class ProfessorAgentService : IProfessorAgentService
             TutorLanguage = tutorLanguage ?? professor.LanguagePreference,
             AIModelId = aiModelId,
             IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
+            // UpdatedAt will be set by database trigger
         };
 
-        return await _professorAgentRepository.AddAsync(agent);
+        try
+        {
+            return await _professorAgentRepository.AddAsync(agent);
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            // Handle unique constraint violation (race condition)
+            if (ex.InnerException?.Message.Contains("UQ_ProfessorAgents_ProfessorId") == true ||
+                ex.InnerException?.Message.Contains("duplicate key") == true)
+            {
+                throw new InvalidOperationException("Professor already has an agent. This may be due to concurrent creation attempts.");
+            }
+            throw;
+        }
     }
 
     public async Task<ProfessorAgent> UpdateAgentAsync(
         int id,
+        int currentUserId,
+        string currentUserType,
+        int? currentUserUniversityId,
         string? name,
         string? description,
         string? systemPrompt,
@@ -159,6 +236,8 @@ public class ProfessorAgentService : IProfessorAgentService
         {
             throw new KeyNotFoundException("Professor agent not found");
         }
+
+        ValidateAgentAccess(agent, currentUserId, currentUserType, currentUserUniversityId, "update");
 
         // Validate name - prevent empty/whitespace strings
         if (name != null)
@@ -214,14 +293,14 @@ public class ProfessorAgentService : IProfessorAgentService
 
         if (isActive.HasValue) agent.IsActive = isActive.Value;
 
-        agent.UpdatedAt = DateTime.UtcNow;
+        // UpdatedAt will be set by database trigger
 
         await _professorAgentRepository.UpdateAsync(agent);
 
         return agent;
     }
 
-    public async Task DeleteAgentAsync(int id)
+    public async Task DeleteAgentAsync(int id, int currentUserId, string currentUserType, int? currentUserUniversityId)
     {
         var agent = await _professorAgentRepository.GetByIdAsync(id);
         if (agent == null)
@@ -229,7 +308,12 @@ public class ProfessorAgentService : IProfessorAgentService
             throw new KeyNotFoundException("Professor agent not found");
         }
 
-        await _professorAgentRepository.DeleteAsync(agent);
+        ValidateAgentAccess(agent, currentUserId, currentUserType, currentUserUniversityId, "delete");
+
+        // Implement soft delete instead of hard delete
+        agent.IsActive = false;
+        // UpdatedAt will be set by database trigger
+        await _professorAgentRepository.UpdateAsync(agent);
     }
 
     public async Task<ProfessorAgentToken> CreateTokenAsync(
@@ -262,8 +346,8 @@ public class ProfessorAgentService : IProfessorAgentService
             Description = description,
             AllowChat = allowChat,
             ExpiresAt = expiresAt,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
+            // UpdatedAt will be set by database trigger
         };
 
         return await _tokenRepository.AddAsync(token);

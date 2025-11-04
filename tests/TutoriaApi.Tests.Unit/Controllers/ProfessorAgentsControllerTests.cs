@@ -43,15 +43,20 @@ public class ProfessorAgentsControllerTests
         SetupControllerContext();
     }
 
-    private void SetupControllerContext()
+    private void SetupControllerContext(string userType = "admin_professor", int? universityId = 1)
     {
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, _testProfessor.UserId.ToString()),
             new Claim(ClaimTypes.Name, _testProfessor.Username),
             new Claim(ClaimTypes.Email, _testProfessor.Email),
-            new Claim(ClaimTypes.Role, _testProfessor.UserType)
+            new Claim(ClaimTypes.Role, userType)
         };
+
+        if (universityId.HasValue)
+        {
+            claims.Add(new Claim("UniversityId", universityId.Value.ToString()));
+        }
 
         var identity = new ClaimsIdentity(claims, "TestAuthType");
         var claimsPrincipal = new ClaimsPrincipal(identity);
@@ -323,6 +328,9 @@ public class ProfessorAgentsControllerTests
 
         _serviceMock.Setup(s => s.UpdateAgentAsync(
             agentId,
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<int?>(),
             request.Name,
             request.Description,
             request.SystemPrompt,
@@ -349,6 +357,9 @@ public class ProfessorAgentsControllerTests
 
         _serviceMock.Setup(s => s.UpdateAgentAsync(
             It.IsAny<int>(),
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<int?>(),
             It.IsAny<string?>(),
             It.IsAny<string?>(),
             It.IsAny<string?>(),
@@ -373,7 +384,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 1;
-        _serviceMock.Setup(s => s.DeleteAgentAsync(agentId))
+        _serviceMock.Setup(s => s.DeleteAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -388,7 +399,11 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 999;
-        _serviceMock.Setup(s => s.DeleteAgentAsync(agentId))
+        _serviceMock.Setup(s => s.DeleteAgentAsync(
+            agentId,
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<int?>()))
             .ThrowsAsync(new KeyNotFoundException("Professor agent not found"));
 
         // Act
@@ -432,7 +447,7 @@ public class ProfessorAgentsControllerTests
         _serviceMock.Setup(s => s.CreateTokenAsync(
             agentId,
             _testProfessor.UserId,
-            _testProfessor.UserType,
+            "admin_professor", // SetupControllerContext defaults to admin_professor
             request.Name,
             request.Description,
             request.AllowChat,
@@ -604,7 +619,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 1;
-        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -612,7 +627,7 @@ public class ProfessorAgentsControllerTests
 
         // Assert
         Assert.IsType<NoContentResult>(result);
-        _serviceMock.Verify(s => s.DeactivateAgentAsync(agentId), Times.Once);
+        _serviceMock.Verify(s => s.DeactivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()), Times.Once);
     }
 
     [Fact]
@@ -620,7 +635,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 999;
-        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new KeyNotFoundException("Professor agent not found"));
 
         // Act
@@ -635,7 +650,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 1;
-        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.DeactivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new Exception("Database error"));
 
         // Act
@@ -655,7 +670,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 1;
-        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -663,7 +678,7 @@ public class ProfessorAgentsControllerTests
 
         // Assert
         Assert.IsType<NoContentResult>(result);
-        _serviceMock.Verify(s => s.ActivateAgentAsync(agentId), Times.Once);
+        _serviceMock.Verify(s => s.ActivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()), Times.Once);
     }
 
     [Fact]
@@ -671,7 +686,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 999;
-        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new KeyNotFoundException("Professor agent not found"));
 
         // Act
@@ -686,7 +701,7 @@ public class ProfessorAgentsControllerTests
     {
         // Arrange
         var agentId = 1;
-        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId))
+        _serviceMock.Setup(s => s.ActivateAgentAsync(agentId, It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new Exception("Database error"));
 
         // Act

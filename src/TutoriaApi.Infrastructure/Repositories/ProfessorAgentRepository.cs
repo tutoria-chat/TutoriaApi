@@ -17,6 +17,12 @@ public class ProfessorAgentRepository : Repository<ProfessorAgent>, IProfessorAg
             .FirstOrDefaultAsync(pa => pa.ProfessorId == professorId && pa.IsActive);
     }
 
+    public async Task<ProfessorAgent?> GetByProfessorIdIncludingInactiveAsync(int professorId)
+    {
+        return await _dbSet
+            .FirstOrDefaultAsync(pa => pa.ProfessorId == professorId);
+    }
+
     public async Task<ProfessorAgent?> GetWithDetailsAsync(int id)
     {
         return await _dbSet
