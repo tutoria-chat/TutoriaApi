@@ -386,6 +386,11 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.AIModelId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Add indexes for performance (prevent table scans)
+            entity.HasIndex(e => e.ProfessorId);
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasIndex(e => new { e.ProfessorId, e.IsActive }); // Composite for active agents by professor
         });
 
         // ProfessorAgentToken configuration
@@ -406,6 +411,11 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.Token).IsUnique();
+
+            // Add indexes for performance (prevent table scans)
+            entity.HasIndex(e => e.ProfessorId);
+            entity.HasIndex(e => e.ProfessorAgentId);
+            entity.HasIndex(e => new { e.ProfessorAgentId, e.ExpiresAt }); // Composite for expiration checks
 
             entity.HasOne(e => e.ProfessorAgent)
                 .WithMany(pa => pa.ProfessorAgentTokens)

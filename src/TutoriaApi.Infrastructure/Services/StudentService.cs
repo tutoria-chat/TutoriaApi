@@ -1,17 +1,22 @@
-using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Services;
 
 public class StudentService : IStudentService
 {
-    private readonly TutoriaDbContext _context;
+    private readonly IUserRepository _userRepository;
+    private readonly ICourseRepository _courseRepository;
+    private readonly IStudentCourseRepository _studentCourseRepository;
 
-    public StudentService(TutoriaDbContext context)
+    public StudentService(
+        IUserRepository userRepository,
+        ICourseRepository courseRepository,
+        IStudentCourseRepository studentCourseRepository)
     {
-        _context = context;
+        _userRepository = userRepository;
+        _courseRepository = courseRepository;
+        _studentCourseRepository = studentCourseRepository;
     }
 
     public async Task<(List<User> Items, int Total)> GetPagedAsync(
@@ -20,42 +25,20 @@ public class StudentService : IStudentService
         int page,
         int pageSize)
     {
-        var query = _context.Users
-            .Where(u => u.UserType == "student")
-            .AsQueryable();
-
+        // Get student IDs for course filter if provided
+        List<int>? studentIdsInCourse = null;
         if (courseId.HasValue)
         {
-            var studentIdsInCourse = _context.StudentCourses
-                .Where(sc => sc.CourseId == courseId.Value)
-                .Select(sc => sc.StudentId);
-            query = query.Where(u => studentIdsInCourse.Contains(u.UserId));
+            studentIdsInCourse = await _studentCourseRepository.GetStudentIdsByCourseIdAsync(courseId.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            query = query.Where(u =>
-                u.Username.Contains(search) ||
-                u.FirstName.Contains(search) ||
-                u.LastName.Contains(search) ||
-                u.Email.Contains(search));
-        }
-
-        var total = await query.CountAsync();
-        var students = await query
-            .OrderBy(u => u.UserId)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        return (students, total);
+        // Use repository to get paged students
+        return await _userRepository.GetStudentsPagedAsync(studentIdsInCourse, search, page, pageSize);
     }
 
     public async Task<User?> GetByIdAsync(int id)
     {
-        return await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
+        return await _userRepository.GetStudentByIdAsync(id);
     }
 
     public async Task<User> CreateAsync(
@@ -66,25 +49,19 @@ public class StudentService : IStudentService
         int courseId)
     {
         // Check if course exists
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
         if (course == null)
         {
             throw new KeyNotFoundException("Course not found");
         }
 
         // Check if username or email already exists
-        var existingByUsername = await _context.Users
-            .FirstOrDefaultAsync(u => u.Username == username);
-
-        if (existingByUsername != null)
+        if (await _userRepository.ExistsByUsernameAsync(username))
         {
             throw new InvalidOperationException("Username already exists");
         }
 
-        var existingByEmail = await _context.Users
-            .FirstOrDefaultAsync(u => u.Email == email);
-
-        if (existingByEmail != null)
+        if (await _userRepository.ExistsByEmailAsync(email))
         {
             throw new InvalidOperationException("Email already exists");
         }
@@ -100,13 +77,10 @@ public class StudentService : IStudentService
             IsActive = true
         };
 
-        _context.Users.Add(student);
-        await _context.SaveChangesAsync();
+        await _userRepository.AddAsync(student);
 
-        // TODO: Handle course assignment via StudentCourses junction table when table exists
-        // var studentCourse = new StudentCourse { StudentId = student.UserId, CourseId = courseId };
-        // _context.StudentCourses.Add(studentCourse);
-        // await _context.SaveChangesAsync();
+        // Enroll student in course via junction table
+        await _studentCourseRepository.EnrollStudentInCourseAsync(student.UserId, courseId);
 
         return student;
     }
@@ -120,10 +94,7 @@ public class StudentService : IStudentService
         bool? isActive,
         int? courseId)
     {
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var student = await _userRepository.GetStudentByIdAsync(id);
         if (student == null)
         {
             throw new KeyNotFoundException("Student not found");
@@ -131,27 +102,19 @@ public class StudentService : IStudentService
 
         if (!string.IsNullOrWhiteSpace(username))
         {
-            var existingByUsername = await _context.Users
-                .FirstOrDefaultAsync(u => u.Username == username && u.UserId != id);
-
-            if (existingByUsername != null)
+            if (await _userRepository.ExistsByUsernameExcludingUserAsync(username, id))
             {
                 throw new InvalidOperationException("Username already exists");
             }
-
             student.Username = username;
         }
 
         if (!string.IsNullOrWhiteSpace(email))
         {
-            var existingByEmail = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == email && u.UserId != id);
-
-            if (existingByEmail != null)
+            if (await _userRepository.ExistsByEmailExcludingUserAsync(email, id))
             {
                 throw new InvalidOperationException("Email already exists");
             }
-
             student.Email = email;
         }
 
@@ -172,33 +135,29 @@ public class StudentService : IStudentService
 
         if (courseId.HasValue)
         {
-            var course = await _context.Courses.FindAsync(courseId.Value);
+            var course = await _courseRepository.GetByIdAsync(courseId.Value);
             if (course == null)
             {
                 throw new KeyNotFoundException("Course not found");
             }
 
-            // TODO: Handle course assignment via StudentCourses junction table
+            // Enroll student in the new course
+            await _studentCourseRepository.EnrollStudentInCourseAsync(id, courseId.Value);
         }
 
-        student.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+        await _userRepository.UpdateAsync(student);
 
         return student;
     }
 
     public async Task DeleteAsync(int id)
     {
-        var student = await _context.Users
-            .Where(u => u.UserType == "student")
-            .FirstOrDefaultAsync(u => u.UserId == id);
-
+        var student = await _userRepository.GetStudentByIdAsync(id);
         if (student == null)
         {
             throw new KeyNotFoundException("Student not found");
         }
 
-        _context.Users.Remove(student);
-        await _context.SaveChangesAsync();
+        await _userRepository.DeleteAsync(student);
     }
 }

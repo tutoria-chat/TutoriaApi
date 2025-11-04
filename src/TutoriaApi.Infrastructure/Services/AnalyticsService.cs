@@ -64,17 +64,13 @@ public class AnalyticsService : IAnalyticsService
                 return new CostAnalysisDto();
             }
 
-            // Get all messages for authorized modules
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Get all messages for authorized modules - parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            // TODO: Long-term: Implement GetMultipleModulesAnalyticsAsync() for true batch querying
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             // Get AI models for accurate pricing
             Dictionary<string, TutoriaApi.Core.Entities.AIModel> aiModels;
@@ -270,12 +266,11 @@ public class AnalyticsService : IAnalyticsService
 
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, today, tomorrow, limit: 10000);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, today, tomorrow, limit: 10000));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var aiModels = (await _aiModelRepository.GetActiveModelsAsync()).ToDictionary(m => m.ModelName, m => m);
 
@@ -321,16 +316,12 @@ public class AnalyticsService : IAnalyticsService
         {
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var aiModels = (await _aiModelRepository.GetActiveModelsAsync()).ToDictionary(m => m.ModelName, m => m);
 
@@ -389,12 +380,11 @@ public class AnalyticsService : IAnalyticsService
 
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, targetDate, nextDay, limit: 10000);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, targetDate, nextDay, limit: 10000));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var hourlyBreakdown = allMessages
                 .GroupBy(m => DateTimeOffset.FromUnixTimeMilliseconds(m.Timestamp).Hour)
@@ -447,16 +437,12 @@ public class AnalyticsService : IAnalyticsService
         {
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var topStudents = allMessages
                 .Where(m => m.StudentId > 0)
@@ -505,16 +491,12 @@ public class AnalyticsService : IAnalyticsService
         {
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var conversationGroups = allMessages.GroupBy(m => m.ConversationId).ToList();
             var conversationLengths = conversationGroups.Select(g => g.Count()).OrderBy(c => c).ToList();
@@ -581,16 +563,12 @@ public class AnalyticsService : IAnalyticsService
         {
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var responseTimes = allMessages
                 .Where(m => m.ResponseTime.HasValue)
@@ -744,12 +722,11 @@ public class AnalyticsService : IAnalyticsService
 
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, analyticsFilters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, startDate, endDate, limit: 10000);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, startDate, endDate, limit: 10000));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             var aiModels = (await _aiModelRepository.GetActiveModelsAsync()).ToDictionary(m => m.ModelName, m => m);
 
@@ -758,12 +735,11 @@ public class AnalyticsService : IAnalyticsService
             var previousStart = startDate - periodLength;
             var previousEnd = startDate;
 
-            var previousMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, previousStart, previousEnd, limit: 10000);
-                previousMessages.AddRange(messages);
-            }
+            // Parallel queries for previous period to avoid N+1 problem
+            var previousMessageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, previousStart, previousEnd, limit: 10000));
+            var previousMessageResults = await Task.WhenAll(previousMessageTasks);
+            var previousMessages = previousMessageResults.SelectMany(messages => messages).ToList();
 
             // Calculate growth rates
             var messageGrowth = CalculateGrowthPercentage(previousMessages.Count, allMessages.Count);
@@ -860,16 +836,12 @@ public class AnalyticsService : IAnalyticsService
         {
             var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
 
-            var allMessages = new List<ChatMessageDto>();
-            foreach (var moduleId in moduleIds)
-            {
-                // TODO: Add pagination support to handle high-volume modules (10K+ messages)
-                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(
-                    moduleId,
-                    filters.StartDate,
-                    filters.EndDate);
-                allMessages.AddRange(messages);
-            }
+            // Parallel queries to avoid N+1 problem
+            // TODO: Add pagination support to handle high-volume modules (10K+ messages)
+            var messageTasks = moduleIds.Select(moduleId =>
+                _dynamoDbService.GetModuleAnalyticsAsync(moduleId, filters.StartDate, filters.EndDate));
+            var messageResults = await Task.WhenAll(messageTasks);
+            var allMessages = messageResults.SelectMany(messages => messages).ToList();
 
             // Group similar questions using fuzzy matching
             var questionGroups = GroupSimilarQuestionsFuzzy(allMessages, similarityThreshold: 75, minOccurrences: 1)

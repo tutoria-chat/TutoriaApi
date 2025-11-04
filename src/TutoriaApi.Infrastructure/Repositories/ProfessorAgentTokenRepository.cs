@@ -57,10 +57,9 @@ public class ProfessorAgentTokenRepository : Repository<ProfessorAgentToken>, IP
         return await _dbSet
             .Include(pat => pat.ProfessorAgent)
                 .ThenInclude(pa => pa.Professor)
-            .Include(pat => pat.ProfessorAgent)
-                .ThenInclude(pa => pa.University)
-            .Include(pat => pat.ProfessorAgent)
-                .ThenInclude(pa => pa.AIModel)
+            .Include(pat => pat.ProfessorAgent.University)
+            .Include(pat => pat.ProfessorAgent.AIModel)
+            .Include(pat => pat.Professor)
             .FirstOrDefaultAsync(pat => pat.Token == token);
     }
 }
