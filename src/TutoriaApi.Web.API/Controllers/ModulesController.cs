@@ -69,6 +69,7 @@ public class ModulesController : BaseAuthController
                 CourseName = vm.CourseName,
                 AIModelId = vm.Module.AIModelId,
                 AIModelDisplayName = vm.AIModelDisplayName,
+                CourseType = vm.Module.CourseType,
                 FilesCount = vm.FilesCount,
                 TokensCount = vm.TokensCount,
                 CreatedAt = vm.Module.CreatedAt,
@@ -145,6 +146,7 @@ public class ModulesController : BaseAuthController
                     RecommendedFor = aiModel.RecommendedFor,
                     ModulesCount = 0 // Not needed in this context
                 } : null,
+                CourseType = module.CourseType,
                 OpenAIAssistantId = module.OpenAIAssistantId,
                 OpenAIVectorStoreId = module.OpenAIVectorStoreId,
                 LastPromptImprovedAt = module.LastPromptImprovedAt,
@@ -255,6 +257,7 @@ public class ModulesController : BaseAuthController
                 Year = request.Year,
                 CourseId = request.CourseId,
                 AIModelId = aiModelId,
+                CourseType = request.CourseType,
                 TutorLanguage = request.TutorLanguage,
                 PromptImprovementCount = 0
             };
@@ -274,6 +277,7 @@ public class ModulesController : BaseAuthController
                 Year = created.Year,
                 CourseId = created.CourseId,
                 AIModelId = created.AIModelId,
+                CourseType = created.CourseType,
                 TutorLanguage = created.TutorLanguage,
                 PromptImprovementCount = created.PromptImprovementCount,
                 Files = new List<FileListDto>(),
@@ -334,6 +338,10 @@ public class ModulesController : BaseAuthController
 
             if (!string.IsNullOrWhiteSpace(request.TutorLanguage))
                 existing.TutorLanguage = request.TutorLanguage;
+
+            // Update CourseType if provided
+            if (request.CourseType.HasValue)
+                existing.CourseType = request.CourseType;
 
             // Handle AI Model selection
             if (request.AIModelId.HasValue)
@@ -417,6 +425,7 @@ public class ModulesController : BaseAuthController
                     RecommendedFor = viewModel.AIModel.RecommendedFor,
                     ModulesCount = 0
                 } : null,
+                CourseType = updated.CourseType,
                 OpenAIAssistantId = updated.OpenAIAssistantId,
                 OpenAIVectorStoreId = updated.OpenAIVectorStoreId,
                 LastPromptImprovedAt = updated.LastPromptImprovedAt,

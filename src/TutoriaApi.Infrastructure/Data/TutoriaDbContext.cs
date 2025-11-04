@@ -147,6 +147,10 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.PromptImprovementCount).HasColumnName("PromptImprovementCount").HasDefaultValue(0);
             entity.Property(e => e.TutorLanguage).HasColumnName("TutorLanguage").HasMaxLength(10).HasDefaultValue("pt-br");
             entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.CourseType)
+                .HasColumnName("CourseType")
+                .HasMaxLength(50)
+                .HasConversion<string>(); // Store enum as string (e.g., "MathLogic", "Programming", "TheoryText")
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

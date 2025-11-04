@@ -10,6 +10,7 @@ public class ProfessorAgentServiceTests
     private readonly Mock<IProfessorAgentRepository> _agentRepositoryMock;
     private readonly Mock<IProfessorAgentTokenRepository> _tokenRepositoryMock;
     private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<IAIModelRepository> _aiModelRepositoryMock;
     private readonly ProfessorAgentService _service;
 
     public ProfessorAgentServiceTests()
@@ -17,11 +18,13 @@ public class ProfessorAgentServiceTests
         _agentRepositoryMock = new Mock<IProfessorAgentRepository>();
         _tokenRepositoryMock = new Mock<IProfessorAgentTokenRepository>();
         _userRepositoryMock = new Mock<IUserRepository>();
+        _aiModelRepositoryMock = new Mock<IAIModelRepository>();
 
         _service = new ProfessorAgentService(
             _agentRepositoryMock.Object,
             _tokenRepositoryMock.Object,
-            _userRepositoryMock.Object);
+            _userRepositoryMock.Object,
+            _aiModelRepositoryMock.Object);
     }
 
     #region GetByProfessorIdAsync Tests
@@ -325,8 +328,20 @@ public class ProfessorAgentServiceTests
             IsActive = true
         };
 
+        var aiModel = new AIModel
+        {
+            Id = 2,
+            ModelName = "gpt-4o",
+            DisplayName = "GPT-4o",
+            Provider = "openai",
+            IsActive = true
+        };
+
         _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
             .ReturnsAsync(agent);
+
+        _aiModelRepositoryMock.Setup(r => r.GetByIdAsync(2))
+            .ReturnsAsync(aiModel);
 
         _agentRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ProfessorAgent>()))
             .Returns(Task.CompletedTask);
@@ -393,6 +408,102 @@ public class ProfessorAgentServiceTests
         Assert.Equal("Original Name", result.Name);
         Assert.Equal("Original Description", result.Description);
         Assert.True(result.IsActive);
+    }
+
+    [Fact]
+    public async Task UpdateAgentAsync_EmptyName_ThrowsArgumentException()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Original Name",
+            IsActive = true
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAgentAsync(agentId, "", null, null, null, null, null));
+        Assert.Contains("name cannot be empty", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateAgentAsync_EmptySystemPrompt_ThrowsArgumentException()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Agent Name",
+            IsActive = true
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAgentAsync(agentId, null, null, "   ", null, null, null));
+        Assert.Contains("system prompt cannot be empty", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UpdateAgentAsync_InvalidLanguage_ThrowsArgumentException()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Agent Name",
+            TutorLanguage = "pt-br",
+            IsActive = true
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAgentAsync(agentId, null, null, null, "fr", null, null));
+        Assert.Contains("Invalid tutor language", exception.Message);
+    }
+
+    [Fact]
+    public async Task UpdateAgentAsync_NonExistentAIModel_ThrowsArgumentException()
+    {
+        // Arrange
+        var agentId = 1;
+        var agent = new ProfessorAgent
+        {
+            Id = agentId,
+            ProfessorId = 1,
+            UniversityId = 1,
+            Name = "Agent Name",
+            IsActive = true
+        };
+
+        _agentRepositoryMock.Setup(r => r.GetByIdAsync(agentId))
+            .ReturnsAsync(agent);
+
+        _aiModelRepositoryMock.Setup(r => r.GetByIdAsync(999))
+            .ReturnsAsync((AIModel?)null);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => _service.UpdateAgentAsync(agentId, null, null, null, null, 999, null));
+        Assert.Contains("AI Model with ID 999 not found", exception.Message);
     }
 
     #endregion

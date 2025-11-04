@@ -15,6 +15,7 @@ public class ModuleListDto
     public string? CourseName { get; set; }
     public int? AIModelId { get; set; }
     public string? AIModelDisplayName { get; set; }
+    public CourseType? CourseType { get; set; }
     public int FilesCount { get; set; }
     public int TokensCount { get; set; }
     public DateTime? CreatedAt { get; set; }
@@ -36,6 +37,7 @@ public class ModuleDetailDto
     public int? UniversityId { get; set; }
     public int? AIModelId { get; set; }
     public AIModelListDto? AIModel { get; set; }
+    public CourseType? CourseType { get; set; }
     public string? OpenAIAssistantId { get; set; }
     public string? OpenAIVectorStoreId { get; set; }
     public DateTime? LastPromptImprovedAt { get; set; }
