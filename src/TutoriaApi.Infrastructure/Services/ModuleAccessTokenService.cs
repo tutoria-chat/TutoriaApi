@@ -109,6 +109,10 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
         }
 
         // Generate secure random token (32 bytes = 64 characters base64url)
+        // ARCHITECTURE NOTE: This token will be stored in PLAINTEXT in the database.
+        // This is intentional - these are API keys (like GitHub PATs) that professors need to view and share.
+        // Security is maintained through: revocation, expiry, scope isolation, and rate limiting.
+        // See ModuleAccessToken.cs entity for detailed security model documentation.
         var tokenBytes = new byte[32];
         using (var rng = RandomNumberGenerator.Create())
         {

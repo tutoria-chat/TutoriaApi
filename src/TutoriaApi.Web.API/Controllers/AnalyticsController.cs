@@ -496,6 +496,91 @@ public class AnalyticsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get unified dashboard data in a single request (optimized for frontend)
+    /// </summary>
+    /// <remarks>
+    /// This endpoint combines 4 separate analytics calls into a single request to reduce network overhead.
+    /// Returns: Dashboard Summary + Usage Trends + Today's Usage + Today's Cost
+    ///
+    /// **Performance Optimization:**
+    /// - Reduces 4 HTTP requests to 1
+    /// - Backend can optimize shared computations
+    /// - Recommended for dashboard page loads
+    ///
+    /// **Date Range:**
+    /// - If not specified, defaults to last 30 days
+    /// - Format: YYYY-MM-DD
+    /// </remarks>
+    [HttpGet("dashboard/unified")]
+    [ProducesResponseType(typeof(UnifiedDashboardResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<UnifiedDashboardResponseDto>> GetUnifiedDashboard(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? universityId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            // Build filters for all analytics calls
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                UniversityId = universityId
+            };
+
+            var dashboardFilters = new DashboardFilterDto
+            {
+                Period = "month",
+                UniversityId = universityId
+            };
+
+            // Execute all 4 analytics calls in parallel to optimize performance
+            // Use Task.WhenAll for proper parallel execution
+            var summaryTask = _analyticsService.GetDashboardSummaryAsync(userId, userRole, userUniversityId, dashboardFilters);
+            var trendsTask = _analyticsService.GetUsageTrendsAsync(userId, userRole, userUniversityId, filters);
+            var todayUsageTask = _analyticsService.GetTodayUsageStatsAsync(userId, userRole, userUniversityId, filters);
+            var todayCostTask = _analyticsService.GetTodayCostAsync(userId, userRole, userUniversityId, filters);
+
+            await Task.WhenAll(summaryTask, trendsTask, todayUsageTask, todayCostTask);
+
+            var summary = await summaryTask;
+            var trends = await trendsTask;
+            var todayUsage = await todayUsageTask;
+            var todayCost = await todayCostTask;
+
+            var response = new UnifiedDashboardResponseDto
+            {
+                Summary = summary,
+                Trends = trends,
+                TodayUsage = todayUsage,
+                TodayCost = todayCost
+            };
+
+            return Ok(response);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to unified dashboard by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (ArgumentException ex)
+        {
+            _logger.LogWarning(ex, "Invalid arguments for unified dashboard");
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting unified dashboard data");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     #endregion
 
     #region Frequently Asked Questions Endpoints

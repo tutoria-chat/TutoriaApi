@@ -53,6 +53,15 @@ public class UniversityService : IUniversityService
         existing.Code = university.Code;
         existing.Description = university.Description;
         existing.Address = university.Address;
+        // Individual address fields
+        existing.PostalCode = university.PostalCode;
+        existing.Street = university.Street;
+        existing.StreetNumber = university.StreetNumber;
+        existing.Complement = university.Complement;
+        existing.Neighborhood = university.Neighborhood;
+        existing.City = university.City;
+        existing.State = university.State;
+        existing.Country = university.Country;
         existing.TaxId = university.TaxId;
         existing.ContactEmail = university.ContactEmail;
         existing.ContactPhone = university.ContactPhone;

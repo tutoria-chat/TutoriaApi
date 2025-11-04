@@ -575,6 +575,17 @@ public class ModuleComparisonItemDto
 }
 
 /// <summary>
+/// Unified dashboard response combining all dashboard data in a single request
+/// </summary>
+public class UnifiedDashboardResponseDto
+{
+    public DashboardSummaryDto Summary { get; set; } = null!;
+    public UsageTrendsResponseDto Trends { get; set; } = null!;
+    public UsageStatsDto TodayUsage { get; set; } = null!;
+    public TodayCostDto TodayCost { get; set; } = null!;
+}
+
+/// <summary>
 /// Legacy DTO for module comparison (used by DynamoDbAnalyticsService)
 /// Note: Different from ModuleComparisonResponseDto which uses structured insights
 /// </summary>

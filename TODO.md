@@ -1485,6 +1485,32 @@ Implement comprehensive audit logging for all management actions (not chat), lev
 4. Authorization policies
 5. Deployment configuration
 
+## ⚡ Dashboard Performance Optimization
+
+### Phase 1: Unified Dashboard Endpoint ✅
+- [x] Created `UnifiedDashboardResponseDto` combining 4 separate API calls into 1
+- [x] Created `GET /api/analytics/dashboard/unified` endpoint with parallel execution
+- [ ] Update frontend to use unified endpoint (reduce ~100 DynamoDB queries to ~25)
+- [ ] Add unit tests for unified endpoint
+
+### Phase 2: DynamoDB GSI Optimization (Future)
+- [ ] Add GSI for university-level queries: `UniversityId-Timestamp-index`
+- [ ] Add GSI for course-level queries: `CourseId-Timestamp-index`
+- [ ] Reduce query fan-out by querying at higher aggregation level
+- [ ] Estimate: 10-20x reduction in DynamoDB reads for dashboard
+
+### Phase 3: Pre-Aggregated Analytics Table (Future)
+- [ ] Create `DailyAnalytics` DynamoDB table with pre-computed metrics
+- [ ] Run nightly aggregation job (Lambda or .NET console app)
+- [ ] Dashboard queries pre-aggregated data instead of raw messages
+- [ ] Estimate: 100x reduction in query complexity, sub-100ms dashboard loads
+
+### Phase 4: Real-Time Analytics with DynamoDB Streams (Future - Advanced)
+- [ ] Enable DynamoDB Streams on `ChatMessages` table
+- [ ] Create Lambda to process stream and update `DailyAnalytics` in real-time
+- [ ] Near-instant dashboard updates without expensive queries
+- [ ] Estimate: Real-time dashboard with minimal query overhead
+
 ### References
 - See `claude.md` for development guidelines
 - See `SETUP_SUMMARY.md` for architecture overview
