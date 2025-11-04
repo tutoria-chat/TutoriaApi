@@ -243,7 +243,7 @@ app.UseGlobalExceptionHandler();
 // Add Hangfire Dashboard (for monitoring background jobs)
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    Authorization = new[] { new HangfireDashboardNoAuthFilter() }, // TODO: Add proper authorization in production
+    Authorization = new[] { new HangfireSuperAdminAuthFilter() },
     DashboardTitle = "Tutoria Background Jobs"
 });
 
@@ -278,9 +278,20 @@ logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentN
 
 app.Run();
 
-// Hangfire dashboard authorization filter (allows all in development)
-// TODO: In production, require authentication for Hangfire dashboard
-public class HangfireDashboardNoAuthFilter : IDashboardAuthorizationFilter
+// Hangfire dashboard authorization filter - ONLY Super Admins can access
+public class HangfireSuperAdminAuthFilter : IDashboardAuthorizationFilter
 {
-    public bool Authorize(DashboardContext context) => true; // Allow all for now
+    public bool Authorize(DashboardContext context)
+    {
+        var httpContext = context.GetHttpContext();
+
+        // Must be authenticated
+        if (!httpContext.User.Identity?.IsAuthenticated ?? true)
+        {
+            return false;
+        }
+
+        // Must have super_admin role
+        return httpContext.User.IsInRole("super_admin");
+    }
 }

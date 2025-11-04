@@ -199,7 +199,7 @@ public class ModulesController : BaseAuthController
         {
             int? aiModelId = request.AIModelId;
 
-            // If CourseType is provided, auto-select AI model based on university tier
+            // If CourseType is provided but no AIModelId, auto-select AI model based on university tier
             if (request.CourseType.HasValue && !request.AIModelId.HasValue)
             {
                 // Get course with university to determine tier
@@ -217,14 +217,32 @@ public class ModulesController : BaseAuthController
                 if (selectedModel != null)
                 {
                     aiModelId = selectedModel.Id;
+                    _logger.LogInformation(
+                        "Auto-selected AI model {ModelName} (ID: {ModelId}) for course type {CourseType} and tier {Tier}",
+                        selectedModel.ModelName,
+                        selectedModel.Id,
+                        request.CourseType.Value,
+                        course.University?.SubscriptionTier ?? 1);
                 }
                 else
                 {
-                    _logger.LogWarning(
-                        "Could not auto-select AI model for course type {CourseType} and tier {Tier}",
+                    _logger.LogError(
+                        "CRITICAL: Could not auto-select AI model for course type {CourseType} and tier {Tier}. Module creation will fail without AI model.",
                         request.CourseType,
                         course.University?.SubscriptionTier ?? 1);
+                    return BadRequest(new {
+                        message = $"Could not select an AI model for course type '{request.CourseType}'. Please contact support or manually select an AI model.",
+                        courseType = request.CourseType.ToString(),
+                        tier = course.University?.SubscriptionTier ?? 1
+                    });
                 }
+            }
+            // If neither CourseType nor AIModelId is provided, warn but allow (for backward compatibility)
+            else if (!request.CourseType.HasValue && !request.AIModelId.HasValue)
+            {
+                _logger.LogWarning(
+                    "Module being created without AIModelId or CourseType for course {CourseId}. This may cause issues with AI functionality.",
+                    request.CourseId);
             }
 
             var module = new Module
@@ -321,6 +339,7 @@ public class ModulesController : BaseAuthController
             if (request.AIModelId.HasValue)
             {
                 existing.AIModelId = request.AIModelId;
+                _logger.LogInformation("Manually set AI model to {ModelId} for module {ModuleId}", request.AIModelId, id);
             }
             else if (request.CourseType.HasValue)
             {
@@ -335,13 +354,22 @@ public class ModulesController : BaseAuthController
                     if (selectedModel != null)
                     {
                         existing.AIModelId = selectedModel.Id;
+                        _logger.LogInformation(
+                            "Auto-selected AI model {ModelName} (ID: {ModelId}) for module {ModuleId} with course type {CourseType}",
+                            selectedModel.ModelName,
+                            selectedModel.Id,
+                            id,
+                            request.CourseType.Value);
                     }
                     else
                     {
                         _logger.LogWarning(
-                            "Could not auto-select AI model for course type {CourseType} and tier {Tier}",
+                            "Could not auto-select AI model for course type {CourseType} and tier {Tier} when updating module {ModuleId}. Keeping existing AIModelId: {ExistingAIModelId}",
                             request.CourseType,
-                            course.University?.SubscriptionTier ?? 1);
+                            course.University?.SubscriptionTier ?? 1,
+                            id,
+                            existing.AIModelId);
+                        // Note: For updates, we keep the existing AIModelId if auto-selection fails
                     }
                 }
             }

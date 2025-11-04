@@ -17,6 +17,16 @@ public class AnalyticsService : IAnalyticsService
     private readonly IFileRepository _fileRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
+    // Token distribution constants for cost estimation (based on typical usage patterns)
+    private const double INPUT_TOKEN_RATIO = 0.4;  // 40% of tokens are input
+    private const double OUTPUT_TOKEN_RATIO = 0.6; // 60% of tokens are output
+
+    // Compiled regex for FAQ quiz answer filtering (performance optimization)
+    private static readonly System.Text.RegularExpressions.Regex QuizAnswerPattern =
+        new System.Text.RegularExpressions.Regex(
+            @"^(LETRA\s)?[A-E][\)\.]*$",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
+
     public AnalyticsService(
         IDynamoDbAnalyticsService dynamoDbService,
         IModuleRepository moduleRepository,
@@ -1019,9 +1029,8 @@ public class AnalyticsService : IAnalyticsService
         {
             if (message.TokenCount.HasValue && aiModels.TryGetValue(message.ModelUsed, out var model))
             {
-                // Assume 60% output tokens, 40% input tokens (rough estimate)
-                var inputTokens = (long)(message.TokenCount.Value * 0.4);
-                var outputTokens = (long)(message.TokenCount.Value * 0.6);
+                var inputTokens = (long)(message.TokenCount.Value * INPUT_TOKEN_RATIO);
+                var outputTokens = (long)(message.TokenCount.Value * OUTPUT_TOKEN_RATIO);
 
                 var inputCost = (inputTokens / 1_000_000.0) * (double)(model.InputCostPer1M ?? 0);
                 var outputCost = (outputTokens / 1_000_000.0) * (double)(model.OutputCostPer1M ?? 0);
@@ -1037,8 +1046,8 @@ public class AnalyticsService : IAnalyticsService
     {
         if (aiModels.TryGetValue(modelName, out var model))
         {
-            var inputTokens = (long)(totalTokens * 0.4);
-            var outputTokens = (long)(totalTokens * 0.6);
+            var inputTokens = (long)(totalTokens * INPUT_TOKEN_RATIO);
+            var outputTokens = (long)(totalTokens * OUTPUT_TOKEN_RATIO);
 
             var inputCost = (inputTokens / 1_000_000.0) * (double)(model.InputCostPer1M ?? 0);
             var outputCost = (outputTokens / 1_000_000.0) * (double)(model.OutputCostPer1M ?? 0);
@@ -1277,7 +1286,7 @@ public class AnalyticsService : IAnalyticsService
             return true;
 
         // Filter out patterns like "LETRA A", "LETRA B", "A)", "B)", etc.
-        if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^(LETRA\s)?[A-E][\)\.]*$"))
+        if (QuizAnswerPattern.IsMatch(trimmed))
             return true;
 
         return false;

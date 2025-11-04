@@ -10,15 +10,20 @@ public class ProfessorAgentService : IProfessorAgentService
     private readonly IProfessorAgentRepository _professorAgentRepository;
     private readonly IProfessorAgentTokenRepository _tokenRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IAIModelRepository _aiModelRepository;
+
+    private static readonly string[] ValidLanguages = { "pt-br", "en", "es" };
 
     public ProfessorAgentService(
         IProfessorAgentRepository professorAgentRepository,
         IProfessorAgentTokenRepository tokenRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        IAIModelRepository aiModelRepository)
     {
         _professorAgentRepository = professorAgentRepository;
         _tokenRepository = tokenRepository;
         _userRepository = userRepository;
+        _aiModelRepository = aiModelRepository;
     }
 
     public async Task<ProfessorAgent?> GetByProfessorIdAsync(int professorId)
@@ -155,11 +160,58 @@ public class ProfessorAgentService : IProfessorAgentService
             throw new KeyNotFoundException("Professor agent not found");
         }
 
-        if (name != null) agent.Name = name;
+        // Validate name - prevent empty/whitespace strings
+        if (name != null)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ArgumentException("Agent name cannot be empty or whitespace", nameof(name));
+            }
+            agent.Name = name;
+        }
+
+        // Description can be empty (optional field)
         if (description != null) agent.Description = description;
-        if (systemPrompt != null) agent.SystemPrompt = systemPrompt;
-        if (tutorLanguage != null) agent.TutorLanguage = tutorLanguage;
-        if (aiModelId.HasValue) agent.AIModelId = aiModelId;
+
+        // Validate systemPrompt - prevent empty/whitespace strings
+        if (systemPrompt != null)
+        {
+            if (string.IsNullOrWhiteSpace(systemPrompt))
+            {
+                throw new ArgumentException("System prompt cannot be empty or whitespace", nameof(systemPrompt));
+            }
+            agent.SystemPrompt = systemPrompt;
+        }
+
+        // Validate tutorLanguage - must be one of the valid languages
+        if (tutorLanguage != null)
+        {
+            if (string.IsNullOrWhiteSpace(tutorLanguage))
+            {
+                throw new ArgumentException("Tutor language cannot be empty or whitespace", nameof(tutorLanguage));
+            }
+
+            if (!ValidLanguages.Contains(tutorLanguage))
+            {
+                throw new ArgumentException(
+                    $"Invalid tutor language '{tutorLanguage}'. Valid languages are: {string.Join(", ", ValidLanguages)}",
+                    nameof(tutorLanguage));
+            }
+
+            agent.TutorLanguage = tutorLanguage;
+        }
+
+        // Validate aiModelId - must exist in database
+        if (aiModelId.HasValue)
+        {
+            var aiModel = await _aiModelRepository.GetByIdAsync(aiModelId.Value);
+            if (aiModel == null)
+            {
+                throw new ArgumentException($"AI Model with ID {aiModelId.Value} not found", nameof(aiModelId));
+            }
+            agent.AIModelId = aiModelId;
+        }
+
         if (isActive.HasValue) agent.IsActive = isActive.Value;
 
         agent.UpdatedAt = DateTime.UtcNow;
