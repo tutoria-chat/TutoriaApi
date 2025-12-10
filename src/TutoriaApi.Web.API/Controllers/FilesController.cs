@@ -157,8 +157,8 @@ public class FilesController : BaseAuthController
     }
 
     [HttpPost]
-    [RequestSizeLimit(52428800)] // 50 MB limit for file uploads (50 * 1024 * 1024)
-    [RequestFormLimits(MultipartBodyLengthLimit = 52428800)]
+    [RequestSizeLimit(15728640)] // 15 MB limit for file uploads (15 * 1024 * 1024)
+    [RequestFormLimits(MultipartBodyLengthLimit = 15728640)]
     public async Task<ActionResult<FileDetailDto>> UploadFile([FromForm] UploadFileRequest request)
     {
         if (!ModelState.IsValid)

@@ -2,7 +2,14 @@
 
 This directory contains platform-specific configuration for AWS Elastic Beanstalk deployment.
 
-## Nginx Configuration Files
+## ⚠️ CRITICAL: Multiple Nginx Configuration Approaches
+
+Due to inconsistencies with how Amazon Linux 2023 applies `.platform` configs, we use **MULTIPLE LAYERS** to ensure nginx accepts 50MB file uploads:
+
+1. **`.ebextensions/00_nginx_file_upload.config`** - Primary approach (writes directly to /etc/nginx/conf.d/)
+2. **`.platform/nginx/conf.d/client_max_body_size.conf`** - Platform-specific backup
+3. **`.platform/hooks/postdeploy/01_configure_nginx.sh`** - Nuclear option (modifies nginx.conf directly)
+4. **`.ebextensions/99_verify_nginx.config`** - Verification logging
 
 ### Purpose
 These configuration files resolve the "client intended to send too large body" error that occurs when uploading files larger than nginx's default 1MB limit.
@@ -10,10 +17,10 @@ These configuration files resolve the "client intended to send too large body" e
 ### Files
 
 #### `.platform/nginx/conf.d/client_max_body_size.conf`
-Sets the maximum allowed request body size to 10MB to support file uploads.
+Sets the maximum allowed request body size to 50MB to support file uploads.
 
 ```nginx
-client_max_body_size 10M;
+client_max_body_size 50M;
 ```
 
 #### `.platform/nginx/conf.d/proxy_settings.conf`
@@ -93,10 +100,10 @@ curl -X POST \
 
 | Layer | Limit | Purpose |
 |-------|-------|---------|
-| **Nginx** | 10 MB | Reverse proxy entry point |
-| **Kestrel** | 10 MB | ASP.NET Core web server |
-| **Form Options** | 10 MB | Multipart form handling |
-| **Controller** | 10 MB | Explicit endpoint limit |
+| **Nginx** | 50 MB | Reverse proxy entry point |
+| **Kestrel** | 50 MB | ASP.NET Core web server |
+| **Form Options** | 50 MB | Multipart form handling |
+| **Controller** | 50 MB | Explicit endpoint limit |
 | **Azure Blob Storage** | ~195 GB | Storage backend (Block Blob limit) |
 
 ## Troubleshooting
