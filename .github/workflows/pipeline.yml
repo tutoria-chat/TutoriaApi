@@ -129,6 +129,9 @@ jobs:
               "ChatTable": "${{ secrets.DEV_AWS_DYNAMODB_CHAT_TABLE }}"
             }
           },
+          "Resend": {
+            "ApiKey": "${{ secrets.DEV_RESEND_API_KEY }}"
+          },
           "Email": {
             "FromAddress": "${{ secrets.DEV_EMAIL_FROM_ADDRESS }}",
             "FromName": "${{ secrets.DEV_EMAIL_FROM_NAME }}",
@@ -267,6 +270,9 @@ jobs:
               "Enabled": "${{ secrets.PROD_AWS_DYNAMODB_ENABLED }}",
               "ChatTable": "${{ secrets.PROD_AWS_DYNAMODB_CHAT_TABLE }}"
             }
+          },
+          "Resend": {
+            "ApiKey": "${{ secrets.PROD_RESEND_API_KEY }}"
           },
           "Email": {
             "FromAddress": "${{ secrets.PROD_EMAIL_FROM_ADDRESS }}",
