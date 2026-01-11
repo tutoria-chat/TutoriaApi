@@ -40,6 +40,16 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
+            **IMPORTANT - Comment Management:**
+            Before posting your review, ALWAYS delete any previous Claude Code review comments to avoid cluttering the PR.
+
+            Steps:
+            1. First, run: `gh pr view ${{ github.event.pull_request.number }} --json comments --jq '.comments[] | select(.author.login == "github-actions[bot]" or (.body | contains("🤖 Claude Code Review"))) | .id'`
+            2. For each comment ID found, delete it: `gh api -X DELETE /repos/${{ github.repository }}/issues/comments/{comment_id}`
+            3. Then post your new review using: `gh pr comment ${{ github.event.pull_request.number }} --body "🤖 Claude Code Review\n\n[your review here]"`
+
+            Make sure to include "🤖 Claude Code Review" at the start of your comment body so it can be identified and deleted on the next run.
+
             Please review this pull request and provide feedback on:
             - Code quality and best practices
             - Potential bugs or issues
@@ -49,9 +59,7 @@ jobs:
 
             Use the repository's CLAUDE.md for guidance on style and conventions. Be constructive and helpful in your feedback.
 
-            Use `gh pr comment` with your Bash tool to leave your review as a comment on the PR.
-
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://docs.claude.com/en/docs/claude-code/cli-reference for available options
-          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr list:*)"'
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh search:*),Bash(gh issue list:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(gh pr list:*),Bash(gh api:*)"'
 

@@ -197,7 +197,6 @@ public class UserService : IUserService
                 user.Email,
                 user.FirstName,
                 user.Username,
-                password,
                 resetToken,
                 user.UserType,
                 user.LanguagePreference ?? "en"
