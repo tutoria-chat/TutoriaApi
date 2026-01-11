@@ -213,7 +213,6 @@ public class ResendEmailServiceTests
         var toEmail = "newuser@example.com";
         var toName = "Jane Doe";
         var username = "janedoe";
-        var temporaryPassword = "TempPass123!";
         var resetToken = "reset-token-456";
         var userType = "professor";
 
@@ -222,7 +221,7 @@ public class ResendEmailServiceTests
             .ReturnsAsync(default(ResendResponse<Guid>)!);
 
         // Act
-        await service.SendWelcomeEmailAsync(toEmail, toName, username, temporaryPassword, resetToken, userType, "en");
+        await service.SendWelcomeEmailAsync(toEmail, toName, username, resetToken, userType, "en");
 
         // Assert
         _resendClientMock.Verify(
@@ -248,7 +247,7 @@ public class ResendEmailServiceTests
             .ReturnsAsync(default(ResendResponse<Guid>)!);
 
         // Act
-        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "pass", "token", userType);
+        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "token", userType);
 
         // Assert
         Assert.NotNull(capturedMessage);
@@ -262,7 +261,7 @@ public class ResendEmailServiceTests
         var service = CreateService(withClient: false);
 
         // Act
-        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "pass", "token", "professor", "en");
+        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "token", "professor", "en");
 
         // Assert
         _resendClientMock.Verify(
@@ -500,7 +499,7 @@ public class ResendEmailServiceTests
 
         // Act
         await service.SendPasswordResetEmailAsync("user@example.com", "John", "token", "en");
-        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "pass", "token", "professor", "en");
+        await service.SendWelcomeEmailAsync("user@example.com", "John", "john", "token", "professor", "en");
         await service.SendAccountCreatedEmailAsync("user@example.com", "John", "john", "en");
         await service.SendPasswordChangedConfirmationEmailAsync("user@example.com", "John", "en");
         await service.SendTwoFactorCodeEmailAsync("user@example.com", "John", "123456", 10, "en");
@@ -574,7 +573,7 @@ public class ResendEmailServiceTests
             .ReturnsAsync(default(ResendResponse<Guid>)!);
 
         // Act
-        await service.SendWelcomeEmailAsync("user@example.com", "John", username, "pass", resetToken, "professor", "en");
+        await service.SendWelcomeEmailAsync("user@example.com", "John", username, resetToken, "professor", "en");
 
         // Assert
         Assert.NotNull(capturedMessage);
@@ -640,6 +639,197 @@ public class ResendEmailServiceTests
         Assert.NotNull(capturedMessage);
         Assert.NotNull(capturedMessage.From);
         Assert.Contains("https://custom.com", capturedMessage.HtmlBody);
+    }
+
+    #endregion
+
+    #region Input Validation Tests
+
+    [Theory]
+    [InlineData(null, "John", "token")]
+    [InlineData("", "John", "token")]
+    [InlineData("  ", "John", "token")]
+    public async Task SendPasswordResetEmailAsync_InvalidEmail_ThrowsArgumentException(
+        string? toEmail, string toName, string resetToken)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendPasswordResetEmailAsync(toEmail!, toName, resetToken));
+        Assert.Equal("toEmail", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task SendPasswordResetEmailAsync_InvalidName_ThrowsArgumentException(string? toName)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendPasswordResetEmailAsync("user@example.com", toName!, "token"));
+        Assert.Equal("toName", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public async Task SendPasswordResetEmailAsync_InvalidToken_ThrowsArgumentException(string? resetToken)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendPasswordResetEmailAsync("user@example.com", "John", resetToken!));
+        Assert.Equal("resetToken", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null, "John", "john", "token", "professor")]
+    [InlineData("", "John", "john", "token", "professor")]
+    public async Task SendWelcomeEmailAsync_InvalidEmail_ThrowsArgumentException(
+        string? toEmail, string toName, string username, string resetToken, string userType)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendWelcomeEmailAsync(toEmail!, toName, username, resetToken, userType));
+        Assert.Equal("toEmail", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task SendWelcomeEmailAsync_InvalidName_ThrowsArgumentException(string? toName)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendWelcomeEmailAsync("user@example.com", toName!, "john", "token", "professor"));
+        Assert.Equal("toName", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task SendAccountCreatedEmailAsync_InvalidUsername_ThrowsArgumentException(string? username)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendAccountCreatedEmailAsync("user@example.com", "John", username!));
+        Assert.Equal("username", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task SendTwoFactorCodeEmailAsync_InvalidCode_ThrowsArgumentException(string? code)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendTwoFactorCodeEmailAsync("user@example.com", "John", code!, 10));
+        Assert.Equal("code", exception.ParamName);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task SendSecurityAlertEmailAsync_InvalidAlertMessage_ThrowsArgumentException(string? alertMessage)
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.SendSecurityAlertEmailAsync("user@example.com", "John", alertMessage!));
+        Assert.Equal("alertMessage", exception.ParamName);
+    }
+
+    #endregion
+
+    #region XSS Protection Tests
+
+    [Fact]
+    public async Task SendPasswordResetEmailAsync_XSSInName_EscapesHtml()
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+        var maliciousName = "<script>alert('XSS')</script>";
+        var capturedMessage = (EmailMessage?)null;
+
+        _resendClientMock
+            .Setup(x => x.EmailSendAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<EmailMessage, CancellationToken>((m, ct) => capturedMessage = m)
+            .ReturnsAsync(default(ResendResponse<Guid>)!);
+
+        // Act
+        await service.SendPasswordResetEmailAsync("user@example.com", maliciousName, "token", "en");
+
+        // Assert
+        Assert.NotNull(capturedMessage);
+        Assert.DoesNotContain("<script>", capturedMessage.HtmlBody);
+        Assert.Contains("&lt;script&gt;", capturedMessage.HtmlBody);
+    }
+
+    [Fact]
+    public async Task SendSecurityAlertEmailAsync_XSSInAlertMessage_EscapesHtml()
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+        var maliciousMessage = "<img src=x onerror=alert('XSS')>";
+        var capturedMessage = (EmailMessage?)null;
+
+        _resendClientMock
+            .Setup(x => x.EmailSendAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<EmailMessage, CancellationToken>((m, ct) => capturedMessage = m)
+            .ReturnsAsync(default(ResendResponse<Guid>)!);
+
+        // Act
+        await service.SendSecurityAlertEmailAsync("user@example.com", "John", maliciousMessage, "en");
+
+        // Assert
+        Assert.NotNull(capturedMessage);
+        Assert.DoesNotContain("<img src=x", capturedMessage.HtmlBody);
+        Assert.Contains("&lt;img", capturedMessage.HtmlBody);
+    }
+
+    [Fact]
+    public async Task SendWelcomeEmailAsync_XSSInUsername_EscapesHtml()
+    {
+        // Arrange
+        var service = CreateService(withClient: true);
+        var maliciousUsername = "user<script>alert('XSS')</script>";
+        var capturedMessage = (EmailMessage?)null;
+
+        _resendClientMock
+            .Setup(x => x.EmailSendAsync(It.IsAny<EmailMessage>(), It.IsAny<CancellationToken>()))
+            .Callback<EmailMessage, CancellationToken>((m, ct) => capturedMessage = m)
+            .ReturnsAsync(default(ResendResponse<Guid>)!);
+
+        // Act
+        await service.SendWelcomeEmailAsync("user@example.com", "John", maliciousUsername, "token", "professor", "en");
+
+        // Assert
+        Assert.NotNull(capturedMessage);
+        Assert.DoesNotContain("<script>", capturedMessage.HtmlBody);
+        Assert.Contains("&lt;script&gt;", capturedMessage.HtmlBody);
     }
 
     #endregion

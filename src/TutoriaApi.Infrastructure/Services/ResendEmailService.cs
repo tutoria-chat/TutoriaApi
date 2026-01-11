@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Resend;
@@ -43,6 +44,14 @@ public class ResendEmailService : IEmailService
 
     public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetToken, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(resetToken))
+            throw new ArgumentException("Reset token cannot be null or empty.", nameof(resetToken));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping password reset email to {Email}", toEmail);
@@ -50,34 +59,51 @@ public class ResendEmailService : IEmailService
             return;
         }
 
-        var resetLink = $"{_frontendUrl}/reset-password?token={resetToken}";
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var resetLink = $"{_frontendUrl}/reset-password?token={WebUtility.UrlEncode(resetToken)}";
 
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetPasswordResetEmailPtBr(toName, resetLink),
-            "es" => GetPasswordResetEmailEs(toName, resetLink),
-            _ => GetPasswordResetEmailEn(toName, resetLink)
+            "pt-br" => GetPasswordResetEmailPtBr(safeName, resetLink),
+            "es" => GetPasswordResetEmailEs(safeName, resetLink),
+            _ => GetPasswordResetEmailEn(safeName, resetLink)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
     }
 
-    public async Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string temporaryPassword, string resetToken, string userType, string languageCode = "en")
+    public async Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string resetToken, string userType, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("Username cannot be null or empty.", nameof(username));
+        if (string.IsNullOrWhiteSpace(resetToken))
+            throw new ArgumentException("Reset token cannot be null or empty.", nameof(resetToken));
+        if (string.IsNullOrWhiteSpace(userType))
+            throw new ArgumentException("User type cannot be null or empty.", nameof(userType));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping welcome email to {Email}", toEmail);
-            _logger.LogInformation("Account created for {Email}. Username: {Username}. Temporary credentials sent via email.", toEmail, username);
+            _logger.LogInformation("Account created for {Email}. Username: {Username}.", toEmail, username);
             return;
         }
 
-        var resetLink = $"{_frontendUrl}/reset-password?token={resetToken}";
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var safeUsername = WebUtility.HtmlEncode(username);
+        var resetLink = $"{_frontendUrl}/reset-password?token={WebUtility.UrlEncode(resetToken)}";
 
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetWelcomeEmailPtBr(toName, username, temporaryPassword, resetLink, userType),
-            "es" => GetWelcomeEmailEs(toName, username, temporaryPassword, resetLink, userType),
-            _ => GetWelcomeEmailEn(toName, username, temporaryPassword, resetLink, userType)
+            "pt-br" => GetWelcomeEmailPtBr(safeName, safeUsername, resetLink, userType),
+            "es" => GetWelcomeEmailEs(safeName, safeUsername, resetLink, userType),
+            _ => GetWelcomeEmailEn(safeName, safeUsername, resetLink, userType)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -85,17 +111,29 @@ public class ResendEmailService : IEmailService
 
     public async Task SendAccountCreatedEmailAsync(string toEmail, string toName, string username, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("Username cannot be null or empty.", nameof(username));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping account created email to {Email}", toEmail);
             return;
         }
 
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var safeUsername = WebUtility.HtmlEncode(username);
+
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetAccountCreatedEmailPtBr(toName, username),
-            "es" => GetAccountCreatedEmailEs(toName, username),
-            _ => GetAccountCreatedEmailEn(toName, username)
+            "pt-br" => GetAccountCreatedEmailPtBr(safeName, safeUsername),
+            "es" => GetAccountCreatedEmailEs(safeName, safeUsername),
+            _ => GetAccountCreatedEmailEn(safeName, safeUsername)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -103,17 +141,26 @@ public class ResendEmailService : IEmailService
 
     public async Task SendPasswordChangedConfirmationEmailAsync(string toEmail, string toName, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping password changed email to {Email}", toEmail);
             return;
         }
 
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetPasswordChangedEmailPtBr(toName),
-            "es" => GetPasswordChangedEmailEs(toName),
-            _ => GetPasswordChangedEmailEn(toName)
+            "pt-br" => GetPasswordChangedEmailPtBr(safeName),
+            "es" => GetPasswordChangedEmailEs(safeName),
+            _ => GetPasswordChangedEmailEn(safeName)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -121,6 +168,14 @@ public class ResendEmailService : IEmailService
 
     public async Task SendTwoFactorCodeEmailAsync(string toEmail, string toName, string code, int expiryMinutes, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(code))
+            throw new ArgumentException("2FA code cannot be null or empty.", nameof(code));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping 2FA code email to {Email}", toEmail);
@@ -128,11 +183,15 @@ public class ResendEmailService : IEmailService
             return;
         }
 
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var safeCode = WebUtility.HtmlEncode(code);
+
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetTwoFactorCodeEmailPtBr(toName, code, expiryMinutes),
-            "es" => GetTwoFactorCodeEmailEs(toName, code, expiryMinutes),
-            _ => GetTwoFactorCodeEmailEn(toName, code, expiryMinutes)
+            "pt-br" => GetTwoFactorCodeEmailPtBr(safeName, safeCode, expiryMinutes),
+            "es" => GetTwoFactorCodeEmailEs(safeName, safeCode, expiryMinutes),
+            _ => GetTwoFactorCodeEmailEn(safeName, safeCode, expiryMinutes)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -140,17 +199,29 @@ public class ResendEmailService : IEmailService
 
     public async Task SendSecurityAlertEmailAsync(string toEmail, string toName, string alertMessage, string languageCode = "en")
     {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(alertMessage))
+            throw new ArgumentException("Alert message cannot be null or empty.", nameof(alertMessage));
+
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping security alert email to {Email}", toEmail);
             return;
         }
 
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var safeAlertMessage = WebUtility.HtmlEncode(alertMessage);
+
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetSecurityAlertEmailPtBr(toName, alertMessage),
-            "es" => GetSecurityAlertEmailEs(toName, alertMessage),
-            _ => GetSecurityAlertEmailEn(toName, alertMessage)
+            "pt-br" => GetSecurityAlertEmailPtBr(safeName, safeAlertMessage),
+            "es" => GetSecurityAlertEmailEs(safeName, safeAlertMessage),
+            _ => GetSecurityAlertEmailEn(safeName, safeAlertMessage)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -396,7 +467,7 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
 
     #region Welcome Email Templates
 
-    private (string subject, string html, string text) GetWelcomeEmailEn(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailEn(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {
@@ -470,7 +541,7 @@ Security Note: This link can only be used once and expires in 24 hours. If you d
         return (subject, html, text);
     }
 
-    private (string subject, string html, string text) GetWelcomeEmailPtBr(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailPtBr(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {
@@ -544,7 +615,7 @@ Nota de Segurança: Este link pode ser usado apenas uma vez e expira em 24 horas
         return (subject, html, text);
     }
 
-    private (string subject, string html, string text) GetWelcomeEmailEs(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailEs(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {

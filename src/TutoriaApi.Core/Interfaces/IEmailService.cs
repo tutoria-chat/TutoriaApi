@@ -16,17 +16,16 @@ public interface IEmailService
     Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetToken, string languageCode = "en");
 
     /// <summary>
-    /// Send welcome email for newly created user account with temporary password.
+    /// Send welcome email for newly created user account with password setup link.
     /// </summary>
     /// <param name="toEmail">Recipient email address</param>
     /// <param name="toName">Recipient first name for personalization</param>
     /// <param name="username">Username for login</param>
-    /// <param name="temporaryPassword">Temporary password (sent only once)</param>
-    /// <param name="resetToken">Password reset token for changing password</param>
+    /// <param name="resetToken">Password reset token for setting up password</param>
     /// <param name="userType">User type (professor, super_admin, student)</param>
     /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
     /// <returns>Task representing the async operation</returns>
-    Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string temporaryPassword, string resetToken, string userType, string languageCode = "en");
+    Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string resetToken, string userType, string languageCode = "en");
 
     /// <summary>
     /// Send account created notification email (without temporary password).

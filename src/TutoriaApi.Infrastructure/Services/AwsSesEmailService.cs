@@ -61,12 +61,12 @@ public class AwsSesEmailService : IEmailService
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
     }
 
-    public async Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string temporaryPassword, string resetToken, string userType, string languageCode = "en")
+    public async Task SendWelcomeEmailAsync(string toEmail, string toName, string username, string resetToken, string userType, string languageCode = "en")
     {
         if (!_isEnabled)
         {
             _logger.LogWarning("Email service is disabled. Skipping welcome email to {Email}", toEmail);
-            _logger.LogInformation("Account created for {Email}. Username: {Username}. Temporary credentials sent via email.", toEmail, username);
+            _logger.LogInformation("Account created for {Email}. Username: {Username}.", toEmail, username);
             return;
         }
 
@@ -74,9 +74,9 @@ public class AwsSesEmailService : IEmailService
 
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
-            "pt-br" => GetWelcomeEmailPtBr(toName, username, temporaryPassword, resetLink, userType),
-            "es" => GetWelcomeEmailEs(toName, username, temporaryPassword, resetLink, userType),
-            _ => GetWelcomeEmailEn(toName, username, temporaryPassword, resetLink, userType)
+            "pt-br" => GetWelcomeEmailPtBr(toName, username, resetLink, userType),
+            "es" => GetWelcomeEmailEs(toName, username, resetLink, userType),
+            _ => GetWelcomeEmailEn(toName, username, resetLink, userType)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -412,7 +412,7 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
 
     #region Welcome Email Templates
 
-    private (string subject, string html, string text) GetWelcomeEmailEn(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailEn(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {
@@ -486,7 +486,7 @@ Security Note: This link can only be used once and expires in 24 hours. If you d
         return (subject, html, text);
     }
 
-    private (string subject, string html, string text) GetWelcomeEmailPtBr(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailPtBr(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {
@@ -560,7 +560,7 @@ Nota de Segurança: Este link pode ser usado apenas uma vez e expira em 24 horas
         return (subject, html, text);
     }
 
-    private (string subject, string html, string text) GetWelcomeEmailEs(string name, string username, string temporaryPassword, string resetLink, string userType)
+    private (string subject, string html, string text) GetWelcomeEmailEs(string name, string username, string resetLink, string userType)
     {
         var roleDisplay = userType switch
         {
