@@ -1,10 +1,8 @@
 using System.Reflection;
-using Amazon;
-using Amazon.Runtime;
-using Amazon.SimpleEmail;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Resend;
 using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Infrastructure.Helpers;
 
@@ -29,29 +27,22 @@ public static class DependencyInjection
         services.AddScoped<AccessControlHelper>();
         Console.WriteLine("✓ Registered: AccessControlHelper");
 
-        // Register AWS SES client (optional - only if credentials are configured)
-        // Check if AWS credentials are available via environment variables or configuration
-        var awsAccessKey = Environment.GetEnvironmentVariable("AWS_ACCESS_KEY_ID")
-            ?? configuration["AWS:AccessKeyId"];
-        var awsSecretKey = Environment.GetEnvironmentVariable("AWS_SECRET_ACCESS_KEY")
-            ?? configuration["AWS:SecretAccessKey"];
-        var awsRegion = configuration["AWS:Region"] ?? "us-east-1";
+        // Register Resend client (optional - only if API key is configured)
+        var resendApiKey = Environment.GetEnvironmentVariable("RESEND_API_KEY")
+            ?? configuration["Resend:ApiKey"];
 
-        if (!string.IsNullOrEmpty(awsAccessKey) && !string.IsNullOrEmpty(awsSecretKey))
+        if (!string.IsNullOrEmpty(resendApiKey))
         {
-            // Configure AWS options with explicit credentials
-            var awsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
+            services.AddHttpClient<IResend, ResendClient>((sp, client) =>
             {
-                Credentials = new BasicAWSCredentials(awsAccessKey, awsSecretKey),
-                Region = RegionEndpoint.GetBySystemName(awsRegion)
-            };
-
-            services.AddAWSService<IAmazonSimpleEmailService>(awsOptions);
-            Console.WriteLine($"✓ Registered: IAmazonSimpleEmailService (AWS SES) - Region: {awsRegion}");
+                client.BaseAddress = new Uri("https://api.resend.com");
+                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {resendApiKey}");
+            });
+            Console.WriteLine("✓ Registered: IResend (Resend Email Service)");
         }
         else
         {
-            Console.WriteLine("⚠ Skipped: AWS SES (credentials not configured - email features disabled)");
+            Console.WriteLine("⚠ Skipped: Resend (API key not configured - email features disabled)");
         }
 
         // Auto-register all repositories and services
