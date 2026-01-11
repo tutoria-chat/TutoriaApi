@@ -26,8 +26,7 @@ public class ResendEmailServiceTests
             ["Email:FromAddress"] = "test@tutoria.com",
             ["Email:FromName"] = "Tutoria Test",
             ["Email:FrontendUrl"] = "http://localhost:3000",
-            ["Email:LogoUrl"] = "http://localhost/logo.png",
-            ["Email:Enabled"] = "true"
+            ["Email:LogoUrl"] = "http://localhost/logo.png"
         };
 
         SetupConfiguration(_configValues);
@@ -76,20 +75,6 @@ public class ResendEmailServiceTests
                 It.IsAny<Exception>(),
                 It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
             Times.Once);
-    }
-
-    [Fact]
-    public void Constructor_WithDisabledConfig_DoesNotEnable()
-    {
-        // Arrange
-        _configValues["Email:Enabled"] = "false";
-        SetupConfiguration(_configValues);
-
-        // Act
-        var service = CreateService(withClient: true);
-
-        // Assert - service should not be enabled even with client
-        Assert.NotNull(service);
     }
 
     #endregion

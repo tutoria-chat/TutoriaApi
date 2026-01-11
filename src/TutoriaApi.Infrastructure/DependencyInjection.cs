@@ -33,11 +33,14 @@ public static class DependencyInjection
 
         if (!string.IsNullOrEmpty(resendApiKey))
         {
-            services.AddHttpClient<IResend, ResendClient>((sp, client) =>
+            // Official Resend SDK registration pattern
+            services.AddOptions();
+            services.AddHttpClient<ResendClient>();
+            services.Configure<ResendClientOptions>(o =>
             {
-                client.BaseAddress = new Uri("https://api.resend.com");
-                client.DefaultRequestHeaders.Add("Authorization", $"Bearer {resendApiKey}");
+                o.ApiToken = resendApiKey;
             });
+            services.AddTransient<IResend, ResendClient>();
             Console.WriteLine("✓ Registered: IResend (Resend Email Service)");
         }
         else

@@ -34,7 +34,9 @@ public class ResendEmailService : IEmailService
         _fromName = configuration["Email:FromName"] ?? "Tutoria Platform";
         _frontendUrl = configuration["Email:FrontendUrl"] ?? "http://localhost:3000";
         _logoUrl = configuration["Email:LogoUrl"] ?? "https://your-domain.com/images/tutoria-logo.png";
-        _isEnabled = bool.TryParse(configuration["Email:Enabled"], out var enabled) && enabled && resendClient != null;
+
+        // Enabled by default if Resend client is configured
+        _isEnabled = resendClient != null;
 
         if (_resendClient == null)
         {
