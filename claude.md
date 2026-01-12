@@ -887,14 +887,36 @@ This API handles:
 
 ## Documentation Guidelines
 
-### When to Create Documentation Files
-**IMPORTANT**: Always ask the user before creating the following types of files:
-- Implementation plans (e.g., `*_PLAN.md`, `*_IMPLEMENTATION.md`)
-- Summary documents (e.g., `SETUP_SUMMARY.md`, `*_SUMMARY.md`)
-- Architecture documentation
-- Any markdown files that are not explicitly requested
+### 🚫 CRITICAL RULE: DO NOT CREATE DOCUMENTATION FILES
 
-**Exception**: You may create `TODO.md` or update `claude.md` without asking.
+**ABSOLUTELY DO NOT create ANY of the following files without EXPLICIT user request:**
+- ❌ Implementation plans (`*_PLAN.md`, `*_IMPLEMENTATION.md`, `*_STRATEGY.md`)
+- ❌ Summary documents (`SETUP_SUMMARY.md`, `*_SUMMARY.md`, `IMPLEMENTATION_SUMMARY.md`)
+- ❌ Roadmap/vision documents (`ROADMAP.md`, `STRATEGIC_*.md`, `FEATURE_IDEAS.md`)
+- ❌ Guide documents (`*_GUIDE.md`, `AUTHENTICATION_GUIDE.md`, etc.)
+- ❌ Architecture documents (unless explicitly requested)
+- ❌ Checklist documents (`*_CHECKLIST.md`)
+- ❌ Any other markdown files
 
-### Why
-Documentation files can clutter the repository and may not align with the user's preferences for documentation style or location.
+**The ONLY exceptions** (files you CAN update without asking):
+1. ✅ `TODO.md` - Update with new tasks or mark completed items
+2. ✅ `CLAUDE.md` (this file) - Add technical guidelines only
+3. ✅ `README.md` - Update project setup/quickstart info
+4. ✅ Code comments and inline documentation
+
+### Why This Rule Exists
+- Documentation files multiply uncontrollably (we had 24+ at one point)
+- Most planning docs become outdated immediately
+- `TODO.md` is the single source of truth for tasks
+- Swagger/OpenAPI provides API documentation
+- Code should be self-documenting with good comments
+
+### What to Do Instead
+- **For planning**: Add tasks to `TODO.md` with implementation notes
+- **For ideas**: Add to "Future Ideas" section in `TODO.md`
+- **For completed work**: Mark items done in `TODO.md`, don't create summaries
+- **For architecture**: Add notes to `CLAUDE.md` in relevant sections
+- **For API docs**: Use XML comments + Swagger (auto-generated)
+
+### User Explicitly Requested Documentation
+If the user says "create a guide for X" or "write a plan for Y", then you can create it. Otherwise, DON'T.
