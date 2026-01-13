@@ -33,7 +33,7 @@ public class ResendEmailService : IEmailService
         _fromAddress = configuration["Email:FromAddress"] ?? "noreply@tutoria.com";
         _fromName = configuration["Email:FromName"] ?? "Tutoria Platform";
         _frontendUrl = configuration["Email:FrontendUrl"] ?? "http://localhost:3000";
-        _logoUrl = configuration["Email:LogoUrl"] ?? "https://your-domain.com/images/tutoria-logo.png";
+        _logoUrl = $"{_frontendUrl}/favicon.svg";
 
         // Enabled by default if Resend client is configured
         _isEnabled = resendClient != null;
@@ -44,13 +44,15 @@ public class ResendEmailService : IEmailService
         }
     }
 
-    public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetToken, string languageCode = "en")
+    public async Task SendPasswordResetEmailAsync(string toEmail, string toName, string username, string resetToken, string languageCode = "en")
     {
         // Input validation
         if (string.IsNullOrWhiteSpace(toEmail))
             throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
         if (string.IsNullOrWhiteSpace(toName))
             throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(username))
+            throw new ArgumentException("Username cannot be null or empty.", nameof(username));
         if (string.IsNullOrWhiteSpace(resetToken))
             throw new ArgumentException("Reset token cannot be null or empty.", nameof(resetToken));
 
@@ -63,7 +65,7 @@ public class ResendEmailService : IEmailService
 
         // HTML-escape user input to prevent XSS
         var safeName = WebUtility.HtmlEncode(toName);
-        var resetLink = $"{_frontendUrl}/reset-password?token={WebUtility.UrlEncode(resetToken)}";
+        var resetLink = $"{_frontendUrl}/setup-password?token={WebUtility.UrlEncode(resetToken)}&username={WebUtility.UrlEncode(username)}";
 
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {
@@ -99,7 +101,7 @@ public class ResendEmailService : IEmailService
         // HTML-escape user input to prevent XSS
         var safeName = WebUtility.HtmlEncode(toName);
         var safeUsername = WebUtility.HtmlEncode(username);
-        var resetLink = $"{_frontendUrl}/reset-password?token={WebUtility.UrlEncode(resetToken)}";
+        var resetLink = $"{_frontendUrl}/setup-password?token={WebUtility.UrlEncode(resetToken)}&username={WebUtility.UrlEncode(username)}";
 
         var (subject, htmlBody, textBody) = languageCode.ToLower() switch
         {

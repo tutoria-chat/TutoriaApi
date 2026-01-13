@@ -136,7 +136,6 @@ jobs:
             "FromAddress": "${{ secrets.DEV_EMAIL_FROM_ADDRESS }}",
             "FromName": "${{ secrets.DEV_EMAIL_FROM_NAME }}",
             "FrontendUrl": "${{ secrets.DEV_EMAIL_FRONTEND_URL }}",
-            "LogoUrl": "${{ secrets.DEV_EMAIL_LOGO_URL }}",
             "Enabled": true
           }
         }
@@ -278,7 +277,6 @@ jobs:
             "FromAddress": "${{ secrets.PROD_EMAIL_FROM_ADDRESS }}",
             "FromName": "${{ secrets.PROD_EMAIL_FROM_NAME }}",
             "FrontendUrl": "${{ secrets.PROD_EMAIL_FRONTEND_URL }}",
-            "LogoUrl": "${{ secrets.PROD_EMAIL_LOGO_URL }}",
             "Enabled": true
           }
         }

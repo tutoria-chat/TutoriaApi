@@ -514,6 +514,7 @@ public class AuthController : ControllerBase
             await _emailService.SendPasswordResetEmailAsync(
                 user.Email,
                 user.FirstName,
+                user.Username,
                 resetToken,
                 user.LanguagePreference ?? "en"
             );

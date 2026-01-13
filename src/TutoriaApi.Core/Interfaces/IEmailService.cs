@@ -10,10 +10,11 @@ public interface IEmailService
     /// </summary>
     /// <param name="toEmail">Recipient email address</param>
     /// <param name="toName">Recipient first name for personalization</param>
+    /// <param name="username">Username for login (displayed on password setup page)</param>
     /// <param name="resetToken">Password reset token to include in link</param>
     /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
     /// <returns>Task representing the async operation</returns>
-    Task SendPasswordResetEmailAsync(string toEmail, string toName, string resetToken, string languageCode = "en");
+    Task SendPasswordResetEmailAsync(string toEmail, string toName, string username, string resetToken, string languageCode = "en");
 
     /// <summary>
     /// Send welcome email for newly created user account with password setup link.
