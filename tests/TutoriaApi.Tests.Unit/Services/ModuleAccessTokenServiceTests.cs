@@ -217,9 +217,23 @@ public class ModuleAccessTokenServiceTests
     {
         // Arrange
         var token = CreateTestToken();
+        var module = CreateTestModule();
+        var course = module.Course;
         var currentUser = CreateTestUser();
-        _tokenRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(token);
+
+        _tokenRepositoryMock.Setup(r => r.GetWithDetailsAsync(1)).ReturnsAsync(token);
+        _moduleRepositoryMock.Setup(r => r.GetByIdAsync(token.ModuleId)).ReturnsAsync(module);
+        _courseRepositoryMock.Setup(r => r.GetByIdAsync(module.CourseId)).ReturnsAsync(course);
         _tokenRepositoryMock.Setup(r => r.DeleteAsync(token)).Returns(Task.CompletedTask);
+        _auditLogServiceMock.Setup(a => a.LogAsync(
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            It.IsAny<int?>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<int>(),
+            It.IsAny<string>(),
+            null)).Returns(Task.CompletedTask);
 
         // Act
         await _service.DeleteAsync(1, currentUser);

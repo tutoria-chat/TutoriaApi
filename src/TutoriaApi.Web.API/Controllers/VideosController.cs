@@ -40,6 +40,12 @@ public class VideosController : ControllerBase
     {
         try
         {
+            // Check authentication
+            if (!_currentUserService.IsAuthenticated())
+            {
+                return Unauthorized();
+            }
+
             // Call service
             var file = await _videoTranscriptionService.TranscribeYoutubeVideoAsync(
                 request.YoutubeUrl,

@@ -114,6 +114,9 @@ public class VideosControllerTests
             HttpContext = new DefaultHttpContext()
         };
 
+        // Override IsAuthenticated to return false for this test
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated()).Returns(false);
+
         var request = new AddYoutubeVideoRequest
         {
             YoutubeUrl = "https://youtube.com/watch?v=test123",
