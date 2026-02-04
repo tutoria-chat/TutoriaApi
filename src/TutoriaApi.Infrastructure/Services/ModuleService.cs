@@ -134,6 +134,16 @@ public class ModuleService : IModuleService
             throw new ArgumentException("Year must be between 2020 and 2050");
         }
 
+        // Auto-enumerate module: Add "Module X - " prefix based on creation order
+        var modulesInCourse = await _moduleRepository.GetByCourseIdAsync(module.CourseId);
+        var moduleNumber = modulesInCourse.Count() + 1;
+
+        // Only add prefix if the name doesn't already start with "Module"
+        if (!module.Name.StartsWith("Module ", StringComparison.OrdinalIgnoreCase))
+        {
+            module.Name = $"Module {moduleNumber} - {module.Name}";
+        }
+
         return await _moduleRepository.AddAsync(module);
     }
 

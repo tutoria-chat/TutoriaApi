@@ -25,6 +25,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
     {
         return await _dbSet
             .Where(m => m.CourseId == courseId)
+            .OrderBy(m => m.CreatedAt) // Order by creation date
             .ToListAsync();
     }
 
@@ -71,7 +72,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
 
         var total = await query.CountAsync();
         var items = await query
-            .OrderBy(m => m.Id)
+            .OrderBy(m => m.CreatedAt) // Order by creation date to show modules in sequence
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();

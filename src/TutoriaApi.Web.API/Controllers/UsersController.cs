@@ -37,6 +37,14 @@ public class UsersController : BaseAuthController
 
         try
         {
+            // Admin professors can only view users from their own university
+            var currentUser = GetCurrentUserFromClaims();
+            if (currentUser != null && IsAdminProfessor() && currentUser.UniversityId.HasValue)
+            {
+                // Override the universityId parameter with the admin professor's university
+                universityId = currentUser.UniversityId.Value;
+            }
+
             var (viewModels, total) = await _userService.GetPagedAsync(
                 userType, universityId, isAdmin, isActive, search, page, size);
 
