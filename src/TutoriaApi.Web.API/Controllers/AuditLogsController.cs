@@ -2,9 +2,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
-using TutoriaApi.Web.Management.DTOs;
+using TutoriaApi.Web.API.DTOs;
 
-namespace TutoriaApi.Web.Management.Controllers;
+namespace TutoriaApi.Web.API.Controllers;
 
 [ApiController]
 [Route("api/audit-logs")]
@@ -48,8 +48,8 @@ public class AuditLogsController : ControllerBase
                 Items = dtos,
                 Total = total,
                 Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(total / (double)pageSize)
+                Size = pageSize,
+                Pages = (int)Math.Ceiling(total / (double)pageSize)
             });
         }
         catch (UnauthorizedAccessException)
@@ -104,6 +104,9 @@ public class AuditLogsController : ControllerBase
         {
             UserId = userId,
             Username = username,
+            Email = User.FindFirst("email")?.Value ?? "",
+            FirstName = User.FindFirst("given_name")?.Value ?? "",
+            LastName = User.FindFirst("family_name")?.Value ?? "",
             UserType = userType,
             UniversityId = string.IsNullOrEmpty(universityIdClaim) ? null : int.Parse(universityIdClaim)
         };
