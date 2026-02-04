@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using BCrypt.Net;
+using Microsoft.Extensions.Configuration;
 using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
@@ -13,19 +14,22 @@ public class UserService : IUserService
     private readonly ICourseRepository _courseRepository;
     private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
+    private readonly string[] _platformOwnerEmails;
 
     public UserService(
         IUserRepository userRepository,
         IUniversityRepository universityRepository,
         ICourseRepository courseRepository,
         IEmailService emailService,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
         _universityRepository = universityRepository;
         _courseRepository = courseRepository;
         _emailService = emailService;
         _auditLogService = auditLogService;
+        _platformOwnerEmails = configuration.GetSection("Platform:OwnerEmails").Get<string[]>() ?? Array.Empty<string>();
     }
 
     public async Task<(List<UserListViewModel> Items, int Total)> GetPagedAsync(
@@ -612,6 +616,15 @@ public class UserService : IUserService
         if (currentUser.UserId == id)
         {
             throw new InvalidOperationException("Cannot delete your own account");
+        }
+
+        // Special restriction: Only platform owners can delete other super admins
+        if (user.UserType == UserTypes.SuperAdmin)
+        {
+            if (!_platformOwnerEmails.Contains(currentUser.Email, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Only platform owners can delete super admin accounts");
+            }
         }
 
         // Permission checks

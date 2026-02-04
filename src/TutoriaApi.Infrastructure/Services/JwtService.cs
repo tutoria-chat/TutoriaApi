@@ -33,6 +33,7 @@ public class JwtService : IJwtService
         {
             new Claim(JwtRegisteredClaimNames.Sub, subject),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim(ClaimTypes.Name, subject), // Required for User.Identity.Name to work
             new Claim(ClaimTypes.Role, type), // Use standard ClaimTypes.Role for .NET
             new Claim("type", type) // Add "type" claim for Python API compatibility
         };
