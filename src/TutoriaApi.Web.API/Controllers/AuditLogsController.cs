@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TutoriaApi.Core.Entities;
@@ -95,18 +96,18 @@ public class AuditLogsController : ControllerBase
 
     private User GetCurrentUserFromClaims()
     {
-        var userId = int.Parse(User.FindFirst("sub")?.Value ?? User.FindFirst("userId")?.Value ?? "0");
-        var username = User.FindFirst("name")?.Value ?? User.FindFirst("username")?.Value ?? "";
-        var userType = User.FindFirst("role")?.Value ?? User.FindFirst("userType")?.Value ?? "";
-        var universityIdClaim = User.FindFirst("universityId")?.Value;
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value ?? User.FindFirst("userId")?.Value ?? "0");
+        var username = User.FindFirst(ClaimTypes.Name)?.Value ?? User.FindFirst("name")?.Value ?? User.FindFirst("username")?.Value ?? "";
+        var userType = User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value ?? User.FindFirst("userType")?.Value ?? "";
+        var universityIdClaim = User.FindFirst("universityId")?.Value ?? User.FindFirst("UniversityId")?.Value;
 
         return new User
         {
             UserId = userId,
             Username = username,
-            Email = User.FindFirst("email")?.Value ?? "",
-            FirstName = User.FindFirst("given_name")?.Value ?? "",
-            LastName = User.FindFirst("family_name")?.Value ?? "",
+            Email = User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value ?? "",
+            FirstName = User.FindFirst(ClaimTypes.GivenName)?.Value ?? User.FindFirst("given_name")?.Value ?? "",
+            LastName = User.FindFirst(ClaimTypes.Surname)?.Value ?? User.FindFirst("family_name")?.Value ?? "",
             UserType = userType,
             UniversityId = string.IsNullOrEmpty(universityIdClaim) ? null : int.Parse(universityIdClaim)
         };
