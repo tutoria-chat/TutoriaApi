@@ -1,4 +1,5 @@
 using BCrypt.Net;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Helpers;
@@ -33,18 +34,35 @@ public class ProfessorService : IProfessorService
         int pageSize,
         User? currentUser)
     {
-        // Access control: Only admins can see professors
-        if (currentUser != null && currentUser.UserType == "professor")
+        // Access control: Only managers and admins can see professors
+        if (currentUser != null)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            if (currentUser.UserType == UserTypes.Manager)
             {
-                throw new UnauthorizedAccessException("Non-admin professors cannot list professors");
+                // Managers can only see professors from their own university
+                if (!universityId.HasValue && currentUser.UniversityId.HasValue)
+                {
+                    universityId = currentUser.UniversityId.Value;
+                }
             }
-
-            // Admin professors can only see professors from their own university
-            if (!universityId.HasValue && currentUser.UniversityId.HasValue)
+            else if (currentUser.UserType == UserTypes.Professor)
             {
-                universityId = currentUser.UniversityId.Value;
+                // Legacy: Support old professor with isAdmin flag
+                if (!(currentUser.IsAdmin ?? false))
+                {
+                    throw new UnauthorizedAccessException("Non-admin professors cannot list professors");
+                }
+
+                // Admin professors can only see professors from their own university
+                if (!universityId.HasValue && currentUser.UniversityId.HasValue)
+                {
+                    universityId = currentUser.UniversityId.Value;
+                }
+            }
+            else if (currentUser.UserType != UserTypes.SuperAdmin)
+            {
+                // Tutors, Platform Coordinators cannot list professors
+                throw new UnauthorizedAccessException("Insufficient permissions to list professors");
             }
         }
 

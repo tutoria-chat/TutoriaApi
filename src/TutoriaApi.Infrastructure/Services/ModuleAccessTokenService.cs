@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Helpers;
@@ -51,26 +52,33 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
 
         if (currentUser != null)
         {
-            if (currentUser.UserType == "professor")
+            // Manager, Tutor, Platform Coordinator have university-scoped access
+            if (currentUser.UserType == UserTypes.Manager ||
+                currentUser.UserType == UserTypes.Tutor ||
+                currentUser.UserType == UserTypes.PlatformCoordinator)
             {
-                if (currentUser.IsAdmin ?? false)
+                // University-scoped roles can access all modules in their university
+                var universityModules = await _moduleRepository.GetByUniversityIdAsync(currentUser.UniversityId ?? 0);
+                allowedModuleIds = universityModules.Select(m => m.Id).ToList();
+            }
+            // Legacy: Support old professor with isAdmin flag
+            else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+            {
+                // Admin professors can access all modules in their university
+                var universityModules = await _moduleRepository.GetByUniversityIdAsync(currentUser.UniversityId ?? 0);
+                allowedModuleIds = universityModules.Select(m => m.Id).ToList();
+            }
+            else if (currentUser.UserType == UserTypes.Professor && !(currentUser.IsAdmin ?? false))
+            {
+                // Regular professors can only access modules from assigned courses
+                var courseIds = await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId);
+                var modules = new List<int>();
+                foreach (var courseId in courseIds)
                 {
-                    // Admin professors can access all modules in their university
-                    var universityModules = await _moduleRepository.GetByUniversityIdAsync(currentUser.UniversityId ?? 0);
-                    allowedModuleIds = universityModules.Select(m => m.Id).ToList();
+                    var courseModules = await _moduleRepository.GetByCourseIdAsync(courseId);
+                    modules.AddRange(courseModules.Select(m => m.Id));
                 }
-                else
-                {
-                    // Regular professors can only access modules from assigned courses
-                    var courseIds = await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId);
-                    var modules = new List<int>();
-                    foreach (var courseId in courseIds)
-                    {
-                        var courseModules = await _moduleRepository.GetByCourseIdAsync(courseId);
-                        modules.AddRange(courseModules.Select(m => m.Id));
-                    }
-                    allowedModuleIds = modules;
-                }
+                allowedModuleIds = modules;
             }
             // Super admins can access all (no filtering)
         }

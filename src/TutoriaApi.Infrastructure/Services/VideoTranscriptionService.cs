@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using FileEntity = TutoriaApi.Core.Entities.File;
@@ -250,21 +251,39 @@ public class VideoTranscriptionService : IVideoTranscriptionService
     private async Task<bool> CanAccessModuleAsync(Module module, User currentUser)
     {
         // Super admins can access everything
-        if (currentUser.UserType == "super_admin")
+        if (currentUser.UserType == UserTypes.SuperAdmin)
         {
             return true;
         }
 
-        // Professors must be in same university
-        if (currentUser.UserType == "professor")
+        // Manager, Tutor, Platform Coordinator must be in same university
+        if (currentUser.UserType == UserTypes.Manager ||
+            currentUser.UserType == UserTypes.Tutor ||
+            currentUser.UserType == UserTypes.PlatformCoordinator)
         {
             if (currentUser.UniversityId == null)
             {
                 return false;
             }
 
-            // Use Course navigation property (should be loaded via GetWithDetailsAsync)
-            // If not loaded, fall back to repository call
+            var course = module.Course ?? await _courseRepository.GetByIdAsync(module.CourseId);
+            if (course == null)
+            {
+                return false;
+            }
+
+            // University-scoped roles can access all modules in their university
+            return course.UniversityId == currentUser.UniversityId;
+        }
+
+        // Legacy: Support old professor with isAdmin flag
+        if (currentUser.UserType == UserTypes.Professor)
+        {
+            if (currentUser.UniversityId == null)
+            {
+                return false;
+            }
+
             var course = module.Course ?? await _courseRepository.GetByIdAsync(module.CourseId);
             if (course == null)
             {

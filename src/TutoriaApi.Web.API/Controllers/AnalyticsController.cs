@@ -12,14 +12,14 @@ namespace TutoriaApi.Web.API.Controllers;
 /// <remarks>
 /// This controller provides analytics endpoints with automatic role-based filtering:
 /// - **SuperAdmin**: Can see all universities' data
-/// - **ProfessorAdmin**: Can only see their university's data
-/// - **Professor**: Can only see their assigned courses' data
+/// - **Manager**: Can only see their university's data
 ///
-/// All endpoints require authentication and implement the ProfessorOrAbove policy.
+/// All endpoints require authentication and implement the AnalyticsAccess policy.
+/// Note: Only SuperAdmin and Manager roles have access to analytics. Tutors, Platform Coordinators, and regular Professors cannot access analytics.
 /// </remarks>
 [ApiController]
 [Route("api/analytics")]
-[Authorize(Policy = "ProfessorOrAbove")]
+[Authorize(Policy = "AnalyticsAccess")]
 public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
@@ -43,8 +43,7 @@ public class AnalyticsController : ControllerBase
     /// </summary>
     /// <remarks>
     /// SuperAdmin: Can filter by any university/course/module
-    /// ProfessorAdmin: Can only see their university's data
-    /// Professor: Can only see their assigned courses' data
+    /// Manager: Can only see their university's data
     /// </remarks>
     [HttpGet("costs/detailed")]
     [ProducesResponseType(typeof(CostAnalysisDto), StatusCodes.Status200OK)]

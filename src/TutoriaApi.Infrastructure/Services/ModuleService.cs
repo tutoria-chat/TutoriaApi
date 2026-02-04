@@ -1,3 +1,4 @@
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Helpers;
@@ -67,18 +68,24 @@ public class ModuleService : IModuleService
 
         if (currentUser != null)
         {
-            if (currentUser.UserType == "professor")
+            // Manager, Tutor, Platform Coordinator have university-scoped access (all courses in their university)
+            if (currentUser.UserType == UserTypes.Manager ||
+                currentUser.UserType == UserTypes.Tutor ||
+                currentUser.UserType == UserTypes.PlatformCoordinator)
             {
-                if (currentUser.IsAdmin ?? false)
-                {
-                    // Admin professors can access all courses in their university
-                    // We'll filter by university in the query parameters
-                }
-                else
-                {
-                    // Regular professors can only access assigned courses
-                    allowedCourseIds = (await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId)).ToList();
-                }
+                // University-scoped roles can access all courses in their university
+                // Filtering by university happens in the controller/query parameters
+            }
+            // Legacy: Support old professor with isAdmin flag
+            else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+            {
+                // Admin professors can access all courses in their university (for backward compatibility)
+                // Filtering by university happens in the controller/query parameters
+            }
+            else if (currentUser.UserType == UserTypes.Professor && !(currentUser.IsAdmin ?? false))
+            {
+                // Regular professors can only access assigned courses
+                allowedCourseIds = (await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId)).ToList();
             }
             // Super admins can access all (no filtering)
         }

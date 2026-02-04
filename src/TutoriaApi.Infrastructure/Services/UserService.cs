@@ -37,9 +37,19 @@ public class UserService : IUserService
         // Validate user type
         if (!string.IsNullOrWhiteSpace(userType))
         {
-            if (userType != UserTypes.Student && userType != UserTypes.Professor && userType != UserTypes.SuperAdmin)
+            var validUserTypes = new[]
             {
-                throw new ArgumentException($"Invalid user type. Must be: {UserTypes.Student}, {UserTypes.Professor}, or {UserTypes.SuperAdmin}");
+                UserTypes.Student,
+                UserTypes.Professor,
+                UserTypes.Manager,
+                UserTypes.Tutor,
+                UserTypes.PlatformCoordinator,
+                UserTypes.SuperAdmin
+            };
+
+            if (!validUserTypes.Contains(userType))
+            {
+                throw new ArgumentException($"Invalid user type. Must be one of: {string.Join(", ", validUserTypes)}");
             }
         }
 
@@ -89,36 +99,63 @@ public class UserService : IUserService
         User currentUser)
     {
         // Permission checks based on current user
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            // Managers can create: Tutor, PlatformCoordinator, Professor, Student (but not Manager or SuperAdmin)
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(userType))
             {
-                throw new UnauthorizedAccessException("Only admin professors can create users");
+                throw new InvalidOperationException("Managers can only create Tutors, Platform Coordinators, Professors, and Students");
             }
 
-            // Admin professors can only create regular (non-admin) professors
-            if (userType != UserTypes.Professor || isAdmin)
-            {
-                throw new InvalidOperationException("Admin professors can only create regular (non-admin) professors");
-            }
-
-            // Admin professors can only create professors in their own university
+            // Managers can only create users in their own university
             if (universityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only create professors in their own university");
+                throw new InvalidOperationException("Managers can only create users in their own university");
             }
+        }
+        // Legacy: Support old professor with isAdmin flag (will be migrated to Manager)
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            // Treat as Manager for backward compatibility
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(userType))
+            {
+                throw new InvalidOperationException("Admin professors can only create Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (universityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only create users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            // Tutors, Platform Coordinators, and regular Professors cannot create users
+            throw new UnauthorizedAccessException("Insufficient permissions to create users");
         }
 
         // Validate user_type
-        if (userType != UserTypes.Student && userType != UserTypes.Professor && userType != UserTypes.SuperAdmin)
+        var validUserTypes = new[]
         {
-            throw new ArgumentException($"Invalid user_type. Must be: {UserTypes.Student}, {UserTypes.Professor}, or {UserTypes.SuperAdmin}");
+            UserTypes.Student,
+            UserTypes.Professor,
+            UserTypes.Manager,
+            UserTypes.Tutor,
+            UserTypes.PlatformCoordinator,
+            UserTypes.SuperAdmin
+        };
+
+        if (!validUserTypes.Contains(userType))
+        {
+            throw new ArgumentException($"Invalid user_type. Must be one of: {string.Join(", ", validUserTypes)}");
         }
 
-        // Validate university_id for professors
-        if (userType == UserTypes.Professor && !universityId.HasValue)
+        // Validate university_id for university-scoped roles
+        var universityScopedRoles = new[] { UserTypes.Professor, UserTypes.Manager, UserTypes.Tutor, UserTypes.PlatformCoordinator };
+        if (universityScopedRoles.Contains(userType) && !universityId.HasValue)
         {
-            throw new ArgumentException("university_id is required for professors");
+            throw new ArgumentException($"university_id is required for {userType}");
         }
 
         // Validate course_id for students
@@ -154,12 +191,14 @@ public class UserService : IUserService
             throw new InvalidOperationException("Email already exists");
         }
 
-        // Super admins must have is_admin=True
-        var isAdminValue = isAdmin;
-        if (userType == UserTypes.SuperAdmin)
+        // Set IsAdmin flag based on role (for backward compatibility with legacy code)
+        // Note: IsAdmin is deprecated. Use UserType for role checks instead.
+        var isAdminValue = userType switch
         {
-            isAdminValue = true;
-        }
+            UserTypes.SuperAdmin => true,
+            UserTypes.Manager => true,  // Manager is the new "admin professor"
+            _ => false
+        };
 
         var user = new User
         {
@@ -239,24 +278,40 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            // Managers can update: Tutor, PlatformCoordinator, Professor, Student (but not Manager or SuperAdmin)
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
             {
-                throw new UnauthorizedAccessException("Insufficient permissions");
+                throw new InvalidOperationException("Managers can only update Tutors, Platform Coordinators, Professors, and Students");
             }
 
-            // Admin professors can only update regular professors
-            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
-            {
-                throw new InvalidOperationException("Admin professors can only update regular professors");
-            }
-
-            // Admin professors can only update professors in their own university
+            // Managers can only update users in their own university
             if (user.UniversityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only update professors in their own university");
+                throw new InvalidOperationException("Managers can only update users in their own university");
             }
+        }
+        // Legacy: Support old professor with isAdmin flag (will be migrated to Manager)
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            // Treat as Manager for backward compatibility
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
+            {
+                throw new InvalidOperationException("Admin professors can only update Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only update users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            // Tutors, Platform Coordinators, and regular Professors cannot update users
+            throw new UnauthorizedAccessException("Insufficient permissions to update users");
         }
 
         // Cannot update yourself
@@ -364,23 +419,35 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
             {
-                throw new UnauthorizedAccessException("Insufficient permissions");
-            }
-
-            // Admin professors can only activate regular professors in their university
-            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
-            {
-                throw new InvalidOperationException("Admin professors can only activate regular professors");
+                throw new InvalidOperationException("Managers can only activate Tutors, Platform Coordinators, Professors, and Students");
             }
 
             if (user.UniversityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only activate professors in their own university");
+                throw new InvalidOperationException("Managers can only activate users in their own university");
             }
+        }
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
+            {
+                throw new InvalidOperationException("Admin professors can only activate Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only activate users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
         user.IsActive = true;
@@ -413,23 +480,35 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
             {
-                throw new UnauthorizedAccessException("Insufficient permissions");
-            }
-
-            // Admin professors can only deactivate regular professors in their university
-            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
-            {
-                throw new InvalidOperationException("Admin professors can only deactivate regular professors");
+                throw new InvalidOperationException("Managers can only deactivate Tutors, Platform Coordinators, Professors, and Students");
             }
 
             if (user.UniversityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only deactivate professors in their own university");
+                throw new InvalidOperationException("Managers can only deactivate users in their own university");
             }
+        }
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
+            {
+                throw new InvalidOperationException("Admin professors can only deactivate Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only deactivate users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
         user.IsActive = false;
@@ -462,23 +541,35 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
             {
-                throw new UnauthorizedAccessException("Insufficient permissions");
-            }
-
-            // Admin professors can only delete regular professors in their university
-            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
-            {
-                throw new InvalidOperationException("Admin professors can only delete regular professors");
+                throw new InvalidOperationException("Managers can only delete Tutors, Platform Coordinators, Professors, and Students");
             }
 
             if (user.UniversityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only delete professors in their own university");
+                throw new InvalidOperationException("Managers can only delete users in their own university");
             }
+        }
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
+            {
+                throw new InvalidOperationException("Admin professors can only delete Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only delete users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
         await _userRepository.DeleteAsync(user);
@@ -494,23 +585,35 @@ public class UserService : IUserService
         }
 
         // Permission checks
-        if (currentUser.UserType == UserTypes.Professor)
+        if (currentUser.UserType == UserTypes.Manager)
         {
-            if (!(currentUser.IsAdmin ?? false))
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
             {
-                throw new UnauthorizedAccessException("Insufficient permissions");
-            }
-
-            // Admin professors can only change passwords for regular professors in their university
-            if (user.UserType != UserTypes.Professor || (user.IsAdmin ?? false))
-            {
-                throw new InvalidOperationException("Admin professors can only change passwords for regular professors");
+                throw new InvalidOperationException("Managers can only change passwords for Tutors, Platform Coordinators, Professors, and Students");
             }
 
             if (user.UniversityId != currentUser.UniversityId)
             {
-                throw new InvalidOperationException("Admin professors can only change passwords for professors in their own university");
+                throw new InvalidOperationException("Managers can only change passwords for users in their own university");
             }
+        }
+        else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
+        {
+            var allowedTypes = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!allowedTypes.Contains(user.UserType))
+            {
+                throw new InvalidOperationException("Admin professors can only change passwords for Tutors, Platform Coordinators, Professors, and Students");
+            }
+
+            if (user.UniversityId != currentUser.UniversityId)
+            {
+                throw new InvalidOperationException("Admin professors can only change passwords for users in their own university");
+            }
+        }
+        else if (currentUser.UserType != UserTypes.SuperAdmin)
+        {
+            throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
         user.HashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);

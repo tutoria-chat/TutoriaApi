@@ -94,17 +94,29 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("SuperAdminOnly", policy =>
         policy.RequireRole("super_admin"));
 
-    // AdminOrAbove policy (SuperAdmin or AdminProfessor)
+    // AdminOrAbove policy (SuperAdmin or Manager)
+    // Updated to support new Manager role
     options.AddPolicy("AdminOrAbove", policy =>
         policy.RequireAssertion(context =>
             context.User.IsInRole("super_admin") ||
+            context.User.IsInRole("manager") ||
             (context.User.IsInRole("professor") &&
              context.User.HasClaim(c => c.Type == "isAdmin" && c.Value.ToLower() == "true"))));
 
-    // ProfessorOrAbove policy (SuperAdmin, AdminProfessor, or Professor)
+    // AnalyticsAccess policy (SuperAdmin or Manager only - NO regular professors/tutors/platform coordinators)
+    options.AddPolicy("AnalyticsAccess", policy =>
+        policy.RequireAssertion(context =>
+            context.User.IsInRole("super_admin") ||
+            context.User.IsInRole("manager")));
+
+    // ProfessorOrAbove policy (SuperAdmin, Manager, Tutor, PlatformCoordinator, or Professor)
+    // Updated to support all staff roles
     options.AddPolicy("ProfessorOrAbove", policy =>
         policy.RequireAssertion(context =>
             context.User.IsInRole("super_admin") ||
+            context.User.IsInRole("manager") ||
+            context.User.IsInRole("tutor") ||
+            context.User.IsInRole("platform_coordinator") ||
             context.User.IsInRole("professor")));
 
     // ReadScope policy (requires api.read scope)
