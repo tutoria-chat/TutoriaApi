@@ -208,7 +208,8 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.SetNull);
-            entity.HasCheckConstraint("CK_Users_UserType", "[UserType] IN ('professor', 'super_admin', 'student')");
+            // Updated to include all valid user types: super_admin, manager, tutor, platform_coordinator, professor, student
+            entity.HasCheckConstraint("CK_Users_UserType", "[UserType] IN ('super_admin', 'manager', 'tutor', 'platform_coordinator', 'professor', 'student')");
         });
 
         // File configuration
@@ -428,6 +429,47 @@ public class TutoriaDbContext : DbContext
                 .HasForeignKey(e => e.ProfessorId)
                 .HasPrincipalKey(u => u.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // AuditLog configuration
+        modelBuilder.Entity<AuditLog>(entity =>
+        {
+            // Disable OUTPUT clause to prevent issues with database operations
+            entity.ToTable("AuditLogs", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId").IsRequired();
+            entity.Property(e => e.Username).HasColumnName("Username").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Action).HasColumnName("Action").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EntityType).HasColumnName("EntityType").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.EntityId).HasColumnName("EntityId").IsRequired();
+            entity.Property(e => e.EntityName).HasColumnName("EntityName").HasMaxLength(255);
+            entity.Property(e => e.Changes).HasColumnName("Changes");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+
+            // AuditLogs are immutable - ignore UpdatedAt inherited from BaseEntity
+            entity.Ignore(e => e.UpdatedAt);
+
+            // Configure relationships - use NoAction to prevent cascade issues
+            // and ignore navigation properties to avoid FK constraint issues during inserts
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // Add indexes for performance
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasIndex(e => e.Action);
+            entity.HasIndex(e => e.EntityType);
+            entity.HasIndex(e => e.CreatedAt);
         });
     }
 }

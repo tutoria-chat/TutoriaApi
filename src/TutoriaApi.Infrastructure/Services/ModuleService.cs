@@ -151,10 +151,17 @@ public class ModuleService : IModuleService
         var modulesInCourse = await _moduleRepository.GetByCourseIdAsync(module.CourseId);
         var moduleNumber = modulesInCourse.Count() + 1;
 
-        // Only add prefix if the name doesn't already start with "Module"
-        if (!module.Name.StartsWith("Module ", StringComparison.OrdinalIgnoreCase))
+        // Get localized "Module" word based on TutorLanguage
+        var moduleWord = GetLocalizedModuleWord(module.TutorLanguage);
+
+        // Only add prefix if the name doesn't already start with any localized "Module" word
+        var moduleWordPrefixes = new[] { "Module ", "Módulo ", "Modulo " };
+        var hasModulePrefix = moduleWordPrefixes.Any(prefix =>
+            module.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+
+        if (!hasModulePrefix)
         {
-            module.Name = $"Module {moduleNumber} - {module.Name}";
+            module.Name = $"{moduleWord} {moduleNumber} - {module.Name}";
         }
 
         var created = await _moduleRepository.AddAsync(module);
@@ -267,5 +274,18 @@ public class ModuleService : IModuleService
             entityId: module.Id,
             entityName: module.Name,
             changes: null);
+    }
+
+    /// <summary>
+    /// Gets the localized word for "Module" based on the tutor language.
+    /// </summary>
+    private static string GetLocalizedModuleWord(string tutorLanguage)
+    {
+        return tutorLanguage?.ToLower() switch
+        {
+            "pt-br" => "Módulo",
+            "es" => "Módulo",
+            _ => "Module" // English and fallback
+        };
     }
 }

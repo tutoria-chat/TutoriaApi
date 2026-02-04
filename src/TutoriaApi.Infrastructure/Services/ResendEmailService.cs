@@ -305,7 +305,7 @@ public class ResendEmailService : IEmailService
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -326,7 +326,7 @@ This link will expire in 1 hour.
 
 If you didn't request a password reset, you can safely ignore this email.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -373,7 +373,7 @@ If you didn't request a password reset, you can safely ignore this email.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -394,7 +394,7 @@ Este link expira em 1 hora.
 
 Se você não solicitou a redefinição de senha, pode ignorar este e-mail com segurança.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -441,7 +441,7 @@ Se você não solicitou a redefinição de senha, pode ignorar este e-mail com s
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -462,7 +462,7 @@ Este enlace expirará en 1 hora.
 
 Si no solicitaste restablecer la contraseña, puedes ignorar este correo de forma segura.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
@@ -520,7 +520,7 @@ Si no solicitaste restablecer la contraseña, puedes ignorar este correo de form
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -540,7 +540,7 @@ To activate your account and create your password, please use the secure link be
 
 Security Note: This link can only be used once and expires in 24 hours. If you didn't request this account, please ignore this email.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -594,7 +594,7 @@ Security Note: This link can only be used once and expires in 24 hours. If you d
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -614,7 +614,7 @@ Para ativar sua conta e criar sua senha, use o link seguro abaixo. Este link exp
 
 Nota de Segurança: Este link pode ser usado apenas uma vez e expira em 24 horas. Se você não solicitou esta conta, ignore este e-mail.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -668,7 +668,7 @@ Nota de Segurança: Este link pode ser usado apenas uma vez e expira em 24 horas
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -688,7 +688,7 @@ Para activar tu cuenta y crear tu contraseña, usa el enlace seguro de abajo. Es
 
 Nota de Seguridad: Este enlace solo se puede usar una vez y expira en 24 horas. Si no solicitaste esta cuenta, ignora este correo.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
@@ -727,7 +727,7 @@ Nota de Seguridad: Este enlace solo se puede usar una vez y expira en 24 horas. 
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -745,7 +745,7 @@ Username: {username}
 
 You can now log in to the platform using your credentials.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -780,7 +780,7 @@ You can now log in to the platform using your credentials.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -798,7 +798,7 @@ Nome de usuário: {username}
 
 Agora você pode fazer login na plataforma usando suas credenciais.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -833,7 +833,7 @@ Agora você pode fazer login na plataforma usando suas credenciais.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -851,7 +851,7 @@ Nombre de usuario: {username}
 
 Ahora puedes iniciar sesión en la plataforma usando tus credenciales.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
@@ -889,7 +889,7 @@ Ahora puedes iniciar sesión en la plataforma usando tus credenciales.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -905,7 +905,7 @@ This is a security notification to confirm that your password was successfully c
 
 If you did not make this change, please contact support immediately.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -939,7 +939,7 @@ If you did not make this change, please contact support immediately.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -955,7 +955,7 @@ Esta é uma notificação de segurança para confirmar que sua senha foi alterad
 
 Se você não fez esta alteração, entre em contato com o suporte imediatamente.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -989,7 +989,7 @@ Se você não fez esta alteração, entre em contato com o suporte imediatamente
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -1005,7 +1005,7 @@ Esta es una notificación de seguridad para confirmar que tu contraseña se camb
 
 Si no realizaste este cambio, por favor contacta al soporte inmediatamente.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
@@ -1053,7 +1053,7 @@ Si no realizaste este cambio, por favor contacta al soporte inmediatamente.
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -1071,7 +1071,7 @@ This code will expire in {expiryMinutes} minutes.
 
 If you didn't request this code, please ignore this email and ensure your account is secure.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -1115,7 +1115,7 @@ If you didn't request this code, please ignore this email and ensure your accoun
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -1133,7 +1133,7 @@ Este código expira em {expiryMinutes} minutos.
 
 Se você não solicitou este código, ignore este e-mail e garanta que sua conta esteja segura.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -1177,7 +1177,7 @@ Se você não solicitou este código, ignore este e-mail e garanta que sua conta
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -1195,7 +1195,7 @@ Este código expirará en {expiryMinutes} minutos.
 
 Si no solicitaste este código, ignora este correo y asegúrate de que tu cuenta esté segura.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
@@ -1236,7 +1236,7 @@ Si no solicitaste este código, ignora este correo y asegúrate de que tu cuenta
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Tutoria Platform. All rights reserved.</p>
+                            <p>© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
                         </td>
                     </tr>
                 </table>
@@ -1255,7 +1255,7 @@ We detected unusual activity on your account:
 
 If this was you, you can safely ignore this message. Otherwise, please secure your account immediately by changing your password.
 
-© 2025 Tutoria Platform. All rights reserved.";
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
 
         return (subject, html, text);
     }
@@ -1292,7 +1292,7 @@ If this was you, you can safely ignore this message. Otherwise, please secure yo
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos os direitos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -1311,7 +1311,7 @@ Detectamos atividade incomum em sua conta:
 
 Se foi você, pode ignorar esta mensagem com segurança. Caso contrário, proteja sua conta imediatamente alterando sua senha.
 
-© 2025 Plataforma Tutoria. Todos os direitos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
 
         return (subject, html, text);
     }
@@ -1348,7 +1348,7 @@ Se foi você, pode ignorar esta mensagem com segurança. Caso contrário, protej
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
-                            <p>© 2025 Plataforma Tutoria. Todos los derechos reservados.</p>
+                            <p>© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
                         </td>
                     </tr>
                 </table>
@@ -1367,7 +1367,7 @@ Detectamos actividad inusual en tu cuenta:
 
 Si fuiste tú, puedes ignorar este mensaje de forma segura. De lo contrario, asegura tu cuenta inmediatamente cambiando tu contraseña.
 
-© 2025 Plataforma Tutoria. Todos los derechos reservados.";
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 
         return (subject, html, text);
     }
