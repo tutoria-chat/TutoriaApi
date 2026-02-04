@@ -10,16 +10,22 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
 {
     private readonly IModuleAccessTokenRepository _tokenRepository;
     private readonly IModuleRepository _moduleRepository;
+    private readonly ICourseRepository _courseRepository;
     private readonly AccessControlHelper _accessControl;
+    private readonly IAuditLogService _auditLogService;
 
     public ModuleAccessTokenService(
         IModuleAccessTokenRepository tokenRepository,
         IModuleRepository moduleRepository,
-        AccessControlHelper accessControl)
+        ICourseRepository courseRepository,
+        AccessControlHelper accessControl,
+        IAuditLogService auditLogService)
     {
         _tokenRepository = tokenRepository;
         _moduleRepository = moduleRepository;
+        _courseRepository = courseRepository;
         _accessControl = accessControl;
+        _auditLogService = auditLogService;
     }
 
     public async Task<ModuleAccessTokenDetailViewModel?> GetWithDetailsAsync(int id)
@@ -154,6 +160,20 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
 
         var created = await _tokenRepository.AddAsync(token);
 
+        // Get course to retrieve university ID for audit log
+        var course = await _courseRepository.GetByIdAsync(module.CourseId);
+
+        // Audit log: Module access token created
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course?.UniversityId,
+            action: "Create",
+            entityType: "ModuleAccessToken",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
         return new ModuleAccessTokenDetailViewModel
         {
             Token = created,
@@ -169,7 +189,8 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
         string? description,
         bool? isActive,
         bool? allowChat,
-        bool? allowFileAccess)
+        bool? allowFileAccess,
+        User currentUser)
     {
         var token = await _tokenRepository.GetWithDetailsAsync(id);
         if (token == null)
@@ -177,24 +198,60 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
             throw new KeyNotFoundException("Module access token not found");
         }
 
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
+
         // Update fields if provided
-        if (!string.IsNullOrWhiteSpace(name))
+        if (!string.IsNullOrWhiteSpace(name) && token.Name != name)
+        {
+            changes["Name"] = (token.Name, name);
             token.Name = name;
+        }
 
-        if (description != null)
+        if (description != null && token.Description != description)
+        {
+            changes["Description"] = (token.Description, description);
             token.Description = description;
+        }
 
-        if (isActive.HasValue)
+        if (isActive.HasValue && token.IsActive != isActive.Value)
+        {
+            changes["IsActive"] = (token.IsActive, isActive.Value);
             token.IsActive = isActive.Value;
+        }
 
-        if (allowChat.HasValue)
+        if (allowChat.HasValue && token.AllowChat != allowChat.Value)
+        {
+            changes["AllowChat"] = (token.AllowChat, allowChat.Value);
             token.AllowChat = allowChat.Value;
+        }
 
-        if (allowFileAccess.HasValue)
+        if (allowFileAccess.HasValue && token.AllowFileAccess != allowFileAccess.Value)
+        {
+            changes["AllowFileAccess"] = (token.AllowFileAccess, allowFileAccess.Value);
             token.AllowFileAccess = allowFileAccess.Value;
+        }
 
         token.UpdatedAt = DateTime.UtcNow;
         await _tokenRepository.UpdateAsync(token);
+
+        // Get course to retrieve university ID for audit log
+        var module = await _moduleRepository.GetByIdAsync(token.ModuleId);
+        var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
+
+        // Audit log: Only log if there were actual changes
+        if (changes.Any())
+        {
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: course?.UniversityId,
+                action: "Update",
+                entityType: "ModuleAccessToken",
+                entityId: token.Id,
+                entityName: token.Name,
+                changes: changes);
+        }
 
         return new ModuleAccessTokenDetailViewModel
         {
@@ -208,14 +265,29 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
         };
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, User currentUser)
     {
-        var token = await _tokenRepository.GetByIdAsync(id);
+        var token = await _tokenRepository.GetWithDetailsAsync(id);
         if (token == null)
         {
             throw new KeyNotFoundException("Module access token not found");
         }
 
+        // Get course to retrieve university ID for audit log before deletion
+        var module = await _moduleRepository.GetByIdAsync(token.ModuleId);
+        var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
+
         await _tokenRepository.DeleteAsync(token);
+
+        // Audit log: Module access token deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course?.UniversityId,
+            action: "Delete",
+            entityType: "ModuleAccessToken",
+            entityId: token.Id,
+            entityName: token.Name,
+            changes: null);
     }
 }

@@ -8,16 +8,19 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Policy = "AdminOrAbove")]
-public class UsersController : BaseAuthController
+public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<UsersController> _logger;
 
     public UsersController(
         IUserService userService,
+        ICurrentUserService currentUserService,
         ILogger<UsersController> logger)
     {
         _userService = userService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -38,11 +41,10 @@ public class UsersController : BaseAuthController
         try
         {
             // Admin professors can only view users from their own university
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser != null && IsAdminProfessor() && currentUser.UniversityId.HasValue)
+            if (_currentUserService.HasAdminPrivileges() && _currentUserService.GetUniversityId().HasValue)
             {
                 // Override the universityId parameter with the admin professor's university
-                universityId = currentUser.UniversityId.Value;
+                universityId = _currentUserService.GetUniversityId().Value;
             }
 
             var (viewModels, total) = await _userService.GetPagedAsync(
@@ -137,7 +139,7 @@ public class UsersController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -216,7 +218,7 @@ public class UsersController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -287,7 +289,7 @@ public class UsersController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -343,7 +345,7 @@ public class UsersController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -400,7 +402,7 @@ public class UsersController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -437,7 +439,7 @@ public class UsersController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();

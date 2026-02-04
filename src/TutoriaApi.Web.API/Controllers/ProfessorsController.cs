@@ -8,20 +8,21 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/professors")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class ProfessorsController : BaseAuthController // Inherits from BaseAuthController instead of ControllerBase
+public class ProfessorsController : ControllerBase
 {
     private readonly IProfessorService _professorService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ProfessorsController> _logger;
 
     public ProfessorsController(
         IProfessorService professorService,
-        ILogger<ProfessorsController> _logger)
+        ICurrentUserService currentUserService,
+        ILogger<ProfessorsController> logger)
     {
         _professorService = professorService;
-        this._logger = _logger;
+        _currentUserService = currentUserService;
+        _logger = logger;
     }
-
-    // GetCurrentUserId() and GetCurrentUserFromClaims() are now inherited from BaseAuthController
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ProfessorDto>>> GetProfessors(
@@ -38,7 +39,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
 
             var (viewModels, total) = await _professorService.GetPagedAsync(
                 universityId,
@@ -94,7 +95,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -144,7 +145,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
 
             var viewModel = await _professorService.GetByIdAsync(id, currentUser);
 
@@ -191,7 +192,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
 
             var courseIds = await _professorService.GetProfessorCourseIdsAsync(id, currentUser);
 
@@ -220,7 +221,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -287,7 +288,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -351,7 +352,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();
@@ -393,7 +394,7 @@ public class ProfessorsController : BaseAuthController // Inherits from BaseAuth
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
+            var currentUser = _currentUserService.GetCurrentUser();
             if (currentUser == null)
             {
                 return Unauthorized();

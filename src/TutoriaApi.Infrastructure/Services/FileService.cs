@@ -13,19 +13,22 @@ public class FileService : IFileService
     private readonly ICourseRepository _courseRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly AccessControlHelper _accessControl;
+    private readonly IAuditLogService _auditLogService;
 
     public FileService(
         IFileRepository fileRepository,
         IModuleRepository moduleRepository,
         ICourseRepository courseRepository,
         IBlobStorageService blobStorageService,
-        AccessControlHelper accessControl)
+        AccessControlHelper accessControl,
+        IAuditLogService auditLogService)
     {
         _fileRepository = fileRepository;
         _moduleRepository = moduleRepository;
         _courseRepository = courseRepository;
         _blobStorageService = blobStorageService;
         _accessControl = accessControl;
+        _auditLogService = auditLogService;
     }
 
     public async Task<List<int>> GetAccessibleModuleIdsAsync(User user)
@@ -190,7 +193,20 @@ public class FileService : IFileService
             IsActive = true
         };
 
-        return await _fileRepository.AddAsync(fileEntity);
+        var created = await _fileRepository.AddAsync(fileEntity);
+
+        // Audit log: File uploaded
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: module.Course.UniversityId,
+            action: "Create",
+            entityType: "File",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
+        return created;
     }
 
     public async Task<string> GetDownloadUrlAsync(int id, User currentUser)
@@ -227,14 +243,42 @@ public class FileService : IFileService
             throw new UnauthorizedAccessException("You do not have access to update this file");
         }
 
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
+        var oldFileName = file.FileName;
+
         // Update filename if provided
         if (!string.IsNullOrWhiteSpace(newFileName))
         {
-            file.FileName = FileHelper.SanitizeFilename(newFileName);
+            var sanitizedNewName = FileHelper.SanitizeFilename(newFileName);
+            if (file.FileName != sanitizedNewName)
+            {
+                changes["FileName"] = (file.FileName, sanitizedNewName);
+                file.FileName = sanitizedNewName;
+            }
         }
 
         file.UpdatedAt = DateTime.UtcNow;
         await _fileRepository.UpdateAsync(file);
+
+        // Get module and course to retrieve university ID for audit log
+        if (changes.Any())
+        {
+            var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+            var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
+
+            // Audit log: Only log if there were actual changes
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: course?.UniversityId,
+                action: "Update",
+                entityType: "File",
+                entityId: file.Id,
+                entityName: file.Name,
+                changes: changes);
+        }
+
         return file;
     }
 
@@ -280,11 +324,26 @@ public class FileService : IFileService
             throw new UnauthorizedAccessException("You do not have access to delete this file");
         }
 
+        // Get module and course to retrieve university ID for audit log before deletion
+        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
+
         // Delete from blob storage
         await _blobStorageService.DeleteFileAsync(file.BlobPath ?? file.FileName ?? "");
 
         // Delete from database
         await _fileRepository.DeleteAsync(file);
+
+        // Audit log: File deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course?.UniversityId,
+            action: "Delete",
+            entityType: "File",
+            entityId: file.Id,
+            entityName: file.Name,
+            changes: null);
     }
 
     public async Task<bool> CanUserAccessFileAsync(int fileId, User user)

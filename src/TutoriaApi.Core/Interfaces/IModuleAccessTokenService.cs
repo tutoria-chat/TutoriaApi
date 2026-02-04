@@ -43,6 +43,7 @@ public interface IModuleAccessTokenService
         string? description,
         bool? isActive,
         bool? allowChat,
-        bool? allowFileAccess);
-    Task DeleteAsync(int id);
+        bool? allowFileAccess,
+        User currentUser);
+    Task DeleteAsync(int id, User currentUser);
 }

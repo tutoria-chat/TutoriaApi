@@ -12,17 +12,20 @@ public class UserService : IUserService
     private readonly IUniversityRepository _universityRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IEmailService _emailService;
+    private readonly IAuditLogService _auditLogService;
 
     public UserService(
         IUserRepository userRepository,
         IUniversityRepository universityRepository,
         ICourseRepository courseRepository,
-        IEmailService emailService)
+        IEmailService emailService,
+        IAuditLogService auditLogService)
     {
         _userRepository = userRepository;
         _universityRepository = universityRepository;
         _courseRepository = courseRepository;
         _emailService = emailService;
+        _auditLogService = auditLogService;
     }
 
     public async Task<(List<UserListViewModel> Items, int Total)> GetPagedAsync(
@@ -249,6 +252,17 @@ public class UserService : IUserService
         // Reload with includes
         var createdUser = await _userRepository.GetByIdWithIncludesAsync(user.UserId);
 
+        // Audit log: User created
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: createdUser?.UniversityId,
+            action: "Create",
+            entityType: "User",
+            entityId: createdUser!.UserId,
+            entityName: $"{createdUser.Username} ({createdUser.Email})",
+            changes: null);
+
         return new UserListViewModel
         {
             User = createdUser!,
@@ -320,6 +334,9 @@ public class UserService : IUserService
             throw new InvalidOperationException("Cannot update your own account via this endpoint");
         }
 
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
+
         // Check for username conflicts
         if (!string.IsNullOrWhiteSpace(username) && username != user.Username)
         {
@@ -329,6 +346,7 @@ public class UserService : IUserService
                 throw new InvalidOperationException("Username already exists");
             }
 
+            changes["Username"] = (user.Username, username);
             user.Username = username;
         }
 
@@ -341,37 +359,43 @@ public class UserService : IUserService
                 throw new InvalidOperationException("Email already exists");
             }
 
+            changes["Email"] = (user.Email, email);
             user.Email = email;
         }
 
         // Update other fields
-        if (!string.IsNullOrWhiteSpace(firstName))
+        if (!string.IsNullOrWhiteSpace(firstName) && user.FirstName != firstName)
         {
+            changes["FirstName"] = (user.FirstName, firstName);
             user.FirstName = firstName;
         }
 
-        if (!string.IsNullOrWhiteSpace(lastName))
+        if (!string.IsNullOrWhiteSpace(lastName) && user.LastName != lastName)
         {
+            changes["LastName"] = (user.LastName, lastName);
             user.LastName = lastName;
         }
 
-        if (isAdmin.HasValue)
+        if (isAdmin.HasValue && user.IsAdmin != isAdmin.Value)
         {
+            changes["IsAdmin"] = (user.IsAdmin, isAdmin.Value);
             user.IsAdmin = isAdmin.Value;
         }
 
-        if (isActive.HasValue)
+        if (isActive.HasValue && user.IsActive != isActive.Value)
         {
+            changes["IsActive"] = (user.IsActive, isActive.Value);
             user.IsActive = isActive.Value;
         }
 
-        if (universityId.HasValue)
+        if (universityId.HasValue && user.UniversityId != universityId.Value)
         {
             var university = await _universityRepository.GetByIdAsync(universityId.Value);
             if (university == null)
             {
                 throw new KeyNotFoundException("University not found");
             }
+            changes["UniversityId"] = (user.UniversityId, universityId.Value);
             user.UniversityId = universityId.Value;
         }
 
@@ -386,13 +410,15 @@ public class UserService : IUserService
             // This is a placeholder for future implementation
         }
 
-        if (!string.IsNullOrWhiteSpace(themePreference))
+        if (!string.IsNullOrWhiteSpace(themePreference) && user.ThemePreference != themePreference)
         {
+            changes["ThemePreference"] = (user.ThemePreference, themePreference);
             user.ThemePreference = themePreference;
         }
 
-        if (!string.IsNullOrWhiteSpace(languagePreference))
+        if (!string.IsNullOrWhiteSpace(languagePreference) && user.LanguagePreference != languagePreference)
         {
+            changes["LanguagePreference"] = (user.LanguagePreference, languagePreference);
             user.LanguagePreference = languagePreference;
         }
 
@@ -401,6 +427,20 @@ public class UserService : IUserService
 
         // Reload with includes
         var updatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
+
+        // Audit log: Only log if there were actual changes
+        if (changes.Any())
+        {
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: updatedUser?.UniversityId,
+                action: "Update",
+                entityType: "User",
+                entityId: updatedUser!.UserId,
+                entityName: $"{updatedUser.Username} ({updatedUser.Email})",
+                changes: changes);
+        }
 
         return new UserListViewModel
         {
@@ -450,12 +490,29 @@ public class UserService : IUserService
             throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
+        var wasActive = user.IsActive;
         user.IsActive = true;
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
 
         // Reload with includes
         var activatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
+
+        // Audit log: User activated
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>
+        {
+            ["IsActive"] = (wasActive, true)
+        };
+
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: activatedUser?.UniversityId,
+            action: "Update",
+            entityType: "User",
+            entityId: activatedUser!.UserId,
+            entityName: $"{activatedUser.Username} ({activatedUser.Email})",
+            changes: changes);
 
         return new UserListViewModel
         {
@@ -511,12 +568,29 @@ public class UserService : IUserService
             throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
+        var wasActive = user.IsActive;
         user.IsActive = false;
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
 
         // Reload with includes
         var deactivatedUser = await _userRepository.GetByIdWithIncludesAsync(id);
+
+        // Audit log: User deactivated
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>
+        {
+            ["IsActive"] = (wasActive, false)
+        };
+
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: deactivatedUser?.UniversityId,
+            action: "Update",
+            entityType: "User",
+            entityId: deactivatedUser!.UserId,
+            entityName: $"{deactivatedUser.Username} ({deactivatedUser.Email})",
+            changes: changes);
 
         return new UserListViewModel
         {
@@ -572,7 +646,23 @@ public class UserService : IUserService
             throw new UnauthorizedAccessException("Insufficient permissions");
         }
 
+        // Capture user info for audit log before deletion
+        var deletedUsername = user.Username;
+        var deletedEmail = user.Email;
+        var deletedUniversityId = user.UniversityId;
+
         await _userRepository.DeleteAsync(user);
+
+        // Audit log: User deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: deletedUniversityId,
+            action: "Delete",
+            entityType: "User",
+            entityId: id,
+            entityName: $"{deletedUsername} ({deletedEmail})",
+            changes: null);
     }
 
     public async Task ChangePasswordAsync(int id, string newPassword, User currentUser)
@@ -619,5 +709,21 @@ public class UserService : IUserService
         user.HashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
+
+        // Audit log: Password changed (don't include actual password)
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>
+        {
+            ["Password"] = ("***", "***")
+        };
+
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: user.UniversityId,
+            action: "Update",
+            entityType: "User",
+            entityId: user.UserId,
+            entityName: $"{user.Username} ({user.Email})",
+            changes: changes);
     }
 }

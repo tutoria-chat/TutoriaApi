@@ -14,13 +14,17 @@ public class ModuleAccessTokenServiceTests
 {
     private readonly Mock<IModuleAccessTokenRepository> _tokenRepositoryMock;
     private readonly Mock<IModuleRepository> _moduleRepositoryMock;
+    private readonly Mock<ICourseRepository> _courseRepositoryMock;
     private readonly AccessControlHelper _accessControl;
+    private readonly Mock<IAuditLogService> _auditLogServiceMock;
     private readonly ModuleAccessTokenService _service;
 
     public ModuleAccessTokenServiceTests()
     {
         _tokenRepositoryMock = new Mock<IModuleAccessTokenRepository>();
         _moduleRepositoryMock = new Mock<IModuleRepository>();
+        _courseRepositoryMock = new Mock<ICourseRepository>();
+        _auditLogServiceMock = new Mock<IAuditLogService>();
 
         // Create in-memory database for AccessControlHelper
         var options = new DbContextOptionsBuilder<TutoriaDbContext>()
@@ -33,7 +37,9 @@ public class ModuleAccessTokenServiceTests
         _service = new ModuleAccessTokenService(
             _tokenRepositoryMock.Object,
             _moduleRepositoryMock.Object,
-            _accessControl);
+            _courseRepositoryMock.Object,
+            _accessControl,
+            _auditLogServiceMock.Object);
     }
 
     private Module CreateTestModule(string name = "Test Module")
@@ -56,6 +62,22 @@ public class ModuleAccessTokenServiceTests
                     Code = "TU"
                 }
             }
+        };
+    }
+
+    private User CreateTestUser()
+    {
+        return new User
+        {
+            UserId = 1,
+            Username = "testuser",
+            Email = "test@example.com",
+            FirstName = "Test",
+            LastName = "User",
+            UserType = "professor",
+            UniversityId = 1,
+            IsAdmin = false,
+            IsActive = true
         };
     }
 
@@ -166,11 +188,12 @@ public class ModuleAccessTokenServiceTests
         // Arrange
         var token = CreateTestToken();
         token.Name = "Old Name";
+        var currentUser = CreateTestUser();
         _tokenRepositoryMock.Setup(r => r.GetWithDetailsAsync(1)).ReturnsAsync(token);
         _tokenRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<ModuleAccessToken>())).Returns(Task.CompletedTask);
 
         // Act
-        var result = await _service.UpdateAsync(1, "New Name", "New Desc", false, true, true);
+        var result = await _service.UpdateAsync(1, "New Name", "New Desc", false, true, true, currentUser);
 
         // Assert
         Assert.Equal("New Name", result.Token.Name);
@@ -181,11 +204,12 @@ public class ModuleAccessTokenServiceTests
     public async Task UpdateAsync_NonExistentToken_ThrowsKeyNotFoundException()
     {
         // Arrange
+        var currentUser = CreateTestUser();
         _tokenRepositoryMock.Setup(r => r.GetWithDetailsAsync(999)).ReturnsAsync((ModuleAccessToken?)null);
 
         // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.UpdateAsync(999, "New Name", null, null, null, null));
+            () => _service.UpdateAsync(999, "New Name", null, null, null, null, currentUser));
     }
 
     [Fact]
@@ -193,11 +217,12 @@ public class ModuleAccessTokenServiceTests
     {
         // Arrange
         var token = CreateTestToken();
+        var currentUser = CreateTestUser();
         _tokenRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(token);
         _tokenRepositoryMock.Setup(r => r.DeleteAsync(token)).Returns(Task.CompletedTask);
 
         // Act
-        await _service.DeleteAsync(1);
+        await _service.DeleteAsync(1, currentUser);
 
         // Assert
         _tokenRepositoryMock.Verify(r => r.DeleteAsync(token), Times.Once);
@@ -207,9 +232,10 @@ public class ModuleAccessTokenServiceTests
     public async Task DeleteAsync_NonExistentToken_ThrowsKeyNotFoundException()
     {
         // Arrange
+        var currentUser = CreateTestUser();
         _tokenRepositoryMock.Setup(r => r.GetByIdAsync(999)).ReturnsAsync((ModuleAccessToken?)null);
 
         // Act & Assert
-        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.DeleteAsync(999));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => _service.DeleteAsync(999, currentUser));
     }
 }

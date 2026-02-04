@@ -29,16 +29,19 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class ModuleAccessTokensController : BaseAuthController
+public class ModuleAccessTokensController : ControllerBase
 {
     private readonly IModuleAccessTokenService _tokenService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ModuleAccessTokensController> _logger;
 
     public ModuleAccessTokensController(
         IModuleAccessTokenService tokenService,
+        ICurrentUserService currentUserService,
         ILogger<ModuleAccessTokensController> logger)
     {
         _tokenService = tokenService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -56,15 +59,13 @@ public class ModuleAccessTokensController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-
             var (viewModels, total) = await _tokenService.GetPagedAsync(
                 moduleId,
                 universityId,
                 isActive,
                 page,
                 size,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             var items = viewModels.Select(vm => new ModuleAccessTokenListDto
             {
@@ -155,12 +156,6 @@ public class ModuleAccessTokensController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             var viewModel = await _tokenService.CreateAsync(
                 request.ModuleId,
                 request.Name,
@@ -168,7 +163,7 @@ public class ModuleAccessTokensController : BaseAuthController
                 request.AllowChat,
                 request.AllowFileAccess,
                 request.ExpiresInDays,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             var token = viewModel.Token;
 
@@ -227,7 +222,8 @@ public class ModuleAccessTokensController : BaseAuthController
                 request.Description,
                 request.IsActive,
                 request.AllowChat,
-                request.AllowFileAccess);
+                request.AllowFileAccess,
+                _currentUserService.GetCurrentUser());
 
             var token = viewModel.Token;
 
@@ -273,7 +269,7 @@ public class ModuleAccessTokensController : BaseAuthController
     {
         try
         {
-            await _tokenService.DeleteAsync(id);
+            await _tokenService.DeleteAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted module access token with ID {Id}", id);
 

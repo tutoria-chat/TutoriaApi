@@ -12,13 +12,16 @@ namespace TutoriaApi.Web.API.Controllers;
 public class UniversitiesController : ControllerBase
 {
     private readonly IUniversityService _universityService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
         IUniversityService universityService,
+        ICurrentUserService currentUserService,
         ILogger<UniversitiesController> logger)
     {
         _universityService = universityService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -152,7 +155,7 @@ public class UniversitiesController : ControllerBase
                 SubscriptionTier = request.SubscriptionTier
             };
 
-            var created = await _universityService.CreateAsync(university);
+            var created = await _universityService.CreateAsync(university, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Created university {Name} with ID {Id}", created.Name, created.Id);
 
@@ -223,7 +226,7 @@ public class UniversitiesController : ControllerBase
                 ContactPerson = request.ContactPerson,
                 Website = request.Website,
                 SubscriptionTier = request.SubscriptionTier ?? 3
-            });
+            }, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated university {Name} with ID {Id}", updated.Name, updated.Id);
 
@@ -270,7 +273,7 @@ public class UniversitiesController : ControllerBase
         // TODO: Refactor to use service layer
         try
         {
-            await _universityService.DeleteAsync(id);
+            await _universityService.DeleteAsync(id, _currentUserService.GetCurrentUser());
             _logger.LogInformation("Deleted university with ID {Id}", id);
             return Ok(new { message = "University deleted successfully" });
         }

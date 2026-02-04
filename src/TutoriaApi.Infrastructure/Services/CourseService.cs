@@ -9,17 +9,20 @@ public class CourseService : ICourseService
     private readonly IUniversityRepository _universityRepository;
     private readonly IUserRepository _userRepository;
     private readonly IModuleRepository _moduleRepository;
+    private readonly IAuditLogService _auditLogService;
 
     public CourseService(
         ICourseRepository courseRepository,
         IUniversityRepository universityRepository,
         IUserRepository userRepository,
-        IModuleRepository moduleRepository)
+        IModuleRepository moduleRepository,
+        IAuditLogService auditLogService)
     {
         _courseRepository = courseRepository;
         _universityRepository = universityRepository;
         _userRepository = userRepository;
         _moduleRepository = moduleRepository;
+        _auditLogService = auditLogService;
     }
 
     public async Task<CourseWithCountsViewModel?> GetCourseWithCountsAsync(int id)
@@ -109,7 +112,7 @@ public class CourseService : ICourseService
         return (viewModels, total);
     }
 
-    public async Task<Course> CreateAsync(Course course)
+    public async Task<Course> CreateAsync(Course course, User currentUser)
     {
         // Validate: Check if university exists
         var university = await _universityRepository.GetByIdAsync(course.UniversityId);
@@ -125,16 +128,32 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Course with this code already exists in this university");
         }
 
-        return await _courseRepository.AddAsync(course);
+        var created = await _courseRepository.AddAsync(course);
+
+        // Audit log: Course created
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: created.UniversityId,
+            action: "Create",
+            entityType: "Course",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
+        return created;
     }
 
-    public async Task<CourseWithCountsViewModel> UpdateAsync(int id, Course course)
+    public async Task<CourseWithCountsViewModel> UpdateAsync(int id, Course course, User currentUser)
     {
         var existing = await _courseRepository.GetByIdAsync(id);
         if (existing == null)
         {
             throw new KeyNotFoundException("Course not found");
         }
+
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
 
         // Check if code is being changed and if it conflicts with another course
         if (!string.IsNullOrEmpty(course.Code) && course.Code != existing.Code)
@@ -144,27 +163,44 @@ public class CourseService : ICourseService
             {
                 throw new InvalidOperationException("Course with this code already exists in this university");
             }
+            changes["Code"] = (existing.Code, course.Code);
             existing.Code = course.Code;
         }
 
         // Update properties
-        if (!string.IsNullOrEmpty(course.Name))
+        if (!string.IsNullOrEmpty(course.Name) && course.Name != existing.Name)
         {
+            changes["Name"] = (existing.Name, course.Name);
             existing.Name = course.Name;
         }
 
-        if (course.Description != null)
+        if (course.Description != null && course.Description != existing.Description)
         {
+            changes["Description"] = (existing.Description, course.Description);
             existing.Description = course.Description;
         }
 
         await _courseRepository.UpdateAsync(existing);
 
+        // Audit log: Only log if there were actual changes
+        if (changes.Any())
+        {
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: existing.UniversityId,
+                action: "Update",
+                entityType: "Course",
+                entityId: existing.Id,
+                entityName: existing.Name,
+                changes: changes);
+        }
+
         // Return updated course with counts
         return (await GetCourseWithCountsAsync(id))!;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, User currentUser)
     {
         var course = await _courseRepository.GetByIdAsync(id);
         if (course == null)
@@ -173,9 +209,20 @@ public class CourseService : ICourseService
         }
 
         await _courseRepository.DeleteAsync(course);
+
+        // Audit log: Course deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course.UniversityId,
+            action: "Delete",
+            entityType: "Course",
+            entityId: course.Id,
+            entityName: course.Name,
+            changes: null);
     }
 
-    public async Task AssignProfessorAsync(int courseId, int professorId)
+    public async Task AssignProfessorAsync(int courseId, int professorId, User currentUser)
     {
         // Check if course exists
         var course = await _courseRepository.GetByIdAsync(courseId);
@@ -199,6 +246,17 @@ public class CourseService : ICourseService
         }
 
         await _courseRepository.AssignProfessorAsync(courseId, professorId);
+
+        // Audit log: Professor assigned to course
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course.UniversityId,
+            action: "AssignProfessor",
+            entityType: "ProfessorCourseAssignment",
+            entityId: courseId,
+            entityName: $"{professor.Username} → {course.Name}",
+            changes: null);
     }
 
     public async Task UnassignProfessorAsync(int courseId, int professorId)

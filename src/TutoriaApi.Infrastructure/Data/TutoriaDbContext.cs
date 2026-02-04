@@ -79,6 +79,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<ApiClient> ApiClients { get; set; }
     public DbSet<ProfessorAgent> ProfessorAgents { get; set; }
     public DbSet<ProfessorAgentToken> ProfessorAgentTokens { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

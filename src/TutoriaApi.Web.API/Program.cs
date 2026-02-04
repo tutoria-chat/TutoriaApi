@@ -58,6 +58,9 @@ builder.Services.AddControllers()
 // Add HttpClient for VideoTranscriptionService (calls Python AI API)
 builder.Services.AddHttpClient();
 
+// Add HttpContextAccessor for CurrentUserService
+builder.Services.AddHttpContextAccessor();
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add Health Checks

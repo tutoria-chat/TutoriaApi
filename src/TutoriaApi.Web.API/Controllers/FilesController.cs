@@ -11,16 +11,19 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/files")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class FilesController : BaseAuthController
+public class FilesController : ControllerBase
 {
     private readonly IFileService _fileService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<FilesController> _logger;
 
     public FilesController(
         IFileService fileService,
+        ICurrentUserService currentUserService,
         ILogger<FilesController> logger)
     {
         _fileService = fileService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -37,18 +40,12 @@ public class FilesController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             var (items, total) = await _fileService.GetPagedFilesAsync(
                 moduleId,
                 search,
                 page,
                 size,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             var dtos = items.Select(f => new FileListDto
             {
@@ -97,13 +94,7 @@ public class FilesController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
-            var viewModel = await _fileService.GetFileWithDetailsAsync(id, currentUser);
+            var viewModel = await _fileService.GetFileWithDetailsAsync(id, _currentUserService.GetCurrentUser());
 
             if (viewModel == null)
             {
@@ -168,12 +159,6 @@ public class FilesController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             using var stream = request.File.OpenReadStream();
             var file = await _fileService.UploadFileAsync(
                 request.ModuleId,
@@ -182,12 +167,12 @@ public class FilesController : BaseAuthController
                 request.File.ContentType ?? "application/octet-stream",
                 request.File.Length,
                 request.Name,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Uploaded file {FileName} for module {ModuleId}", file.FileName, request.ModuleId);
 
             // Get full details for response
-            var viewModel = await _fileService.GetFileWithDetailsAsync(file.Id, currentUser);
+            var viewModel = await _fileService.GetFileWithDetailsAsync(file.Id, _currentUserService.GetCurrentUser());
 
             return CreatedAtAction(nameof(GetFile), new { id = file.Id }, new FileDetailDto
             {
@@ -239,13 +224,7 @@ public class FilesController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
-            var file = await _fileService.UpdateFileAsync(id, request.FileName, currentUser);
+            var file = await _fileService.UpdateFileAsync(id, request.FileName, _currentUserService.GetCurrentUser());
 
             return Ok(new FileDetailDto
             {
@@ -284,13 +263,7 @@ public class FilesController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
-            await _fileService.DeleteFileAsync(id, currentUser);
+            await _fileService.DeleteFileAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted file with ID {Id}", id);
 
@@ -317,13 +290,7 @@ public class FilesController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
-            var downloadUrl = await _fileService.GetDownloadUrlAsync(id, currentUser);
+            var downloadUrl = await _fileService.GetDownloadUrlAsync(id, _currentUserService.GetCurrentUser());
 
             // Return JSON with download URL for frontend to handle (camelCase for consistency)
             return Ok(new { downloadUrl });

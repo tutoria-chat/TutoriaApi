@@ -10,16 +10,22 @@ public class ModuleService : IModuleService
 {
     private readonly IModuleRepository _moduleRepository;
     private readonly IFileRepository _fileRepository;
+    private readonly ICourseRepository _courseRepository;
     private readonly AccessControlHelper _accessControl;
+    private readonly IAuditLogService _auditLogService;
 
     public ModuleService(
         IModuleRepository moduleRepository,
         IFileRepository fileRepository,
-        AccessControlHelper accessControl)
+        ICourseRepository courseRepository,
+        AccessControlHelper accessControl,
+        IAuditLogService auditLogService)
     {
         _moduleRepository = moduleRepository;
         _fileRepository = fileRepository;
+        _courseRepository = courseRepository;
         _accessControl = accessControl;
+        _auditLogService = auditLogService;
     }
 
     public async Task<Module?> GetByIdAsync(int id)
@@ -121,7 +127,7 @@ public class ModuleService : IModuleService
         return (viewModels, total);
     }
 
-    public async Task<Module> CreateAsync(Module module)
+    public async Task<Module> CreateAsync(Module module, User currentUser)
     {
         // Validate: Check if module with same code exists in course
         var exists = await _moduleRepository.ExistsByCodeAndCourseAsync(module.Code, module.CourseId);
@@ -151,10 +157,26 @@ public class ModuleService : IModuleService
             module.Name = $"Module {moduleNumber} - {module.Name}";
         }
 
-        return await _moduleRepository.AddAsync(module);
+        var created = await _moduleRepository.AddAsync(module);
+
+        // Get course to retrieve university ID for audit log
+        var course = await _courseRepository.GetByIdAsync(created.CourseId);
+
+        // Audit log: Module created
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course?.UniversityId,
+            action: "Create",
+            entityType: "Module",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
+        return created;
     }
 
-    public async Task<Module> UpdateAsync(int id, Module module)
+    public async Task<Module> UpdateAsync(int id, Module module, User currentUser)
     {
         var existing = await _moduleRepository.GetByIdAsync(id);
         if (existing == null)
@@ -162,6 +184,34 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException("Module not found");
         }
 
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
+
+        if (existing.Name != module.Name)
+            changes["Name"] = (existing.Name, module.Name);
+
+        if (existing.Code != module.Code)
+            changes["Code"] = (existing.Code, module.Code);
+
+        if (existing.Description != module.Description)
+            changes["Description"] = (existing.Description, module.Description);
+
+        if (existing.SystemPrompt != module.SystemPrompt)
+            changes["SystemPrompt"] = (existing.SystemPrompt, module.SystemPrompt);
+
+        if (existing.Semester != module.Semester)
+            changes["Semester"] = (existing.Semester, module.Semester);
+
+        if (existing.Year != module.Year)
+            changes["Year"] = (existing.Year, module.Year);
+
+        if (existing.TutorLanguage != module.TutorLanguage)
+            changes["TutorLanguage"] = (existing.TutorLanguage, module.TutorLanguage);
+
+        if (existing.AIModelId != module.AIModelId)
+            changes["AIModelId"] = (existing.AIModelId, module.AIModelId);
+
+        // Apply updates
         existing.Name = module.Name;
         existing.Code = module.Code;
         existing.Description = module.Description;
@@ -173,10 +223,28 @@ public class ModuleService : IModuleService
         existing.AIModelId = module.AIModelId;
 
         await _moduleRepository.UpdateAsync(existing);
+
+        // Get course to retrieve university ID for audit log
+        var course = await _courseRepository.GetByIdAsync(existing.CourseId);
+
+        // Audit log: Only log if there were actual changes
+        if (changes.Any())
+        {
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: course?.UniversityId,
+                action: "Update",
+                entityType: "Module",
+                entityId: existing.Id,
+                entityName: existing.Name,
+                changes: changes);
+        }
+
         return existing;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, User currentUser)
     {
         var module = await _moduleRepository.GetByIdAsync(id);
         if (module == null)
@@ -184,6 +252,20 @@ public class ModuleService : IModuleService
             throw new KeyNotFoundException("Module not found");
         }
 
+        // Get course to retrieve university ID for audit log
+        var course = await _courseRepository.GetByIdAsync(module.CourseId);
+
         await _moduleRepository.DeleteAsync(module);
+
+        // Audit log: Module deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: course?.UniversityId,
+            action: "Delete",
+            entityType: "Module",
+            entityId: module.Id,
+            entityName: module.Name,
+            changes: null);
     }
 }

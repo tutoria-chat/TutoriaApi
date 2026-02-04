@@ -6,10 +6,14 @@ namespace TutoriaApi.Infrastructure.Services;
 public class UniversityService : IUniversityService
 {
     private readonly IUniversityRepository _universityRepository;
+    private readonly IAuditLogService _auditLogService;
 
-    public UniversityService(IUniversityRepository universityRepository)
+    public UniversityService(
+        IUniversityRepository universityRepository,
+        IAuditLogService auditLogService)
     {
         _universityRepository = universityRepository;
+        _auditLogService = auditLogService;
     }
 
     public async Task<University?> GetByIdAsync(int id)
@@ -27,7 +31,7 @@ public class UniversityService : IUniversityService
         return await _universityRepository.SearchAsync(search, page, pageSize);
     }
 
-    public async Task<University> CreateAsync(University university)
+    public async Task<University> CreateAsync(University university, User currentUser)
     {
         // Validate: Check if university with same name or code already exists
         var nameExists = await _universityRepository.ExistsByNameAsync(university.Name);
@@ -38,10 +42,23 @@ public class UniversityService : IUniversityService
             throw new InvalidOperationException("University with this name or code already exists");
         }
 
-        return await _universityRepository.AddAsync(university);
+        var created = await _universityRepository.AddAsync(university);
+
+        // Audit log: University created
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: null,  // Global action
+            action: "Create",
+            entityType: "University",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
+        return created;
     }
 
-    public async Task<University> UpdateAsync(int id, University university)
+    public async Task<University> UpdateAsync(int id, University university, User currentUser)
     {
         var existing = await _universityRepository.GetByIdAsync(id);
         if (existing == null)
@@ -49,11 +66,26 @@ public class UniversityService : IUniversityService
             throw new KeyNotFoundException("University not found");
         }
 
+        // Track changes for audit log
+        var changes = new Dictionary<string, (object? OldValue, object? NewValue)>();
+
+        if (existing.Name != university.Name)
+            changes["Name"] = (existing.Name, university.Name);
+
+        if (existing.Code != university.Code)
+            changes["Code"] = (existing.Code, university.Code);
+
+        if (existing.Description != university.Description)
+            changes["Description"] = (existing.Description, university.Description);
+
+        if (existing.ContactEmail != university.ContactEmail)
+            changes["ContactEmail"] = (existing.ContactEmail, university.ContactEmail);
+
+        // Apply updates
         existing.Name = university.Name;
         existing.Code = university.Code;
         existing.Description = university.Description;
         existing.Address = university.Address;
-        // Individual address fields
         existing.PostalCode = university.PostalCode;
         existing.Street = university.Street;
         existing.StreetNumber = university.StreetNumber;
@@ -70,10 +102,25 @@ public class UniversityService : IUniversityService
         existing.SubscriptionTier = university.SubscriptionTier;
 
         await _universityRepository.UpdateAsync(existing);
+
+        // Audit log: Only log if there were actual changes
+        if (changes.Any())
+        {
+            await _auditLogService.LogAsync(
+                userId: currentUser.UserId,
+                username: currentUser.Username,
+                universityId: null,
+                action: "Update",
+                entityType: "University",
+                entityId: existing.Id,
+                entityName: existing.Name,
+                changes: changes);
+        }
+
         return existing;
     }
 
-    public async Task DeleteAsync(int id)
+    public async Task DeleteAsync(int id, User currentUser)
     {
         var university = await _universityRepository.GetByIdAsync(id);
         if (university == null)
@@ -82,6 +129,17 @@ public class UniversityService : IUniversityService
         }
 
         await _universityRepository.DeleteAsync(university);
+
+        // Audit log: University deleted
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: null,
+            action: "Delete",
+            entityType: "University",
+            entityId: university.Id,
+            entityName: university.Name,
+            changes: null);
     }
 
     public async Task<int> GetProfessorsCountAsync(int universityId)

@@ -12,22 +12,25 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/modules")]
 [Authorize]
-public class ModulesController : BaseAuthController
+public class ModulesController : ControllerBase
 {
     private readonly IModuleService _moduleService;
     private readonly ICourseRepository _courseRepository;
     private readonly IAIModelService _aiModelService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ModulesController> _logger;
 
     public ModulesController(
         IModuleService moduleService,
         ICourseRepository courseRepository,
         IAIModelService aiModelService,
+        ICurrentUserService currentUserService,
         ILogger<ModulesController> logger)
     {
         _moduleService = moduleService;
         _courseRepository = courseRepository;
         _aiModelService = aiModelService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -46,8 +49,6 @@ public class ModulesController : BaseAuthController
 
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-
             var (viewModels, total) = await _moduleService.GetPagedWithCountsAsync(
                 courseId,
                 semester,
@@ -55,7 +56,7 @@ public class ModulesController : BaseAuthController
                 search,
                 page,
                 size,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             var dtos = viewModels.Select(vm => new ModuleListDto
             {
@@ -262,7 +263,7 @@ public class ModulesController : BaseAuthController
                 PromptImprovementCount = 0
             };
 
-            var created = await _moduleService.CreateAsync(module);
+            var created = await _moduleService.CreateAsync(module, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
 
@@ -382,7 +383,7 @@ public class ModulesController : BaseAuthController
                 }
             }
 
-            var updated = await _moduleService.UpdateAsync(id, existing);
+            var updated = await _moduleService.UpdateAsync(id, existing, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated module {Name} with ID {Id}", updated.Name, updated.Id);
 
@@ -481,7 +482,7 @@ public class ModulesController : BaseAuthController
     {
         try
         {
-            await _moduleService.DeleteAsync(id);
+            await _moduleService.DeleteAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted module with ID {Id}", id);
 

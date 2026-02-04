@@ -24,9 +24,9 @@ public interface IUniversityService
     Task<University?> GetWithCoursesAsync(int id);
     Task<UniversityWithCoursesViewModel?> GetUniversityWithDetailsAsync(int id);
     Task<(IEnumerable<University> Items, int Total)> GetPagedAsync(string? search, int page, int pageSize);
-    Task<University> CreateAsync(University university);
-    Task<University> UpdateAsync(int id, University university);
-    Task DeleteAsync(int id);
+    Task<University> CreateAsync(University university, User currentUser);
+    Task<University> UpdateAsync(int id, University university, User currentUser);
+    Task DeleteAsync(int id, User currentUser);
     Task<int> GetProfessorsCountAsync(int universityId);
     Task<int> GetModulesCountByCourseAsync(int courseId);
     Task<int> GetAssignedProfessorsCountByCourseAsync(int courseId);

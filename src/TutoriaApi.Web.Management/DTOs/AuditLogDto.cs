@@ -1,0 +1,15 @@
+namespace TutoriaApi.Web.Management.DTOs;
+
+public class AuditLogDto
+{
+    public int Id { get; set; }
+    public int UserId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public int? UniversityId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public int EntityId { get; set; }
+    public string? EntityName { get; set; }
+    public string? Changes { get; set; }
+    public DateTime CreatedAt { get; set; }
+}

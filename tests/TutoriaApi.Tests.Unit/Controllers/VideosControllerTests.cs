@@ -14,6 +14,7 @@ namespace TutoriaApi.Tests.Unit.Controllers;
 public class VideosControllerTests
 {
     private readonly Mock<IVideoTranscriptionService> _serviceMock;
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<ILogger<VideosController>> _loggerMock;
     private readonly VideosController _controller;
     private readonly User _testUser;
@@ -21,8 +22,9 @@ public class VideosControllerTests
     public VideosControllerTests()
     {
         _serviceMock = new Mock<IVideoTranscriptionService>();
+        _currentUserServiceMock = new Mock<ICurrentUserService>();
         _loggerMock = new Mock<ILogger<VideosController>>();
-        _controller = new VideosController(_serviceMock.Object, _loggerMock.Object);
+        _controller = new VideosController(_serviceMock.Object, _currentUserServiceMock.Object, _loggerMock.Object);
 
         // Setup test user
         _testUser = new User
@@ -39,6 +41,19 @@ public class VideosControllerTests
 
         // Setup HttpContext with claims
         SetupControllerContext();
+        SetupCurrentUserService();
+    }
+
+    private void SetupCurrentUserService()
+    {
+        _currentUserServiceMock.Setup(s => s.GetCurrentUser()).Returns(_testUser);
+        _currentUserServiceMock.Setup(s => s.GetUserId()).Returns(_testUser.UserId);
+        _currentUserServiceMock.Setup(s => s.GetUsername()).Returns(_testUser.Username);
+        _currentUserServiceMock.Setup(s => s.GetUserType()).Returns(_testUser.UserType);
+        _currentUserServiceMock.Setup(s => s.GetUniversityId()).Returns(_testUser.UniversityId);
+        _currentUserServiceMock.Setup(s => s.IsSuperAdmin()).Returns(false);
+        _currentUserServiceMock.Setup(s => s.HasAdminPrivileges()).Returns(false);
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated()).Returns(true);
     }
 
     #region AddYoutubeVideo Tests

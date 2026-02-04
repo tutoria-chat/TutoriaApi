@@ -14,16 +14,19 @@ namespace TutoriaApi.Tests.Unit.Controllers;
 public class ModuleAccessTokensControllerTests
 {
     private readonly Mock<IModuleAccessTokenService> _serviceMock;
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<ILogger<ModuleAccessTokensController>> _loggerMock;
     private readonly ModuleAccessTokensController _controller;
 
     public ModuleAccessTokensControllerTests()
     {
         _serviceMock = new Mock<IModuleAccessTokenService>();
+        _currentUserServiceMock = new Mock<ICurrentUserService>();
         _loggerMock = new Mock<ILogger<ModuleAccessTokensController>>();
-        _controller = new ModuleAccessTokensController(_serviceMock.Object, _loggerMock.Object);
+        _controller = new ModuleAccessTokensController(_serviceMock.Object, _currentUserServiceMock.Object, _loggerMock.Object);
 
         SetupControllerContext();
+        SetupCurrentUserService();
     }
 
     private void SetupControllerContext()
@@ -46,6 +49,30 @@ public class ModuleAccessTokensControllerTests
         {
             HttpContext = new DefaultHttpContext { User = claimsPrincipal }
         };
+    }
+
+    private void SetupCurrentUserService()
+    {
+        var testUser = new User
+        {
+            UserId = 1,
+            Username = "testuser",
+            Email = "test@example.com",
+            FirstName = "Test",
+            LastName = "User",
+            UserType = "professor",
+            UniversityId = 1,
+            IsAdmin = false
+        };
+
+        _currentUserServiceMock.Setup(s => s.GetCurrentUser()).Returns(testUser);
+        _currentUserServiceMock.Setup(s => s.GetUserId()).Returns(1);
+        _currentUserServiceMock.Setup(s => s.GetUsername()).Returns("testuser");
+        _currentUserServiceMock.Setup(s => s.GetUserType()).Returns("professor");
+        _currentUserServiceMock.Setup(s => s.GetUniversityId()).Returns(1);
+        _currentUserServiceMock.Setup(s => s.IsSuperAdmin()).Returns(false);
+        _currentUserServiceMock.Setup(s => s.HasAdminPrivileges()).Returns(false);
+        _currentUserServiceMock.Setup(s => s.IsAuthenticated()).Returns(true);
     }
 
     [Fact]
@@ -377,7 +404,8 @@ public class ModuleAccessTokensControllerTests
                 request.Description,
                 request.IsActive,
                 request.AllowChat,
-                request.AllowFileAccess))
+                request.AllowFileAccess,
+                It.IsAny<User>()))
             .ReturnsAsync(viewModel);
 
         // Act
@@ -419,7 +447,8 @@ public class ModuleAccessTokensControllerTests
                 It.IsAny<string?>(),
                 It.IsAny<bool?>(),
                 It.IsAny<bool?>(),
-                It.IsAny<bool?>()))
+                It.IsAny<bool?>(),
+                It.IsAny<User>()))
             .ThrowsAsync(new KeyNotFoundException("Module access token not found"));
 
         // Act
@@ -444,7 +473,8 @@ public class ModuleAccessTokensControllerTests
                 It.IsAny<string?>(),
                 It.IsAny<bool?>(),
                 It.IsAny<bool?>(),
-                It.IsAny<bool?>()))
+                It.IsAny<bool?>(),
+                It.IsAny<User>()))
             .ThrowsAsync(new Exception("Unexpected error"));
 
         // Act
@@ -459,7 +489,7 @@ public class ModuleAccessTokensControllerTests
     public async Task DeleteModuleAccessToken_ExistingToken_ReturnsOk()
     {
         // Arrange
-        _serviceMock.Setup(s => s.DeleteAsync(1))
+        _serviceMock.Setup(s => s.DeleteAsync(1, It.IsAny<User>()))
             .Returns(Task.CompletedTask);
 
         // Act
@@ -467,14 +497,14 @@ public class ModuleAccessTokensControllerTests
 
         // Assert
         var okResult = Assert.IsType<OkObjectResult>(result);
-        _serviceMock.Verify(s => s.DeleteAsync(1), Times.Once);
+        _serviceMock.Verify(s => s.DeleteAsync(1, It.IsAny<User>()), Times.Once);
     }
 
     [Fact]
     public async Task DeleteModuleAccessToken_NonExistentToken_ReturnsNotFound()
     {
         // Arrange
-        _serviceMock.Setup(s => s.DeleteAsync(999))
+        _serviceMock.Setup(s => s.DeleteAsync(999, It.IsAny<User>()))
             .ThrowsAsync(new KeyNotFoundException("Module access token not found"));
 
         // Act
@@ -488,7 +518,7 @@ public class ModuleAccessTokensControllerTests
     public async Task DeleteModuleAccessToken_ServiceThrowsException_Returns500()
     {
         // Arrange
-        _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<int>()))
+        _serviceMock.Setup(s => s.DeleteAsync(It.IsAny<int>(), It.IsAny<User>()))
             .ThrowsAsync(new Exception("Unexpected error"));
 
         // Act

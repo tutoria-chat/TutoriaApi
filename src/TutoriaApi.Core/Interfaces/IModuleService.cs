@@ -40,7 +40,7 @@ public interface IModuleService
         int page,
         int pageSize,
         User? currentUser);
-    Task<Module> CreateAsync(Module module);
-    Task<Module> UpdateAsync(int id, Module module);
-    Task DeleteAsync(int id);
+    Task<Module> CreateAsync(Module module, User currentUser);
+    Task<Module> UpdateAsync(int id, Module module, User currentUser);
+    Task DeleteAsync(int id, User currentUser);
 }

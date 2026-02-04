@@ -11,16 +11,19 @@ namespace TutoriaApi.Web.API.Controllers;
 [ApiController]
 [Route("api/videos")]
 [Authorize(Policy = "ProfessorOrAbove")]
-public class VideosController : BaseAuthController
+public class VideosController : ControllerBase
 {
     private readonly IVideoTranscriptionService _videoTranscriptionService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<VideosController> _logger;
 
     public VideosController(
         IVideoTranscriptionService videoTranscriptionService,
+        ICurrentUserService currentUserService,
         ILogger<VideosController> logger)
     {
         _videoTranscriptionService = videoTranscriptionService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -37,19 +40,13 @@ public class VideosController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             // Call service
             var file = await _videoTranscriptionService.TranscribeYoutubeVideoAsync(
                 request.YoutubeUrl,
                 request.ModuleId,
                 request.Language,
                 request.Name,
-                currentUser);
+                _currentUserService.GetCurrentUser());
 
             // Map to DTO
             var resultDto = new TranscriptionResultDto
@@ -103,14 +100,8 @@ public class VideosController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             // Call service
-            var file = await _videoTranscriptionService.GetTranscriptionStatusAsync(id, currentUser);
+            var file = await _videoTranscriptionService.GetTranscriptionStatusAsync(id, _currentUserService.GetCurrentUser());
             if (file == null)
             {
                 return NotFound(new { message = "File not found" });
@@ -154,14 +145,8 @@ public class VideosController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             // Call service
-            var file = await _videoTranscriptionService.GetTranscriptTextAsync(id, currentUser);
+            var file = await _videoTranscriptionService.GetTranscriptTextAsync(id, _currentUserService.GetCurrentUser());
             if (file == null)
             {
                 return NotFound(new { message = "No transcript available for this file" });
@@ -200,14 +185,8 @@ public class VideosController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             // Call service
-            var file = await _videoTranscriptionService.RetryTranscriptionAsync(id, currentUser);
+            var file = await _videoTranscriptionService.RetryTranscriptionAsync(id, _currentUserService.GetCurrentUser());
 
             // Map to DTO
             var resultDto = new TranscriptionResultDto
@@ -257,14 +236,8 @@ public class VideosController : BaseAuthController
     {
         try
         {
-            var currentUser = GetCurrentUserFromClaims();
-            if (currentUser == null)
-            {
-                return Unauthorized();
-            }
-
             // Call service
-            var success = await _videoTranscriptionService.DeleteTranscriptionAsync(id, currentUser);
+            var success = await _videoTranscriptionService.DeleteTranscriptionAsync(id, _currentUserService.GetCurrentUser());
             if (!success)
             {
                 return NotFound(new { message = "File not found" });

@@ -27,13 +27,16 @@ namespace TutoriaApi.Web.API.Controllers;
 public class CoursesController : ControllerBase
 {
     private readonly ICourseService _courseService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
         ICourseService courseService,
+        ICurrentUserService currentUserService,
         ILogger<CoursesController> logger)
     {
         _courseService = courseService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -186,7 +189,7 @@ public class CoursesController : ControllerBase
                 UniversityId = request.UniversityId
             };
 
-            var created = await _courseService.CreateAsync(course);
+            var created = await _courseService.CreateAsync(course, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Created course {Name} with ID {Id}", created.Name, created.Id);
 
@@ -243,7 +246,7 @@ public class CoursesController : ControllerBase
                 Description = request.Description
             };
 
-            var viewModel = await _courseService.UpdateAsync(id, course);
+            var viewModel = await _courseService.UpdateAsync(id, course, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated course {Name} with ID {Id}", viewModel.Course.Name, viewModel.Course.Id);
 
@@ -285,7 +288,7 @@ public class CoursesController : ControllerBase
     {
         try
         {
-            await _courseService.DeleteAsync(id);
+            await _courseService.DeleteAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted course with ID {Id}", id);
 
@@ -308,7 +311,7 @@ public class CoursesController : ControllerBase
     {
         try
         {
-            await _courseService.AssignProfessorAsync(courseId, professorId);
+            await _courseService.AssignProfessorAsync(courseId, professorId, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Assigned professor {ProfessorId} to course {CourseId}", professorId, courseId);
 
