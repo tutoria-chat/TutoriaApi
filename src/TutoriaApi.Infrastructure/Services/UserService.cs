@@ -14,7 +14,7 @@ public class UserService : IUserService
     private readonly ICourseRepository _courseRepository;
     private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
-    private readonly string[] _platformOwnerEmails;
+    private readonly int[] _platformOwnerUserIds;
 
     public UserService(
         IUserRepository userRepository,
@@ -29,7 +29,7 @@ public class UserService : IUserService
         _courseRepository = courseRepository;
         _emailService = emailService;
         _auditLogService = auditLogService;
-        _platformOwnerEmails = configuration.GetSection("Platform:OwnerEmails").Get<string[]>() ?? Array.Empty<string>();
+        _platformOwnerUserIds = configuration.GetSection("Platform:OwnerUserIds").Get<int[]>() ?? Array.Empty<int>();
     }
 
     public async Task<(List<UserListViewModel> Items, int Total)> GetPagedAsync(
@@ -621,7 +621,7 @@ public class UserService : IUserService
         // Special restriction: Only platform owners can delete other super admins
         if (user.UserType == UserTypes.SuperAdmin)
         {
-            if (!_platformOwnerEmails.Contains(currentUser.Email, StringComparer.OrdinalIgnoreCase))
+            if (!_platformOwnerUserIds.Contains(currentUser.UserId))
             {
                 throw new InvalidOperationException("Only platform owners can delete super admin accounts");
             }
