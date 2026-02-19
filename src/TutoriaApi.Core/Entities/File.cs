@@ -27,6 +27,11 @@ public class File : BaseEntity
     public int? TranscriptWordCount { get; set; }  // Word count for analytics
     public decimal? TranscriptionCostUSD { get; set; }  // Cost in USD (e.g., AssemblyAI $0.25/hour)
 
+    // Document Text Extraction (for RAG performance optimization)
+    public string? ExtractedText { get; set; }  // Pre-extracted text from PDFs/documents
+    public DateTime? ExtractedAt { get; set; }  // When extraction completed
+    public int? ExtractedWordCount { get; set; }  // Word count for analytics
+
     // Navigation properties
     public Module Module { get; set; } = null!;
 }

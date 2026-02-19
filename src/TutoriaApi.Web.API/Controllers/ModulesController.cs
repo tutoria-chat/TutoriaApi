@@ -18,6 +18,7 @@ public class ModulesController : ControllerBase
     private readonly ICourseRepository _courseRepository;
     private readonly IAIModelService _aiModelService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IQuizGenerationService _quizGenerationService;
     private readonly ILogger<ModulesController> _logger;
 
     public ModulesController(
@@ -25,12 +26,14 @@ public class ModulesController : ControllerBase
         ICourseRepository courseRepository,
         IAIModelService aiModelService,
         ICurrentUserService currentUserService,
+        IQuizGenerationService quizGenerationService,
         ILogger<ModulesController> logger)
     {
         _moduleService = moduleService;
         _courseRepository = courseRepository;
         _aiModelService = aiModelService;
         _currentUserService = currentUserService;
+        _quizGenerationService = quizGenerationService;
         _logger = logger;
     }
 
@@ -267,6 +270,19 @@ public class ModulesController : ControllerBase
 
             _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
 
+            // Trigger quiz generation in background (fire and forget)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: false);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background quiz generation failed for module {ModuleId}", created.Id);
+                }
+            });
+
             return CreatedAtAction(nameof(GetModule), new { id = created.Id }, new ModuleDetailDto
             {
                 Id = created.Id,
@@ -386,6 +402,19 @@ public class ModulesController : ControllerBase
             var updated = await _moduleService.UpdateAsync(id, existing, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated module {Name} with ID {Id}", updated.Name, updated.Id);
+
+            // Trigger quiz regeneration in background (fire and forget) - upsert mode
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _quizGenerationService.TriggerQuizGenerationAsync(updated.Id, count: 50, upsert: true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background quiz regeneration failed for module {ModuleId}", updated.Id);
+                }
+            });
 
             var viewModel = await _moduleService.GetWithDetailsAsync(id);
 

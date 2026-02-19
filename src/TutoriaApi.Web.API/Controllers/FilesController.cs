@@ -15,15 +15,18 @@ public class FilesController : ControllerBase
 {
     private readonly IFileService _fileService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IQuizGenerationService _quizGenerationService;
     private readonly ILogger<FilesController> _logger;
 
     public FilesController(
         IFileService fileService,
         ICurrentUserService currentUserService,
+        IQuizGenerationService quizGenerationService,
         ILogger<FilesController> logger)
     {
         _fileService = fileService;
         _currentUserService = currentUserService;
+        _quizGenerationService = quizGenerationService;
         _logger = logger;
     }
 
@@ -170,6 +173,19 @@ public class FilesController : ControllerBase
                 _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Uploaded file {FileName} for module {ModuleId}", file.FileName, request.ModuleId);
+
+            // Trigger quiz regeneration in background (new file uploaded = new content)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _quizGenerationService.TriggerQuizGenerationAsync(request.ModuleId, count: 50, upsert: true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background quiz regeneration failed after file upload for module {ModuleId}", request.ModuleId);
+                }
+            });
 
             // Get full details for response
             var viewModel = await _fileService.GetFileWithDetailsAsync(file.Id, _currentUserService.GetCurrentUser());
