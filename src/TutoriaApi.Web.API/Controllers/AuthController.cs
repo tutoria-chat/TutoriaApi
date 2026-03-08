@@ -33,6 +33,9 @@ public class AuthController : ControllerBase
     private readonly IJwtService _jwtService;
     private readonly IEmailService _emailService;
     private readonly TutoriaDbContext _context; // Still needed for Courses.FindAsync in RegisterStudent
+    private readonly IUniversityRepository _universityRepository;
+    private readonly IPlanRepository _planRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -41,6 +44,9 @@ public class AuthController : ControllerBase
         IJwtService jwtService,
         IEmailService emailService,
         TutoriaDbContext context,
+        IUniversityRepository universityRepository,
+        IPlanRepository planRepository,
+        ISubscriptionRepository subscriptionRepository,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
@@ -48,6 +54,9 @@ public class AuthController : ControllerBase
         _jwtService = jwtService;
         _emailService = emailService;
         _context = context;
+        _universityRepository = universityRepository;
+        _planRepository = planRepository;
+        _subscriptionRepository = subscriptionRepository;
         _logger = logger;
     }
 
@@ -286,33 +295,7 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors and all users
-        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
-
-        if (user.UserType == "professor" && user.IsAdmin.HasValue)
-        {
-            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
-        }
-
-        // Add UniversityId for professors (needed for permission checks)
-        if (user.UserType == "professor" && user.UniversityId.HasValue)
-        {
-            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
-        }
-
-        // Add email, firstName, lastName for all users
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            additionalClaims[ClaimTypes.Email] = user.Email;
-        }
-        if (!string.IsNullOrEmpty(user.FirstName))
-        {
-            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
-        }
-        if (!string.IsNullOrEmpty(user.LastName))
-        {
-            additionalClaims[ClaimTypes.Surname] = user.LastName;
-        }
+        var additionalClaims = BuildUserClaims(user);
 
         // Generate JWT access token
         var accessToken = _jwtService.GenerateToken(
@@ -320,7 +303,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
+            additionalClaims: additionalClaims
         );
 
         // Generate refresh token
@@ -425,18 +408,21 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Student registered: {Username} with {CourseCount} courses", student.Username, request.CourseIds.Count);
 
         // Generate JWT access token for immediate login
+        var studentClaims = BuildUserClaims(student);
         var accessToken = _jwtService.GenerateToken(
             subject: student.UserId.ToString(),
             type: "student",
             scopes: new[] { "api.read" },
-            expiresInMinutes: 480
+            expiresInMinutes: 480,
+            additionalClaims: studentClaims
         );
 
         // Generate refresh token
         var refreshToken = _jwtService.GenerateRefreshToken(
             subject: student.UserId.ToString(),
             type: "student",
-            scopes: new[] { "api.read" }
+            scopes: new[] { "api.read" },
+            additionalClaims: studentClaims
         );
 
         // Update last login timestamp
@@ -452,6 +438,245 @@ public class AuthController : ControllerBase
             UserId = student.UserId,
             Username = student.Username,
             UserType = student.UserType
+        });
+    }
+
+    /// <summary>
+    /// Activate a pre-enrolled student account by setting a password.
+    /// </summary>
+    /// <remarks>
+    /// Students are pre-created via CSV/XLSX import with no password.
+    /// This endpoint allows them to activate their account by providing their
+    /// institutional email + matricula (ExternalId) for verification, then setting a password.
+    /// Returns JWT tokens for immediate login after activation.
+    /// </remarks>
+    [HttpPost("activate-student")]
+    [ProducesResponseType(typeof(ActivateStudentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ActivateStudentResponse>> ActivateStudent([FromBody] ActivateStudentRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Find student by email
+        var user = await _userRepository.GetByEmailAsync(request.Email);
+
+        if (user == null || user.UserType != "student")
+        {
+            _logger.LogWarning("Student activation failed: no student found with email {Email}", request.Email);
+            return NotFound(new { message = "No student account found with this email" });
+        }
+
+        // Verify matricula matches ExternalId
+        if (string.IsNullOrWhiteSpace(user.ExternalId) ||
+            !string.Equals(user.ExternalId.Trim(), request.Matricula.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Student activation failed: matricula mismatch for {Email}", request.Email);
+            return BadRequest(new { message = "Email and matricula do not match" });
+        }
+
+        // Check if already activated (has password)
+        if (!string.IsNullOrEmpty(user.HashedPassword))
+        {
+            return BadRequest(new { message = "Account is already activated. Please use login instead." });
+        }
+
+        // Set password and activate
+        user.HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        user.IsActive = true;
+        user.LastLoginAt = DateTime.UtcNow;
+        user.UpdatedAt = DateTime.UtcNow;
+        await _userRepository.SaveChangesAsync();
+
+        _logger.LogInformation("Student activated: {Email} (ID: {UserId})", user.Email, user.UserId);
+
+        // Generate JWT tokens
+        var activateClaims = BuildUserClaims(user);
+        var accessToken = _jwtService.GenerateToken(
+            subject: user.UserId.ToString(),
+            type: "student",
+            scopes: new[] { "api.read" },
+            expiresInMinutes: 480,
+            additionalClaims: activateClaims
+        );
+
+        var refreshToken = _jwtService.GenerateRefreshToken(
+            subject: user.UserId.ToString(),
+            type: "student",
+            scopes: new[] { "api.read" },
+            additionalClaims: activateClaims
+        );
+
+        return Ok(new ActivateStudentResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = 28800,
+            UserId = user.UserId,
+            Username = user.Username,
+            FirstName = user.FirstName,
+            LastName = user.LastName
+        });
+    }
+
+    /// <summary>
+    /// Self-service university registration with plan selection.
+    /// </summary>
+    /// <remarks>
+    /// Creates a new university, admin user (manager role), and subscription in one atomic operation.
+    /// The admin user is created as a professor with IsAdmin=true (manager role).
+    /// A subscription is created with 'trialing' status and a 30-day trial period.
+    /// Returns JWT tokens for immediate login after registration.
+    /// </remarks>
+    [HttpPost("register/university")]
+    [ProducesResponseType(typeof(RegisterUniversityResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<RegisterUniversityResponse>> RegisterUniversity([FromBody] RegisterUniversityRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Resolve plan: prefer slug, fallback to PlanId for backward compatibility
+        Core.Entities.Plan? plan = null;
+        if (!string.IsNullOrWhiteSpace(request.PlanSlug))
+        {
+            plan = await _planRepository.GetBySlugAsync(request.PlanSlug);
+        }
+        else if (request.PlanId.HasValue)
+        {
+            plan = await _planRepository.GetByIdAsync(request.PlanId.Value);
+        }
+
+        if (plan == null || !plan.IsActive)
+        {
+            return BadRequest(new { message = "Selected plan is not available" });
+        }
+
+        if (plan.IsCustom)
+        {
+            return BadRequest(new { message = "Enterprise plans require contacting sales. Please choose a self-service plan." });
+        }
+
+        // Derive admin username from email prefix if not provided
+        var adminUsername = !string.IsNullOrWhiteSpace(request.AdminUsername)
+            ? request.AdminUsername
+            : request.Email.Split('@')[0];
+
+        var adminEmail = request.Email;
+
+        // Check for duplicate university name/code
+        if (await _universityRepository.ExistsByNameAsync(request.UniversityName))
+        {
+            return BadRequest(new { message = "University name already exists" });
+        }
+
+        if (await _universityRepository.ExistsByCodeAsync(request.UniversityCode))
+        {
+            return BadRequest(new { message = "University code already exists" });
+        }
+
+        // Check for duplicate username/email
+        if (await _userRepository.ExistsByUsernameAsync(adminUsername))
+        {
+            // Auto-derive a unique username by appending a random suffix
+            adminUsername = $"{adminUsername}_{Guid.NewGuid().ToString("N")[..6]}";
+        }
+
+        if (await _userRepository.ExistsByEmailAsync(adminEmail))
+        {
+            return BadRequest(new { message = "Email already exists" });
+        }
+
+        // Create university
+        var university = new University
+        {
+            Name = request.UniversityName,
+            Code = request.UniversityCode,
+            Description = request.UniversityDescription,
+            IsEnterprise = false,
+            MaxCourses = plan.MaxCourses,
+            MaxModules = plan.MaxModules,
+        };
+
+        university = await _universityRepository.AddAsync(university);
+
+        // Create admin user (manager role = professor with IsAdmin=true)
+        var adminUser = new User
+        {
+            Username = adminUsername,
+            Email = adminEmail,
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
+            UserType = "professor",
+            IsAdmin = true,
+            IsActive = true,
+            UniversityId = university.Id,
+        };
+
+        adminUser = await _userRepository.AddAsync(adminUser);
+
+        // Set CreatedByUserId on university
+        university.CreatedByUserId = adminUser.UserId;
+        await _universityRepository.UpdateAsync(university);
+
+        // Create subscription with trial
+        var trialDays = plan.TrialDays > 0 ? plan.TrialDays : 30;
+        var subscription = new Subscription
+        {
+            UniversityId = university.Id,
+            PlanId = plan.Id,
+            Status = "trialing",
+            CurrentPeriodStart = DateTime.UtcNow,
+            CurrentPeriodEnd = DateTime.UtcNow.AddDays(trialDays),
+            TrialEndsAt = DateTime.UtcNow.AddDays(trialDays),
+        };
+
+        await _subscriptionRepository.AddAsync(subscription);
+
+        _logger.LogInformation(
+            "University registered: {UniversityName} (ID: {UniversityId}) by {AdminUsername} on plan {PlanName} with {TrialDays}-day trial",
+            university.Name, university.Id, adminUser.Username, plan.Name, trialDays);
+
+        // Generate JWT tokens for immediate login
+        var scopes = new[] { "api.read", "api.write", "api.manage" };
+        var additionalClaims = BuildUserClaims(adminUser);
+
+        var accessToken = _jwtService.GenerateToken(
+            subject: adminUser.UserId.ToString(),
+            type: "professor",
+            scopes: scopes,
+            expiresInMinutes: 480,
+            additionalClaims: additionalClaims
+        );
+
+        var refreshToken = _jwtService.GenerateRefreshToken(
+            subject: adminUser.UserId.ToString(),
+            type: "professor",
+            scopes: scopes,
+            additionalClaims: additionalClaims
+        );
+
+        adminUser.LastLoginAt = DateTime.UtcNow;
+        await _userRepository.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetCurrentUser), new RegisterUniversityResponse
+        {
+            UniversityId = university.Id,
+            UniversityName = university.Name,
+            UserId = adminUser.UserId,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = 28800,
+            PlanName = plan.Name,
+            SubscriptionStatus = "trialing"
         });
     }
 
@@ -684,33 +909,7 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        // Add additional claims for professors and all users
-        Dictionary<string, string>? additionalClaims = new Dictionary<string, string>();
-
-        if (user.UserType == "professor" && user.IsAdmin.HasValue)
-        {
-            additionalClaims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
-        }
-
-        // Add UniversityId for professors (needed for permission checks)
-        if (user.UserType == "professor" && user.UniversityId.HasValue)
-        {
-            additionalClaims["UniversityId"] = user.UniversityId.Value.ToString();
-        }
-
-        // Add email, firstName, lastName for all users
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            additionalClaims[ClaimTypes.Email] = user.Email;
-        }
-        if (!string.IsNullOrEmpty(user.FirstName))
-        {
-            additionalClaims[ClaimTypes.GivenName] = user.FirstName;
-        }
-        if (!string.IsNullOrEmpty(user.LastName))
-        {
-            additionalClaims[ClaimTypes.Surname] = user.LastName;
-        }
+        var additionalClaims = BuildUserClaims(user);
 
         // Generate new access token
         var newAccessToken = _jwtService.GenerateToken(
@@ -718,7 +917,7 @@ public class AuthController : ControllerBase
             type: user.UserType,
             scopes: scopes,
             expiresInMinutes: 480, // 8 hours
-            additionalClaims: additionalClaims.Count > 0 ? additionalClaims : null
+            additionalClaims: additionalClaims
         );
 
         // Generate new refresh token
@@ -1137,5 +1336,49 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Error validating token");
             return Unauthorized(new { detail = "Token validation failed" });
         }
+    }
+
+    /// <summary>
+    /// Builds a standard set of JWT additional claims for a user.
+    /// Includes both .NET standard ClaimTypes (for .NET consumers) and simple-named
+    /// claims (for cross-platform consumers like tutoria-app).
+    /// </summary>
+    private static Dictionary<string, string> BuildUserClaims(User user)
+    {
+        var claims = new Dictionary<string, string>
+        {
+            // Simple-named claims for cross-platform JWT decoding (tutoria-app, widget)
+            ["user_id"] = user.UserId.ToString(),
+            ["username"] = user.Username,
+            ["user_type"] = user.UserType,
+        };
+
+        // Name claims — both simple and .NET standard
+        if (!string.IsNullOrEmpty(user.FirstName))
+        {
+            claims["first_name"] = user.FirstName;
+            claims[ClaimTypes.GivenName] = user.FirstName;
+        }
+        if (!string.IsNullOrEmpty(user.LastName))
+        {
+            claims["last_name"] = user.LastName;
+            claims[ClaimTypes.Surname] = user.LastName;
+        }
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            claims[ClaimTypes.Email] = user.Email;
+        }
+
+        // Role-specific claims
+        if (user.IsAdmin.HasValue)
+        {
+            claims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
+        }
+        if (user.UniversityId.HasValue)
+        {
+            claims["UniversityId"] = user.UniversityId.Value.ToString();
+        }
+
+        return claims;
     }
 }

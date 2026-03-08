@@ -15,6 +15,7 @@ public class QuizGenerationService : IQuizGenerationService
     private readonly IConfiguration _configuration;
     private readonly ILogger<QuizGenerationService> _logger;
     private readonly string _aiApiBaseUrl;
+    private readonly string? _internalApiKey;
 
     public QuizGenerationService(
         IHttpClientFactory httpClientFactory,
@@ -26,6 +27,7 @@ public class QuizGenerationService : IQuizGenerationService
         _logger = logger;
         _aiApiBaseUrl = configuration["AiApi:BaseUrl"]
             ?? throw new InvalidOperationException("AiApi:BaseUrl configuration is missing");
+        _internalApiKey = configuration["AiApi:InternalApiKey"];
     }
 
     /// <inheritdoc />
@@ -41,6 +43,12 @@ public class QuizGenerationService : IQuizGenerationService
 
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.Timeout = TimeSpan.FromMinutes(5); // Quiz generation can take time
+
+            // Add internal API key for service-to-service authentication
+            if (!string.IsNullOrEmpty(_internalApiKey))
+            {
+                httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", _internalApiKey);
+            }
 
             var url = $"{_aiApiBaseUrl}/api/v2/modules/{moduleId}/generate-quizzes?count={count}&upsert={upsert.ToString().ToLower()}";
 

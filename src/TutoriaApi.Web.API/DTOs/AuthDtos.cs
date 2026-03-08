@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using TutoriaApi.Core.Attributes;
 
 namespace TutoriaApi.Web.API.DTOs;
@@ -225,4 +226,93 @@ public class ChangeUserPasswordRequest
     [Required(ErrorMessage = "New password is required")]
     [PasswordComplexity(minLength: 8)]
     public string NewPassword { get; set; } = string.Empty;
+}
+
+public class ActivateStudentRequest
+{
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [MaxLength(255, ErrorMessage = "Email cannot exceed 255 characters")]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Matricula is required")]
+    [MaxLength(100, ErrorMessage = "Matricula cannot exceed 100 characters")]
+    public string Matricula { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Password is required")]
+    [PasswordComplexity(minLength: 8)]
+    public string Password { get; set; } = string.Empty;
+}
+
+public class ActivateStudentResponse
+{
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+    public string TokenType { get; set; } = "Bearer";
+    public int ExpiresIn { get; set; }
+    public int UserId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+}
+
+public class RegisterUniversityRequest
+{
+    [Required(ErrorMessage = "University name is required")]
+    [MaxLength(200, ErrorMessage = "University name cannot exceed 200 characters")]
+    public string UniversityName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "University code is required")]
+    [MaxLength(50, ErrorMessage = "University code cannot exceed 50 characters")]
+    public string UniversityCode { get; set; } = string.Empty;
+
+    public string? UniversityDescription { get; set; }
+
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [MaxLength(255)]
+    public string Email { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional — auto-derived from email prefix if not provided.
+    /// </summary>
+    [MaxLength(100)]
+    public string? AdminUsername { get; set; }
+
+    [Required(ErrorMessage = "First name is required")]
+    [MaxLength(100)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Last name is required")]
+    [MaxLength(100)]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Password is required")]
+    [PasswordComplexity(minLength: 8)]
+    public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Plan slug (e.g. "starter", "professional"). Resolved to PlanId internally.
+    /// Also accepts PlanId for backward compatibility.
+    /// </summary>
+    [Required(ErrorMessage = "Plan slug is required")]
+    public string PlanSlug { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Deprecated — use PlanSlug instead. Kept for backward compatibility.
+    /// </summary>
+    public int? PlanId { get; set; }
+}
+
+public class RegisterUniversityResponse
+{
+    public int UniversityId { get; set; }
+    public string UniversityName { get; set; } = string.Empty;
+    public int UserId { get; set; }
+    public string AccessToken { get; set; } = string.Empty;
+    public string RefreshToken { get; set; } = string.Empty;
+    public string TokenType { get; set; } = "Bearer";
+    public int ExpiresIn { get; set; }
+    public string PlanName { get; set; } = string.Empty;
+    public string SubscriptionStatus { get; set; } = string.Empty;
 }

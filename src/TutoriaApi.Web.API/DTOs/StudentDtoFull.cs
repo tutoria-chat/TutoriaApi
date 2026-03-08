@@ -10,12 +10,21 @@ public class StudentDetailDto
     public string Email { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    public string? ExternalId { get; set; } // Matricula
     public bool IsActive { get; set; }
-    public int? CourseId { get; set; }  // Nullable - User doesn't have direct CourseId
-    public string? CourseName { get; set; }
+    public int? UniversityId { get; set; }
+    public string? UniversityName { get; set; }
+    public List<StudentCourseDto> EnrolledCourses { get; set; } = new();
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+public class StudentCourseDto
+{
+    public int CourseId { get; set; }
+    public string CourseName { get; set; } = string.Empty;
+    public DateTime EnrolledAt { get; set; }
 }
 
 public class StudentCreateRequest

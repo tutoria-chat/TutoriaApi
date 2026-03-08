@@ -5,6 +5,7 @@ namespace TutoriaApi.Core.Interfaces;
 public interface IStudentService
 {
     Task<(List<User> Items, int Total)> GetPagedAsync(
+        int? universityId,
         int? courseId,
         string? search,
         int page,
@@ -25,4 +26,5 @@ public interface IStudentService
         bool? isActive,
         int? courseId);
     Task DeleteAsync(int id);
+    Task<int> GetStudentCountByUniversityAsync(int universityId);
 }

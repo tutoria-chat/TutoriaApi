@@ -181,10 +181,11 @@ public class FileService : IFileService
         );
 
         // Create file record
+        var fileExtension = Path.GetExtension(sanitizedFilename).TrimStart('.').ToLowerInvariant();
         var fileEntity = new FileEntity
         {
             Name = sanitizedName,
-            FileType = "upload", // Default file type
+            FileType = string.IsNullOrEmpty(fileExtension) ? "upload" : fileExtension,
             FileName = sanitizedName,
             BlobPath = blobPath,
             ContentType = contentType,

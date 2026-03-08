@@ -159,7 +159,7 @@ public class QuizGenerationServiceTests
         // Assert
         Assert.NotNull(capturedRequest);
         Assert.Equal(HttpMethod.Post, capturedRequest.Method);
-        Assert.Contains($"/api/modules/{moduleId}/generate-quizzes", capturedRequest.RequestUri?.ToString());
+        Assert.Contains($"/api/v2/modules/{moduleId}/generate-quizzes", capturedRequest.RequestUri?.ToString());
         Assert.Contains($"count={count}", capturedRequest.RequestUri?.ToString());
         Assert.Contains("upsert=true", capturedRequest.RequestUri?.ToString());
     }

@@ -100,6 +100,10 @@ public class UniversityService : IUniversityService
         existing.ContactPerson = university.ContactPerson;
         existing.Website = university.Website;
         existing.SubscriptionTier = university.SubscriptionTier;
+        existing.IsEnterprise = university.IsEnterprise;
+        existing.MaxCourses = university.MaxCourses;
+        existing.MaxModules = university.MaxModules;
+        existing.MaxStudents = university.MaxStudents;
 
         await _universityRepository.UpdateAsync(existing);
 

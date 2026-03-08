@@ -12,15 +12,18 @@ namespace TutoriaApi.Web.API.Controllers;
 public class UniversitiesController : ControllerBase
 {
     private readonly IUniversityService _universityService;
+    private readonly IStudentService _studentService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
         IUniversityService universityService,
+        IStudentService studentService,
         ICurrentUserService currentUserService,
         ILogger<UniversitiesController> logger)
     {
         _universityService = universityService;
+        _studentService = studentService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -50,6 +53,10 @@ public class UniversitiesController : ControllerBase
             ContactPerson = u.ContactPerson,
             Website = u.Website,
             SubscriptionTier = u.SubscriptionTier,
+            IsEnterprise = u.IsEnterprise,
+            MaxCourses = u.MaxCourses,
+            MaxModules = u.MaxModules,
+            MaxStudents = u.MaxStudents,
             CreatedAt = u.CreatedAt,
             UpdatedAt = u.UpdatedAt
         }).ToList();
@@ -74,6 +81,9 @@ public class UniversitiesController : ControllerBase
             return NotFound(new { message = "University not found" });
         }
 
+        // Get student count for this university
+        var studentsCount = await _studentService.GetStudentCountByUniversityAsync(viewModel.University.Id);
+
         // Map view model to DTO
         var dto = new UniversityWithCoursesDto
         {
@@ -97,10 +107,15 @@ public class UniversitiesController : ControllerBase
             ContactPerson = viewModel.University.ContactPerson,
             Website = viewModel.University.Website,
             SubscriptionTier = viewModel.University.SubscriptionTier,
+            IsEnterprise = viewModel.University.IsEnterprise,
+            MaxCourses = viewModel.University.MaxCourses,
+            MaxModules = viewModel.University.MaxModules,
+            MaxStudents = viewModel.University.MaxStudents,
             CreatedAt = viewModel.University.CreatedAt,
             UpdatedAt = viewModel.University.UpdatedAt,
             ProfessorsCount = viewModel.ProfessorsCount,
             CoursesCount = viewModel.Courses.Count,
+            StudentsCount = studentsCount,
             Courses = viewModel.Courses.Select(c => new CourseDetailDto
             {
                 Id = c.Course.Id,
@@ -152,7 +167,12 @@ public class UniversitiesController : ControllerBase
                 ContactPhone = request.ContactPhone,
                 ContactPerson = request.ContactPerson,
                 Website = request.Website,
-                SubscriptionTier = request.SubscriptionTier
+                SubscriptionTier = request.SubscriptionTier,
+                // Plan limits & enterprise config
+                IsEnterprise = request.IsEnterprise,
+                MaxCourses = request.MaxCourses,
+                MaxModules = request.MaxModules,
+                MaxStudents = request.MaxStudents,
             };
 
             var created = await _universityService.CreateAsync(university, _currentUserService.GetCurrentUser());
@@ -181,6 +201,10 @@ public class UniversitiesController : ControllerBase
                 ContactPerson = created.ContactPerson,
                 Website = created.Website,
                 SubscriptionTier = created.SubscriptionTier,
+                IsEnterprise = created.IsEnterprise,
+                MaxCourses = created.MaxCourses,
+                MaxModules = created.MaxModules,
+                MaxStudents = created.MaxStudents,
                 CreatedAt = created.CreatedAt,
                 UpdatedAt = created.UpdatedAt
             };
@@ -225,7 +249,12 @@ public class UniversitiesController : ControllerBase
                 ContactPhone = request.ContactPhone,
                 ContactPerson = request.ContactPerson,
                 Website = request.Website,
-                SubscriptionTier = request.SubscriptionTier ?? 3
+                SubscriptionTier = request.SubscriptionTier ?? 3,
+                // Plan limits & enterprise config
+                IsEnterprise = request.IsEnterprise ?? false,
+                MaxCourses = request.MaxCourses,
+                MaxModules = request.MaxModules,
+                MaxStudents = request.MaxStudents,
             }, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated university {Name} with ID {Id}", updated.Name, updated.Id);
@@ -252,6 +281,10 @@ public class UniversitiesController : ControllerBase
                 ContactPerson = updated.ContactPerson,
                 Website = updated.Website,
                 SubscriptionTier = updated.SubscriptionTier,
+                IsEnterprise = updated.IsEnterprise,
+                MaxCourses = updated.MaxCourses,
+                MaxModules = updated.MaxModules,
+                MaxStudents = updated.MaxStudents,
                 CreatedAt = updated.CreatedAt,
                 UpdatedAt = updated.UpdatedAt
             });

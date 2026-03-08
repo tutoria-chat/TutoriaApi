@@ -26,6 +26,14 @@ public class University : BaseEntity
     // Subscription tier (1 = Basic, 2 = Standard, 3 = Premium)
     public int SubscriptionTier { get; set; } = 3;
 
+    // Stripe & enterprise fields
+    public string? StripeCustomerId { get; set; }
+    public bool IsEnterprise { get; set; }
+    public int? CreatedByUserId { get; set; }
+    public int? MaxCourses { get; set; }
+    public int? MaxModules { get; set; }
+    public int? MaxStudents { get; set; }
+
     // Navigation properties
     public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Professor> Professors { get; set; } = new List<Professor>();

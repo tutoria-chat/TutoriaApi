@@ -80,6 +80,13 @@ public class TutoriaDbContext : DbContext
     public DbSet<ProfessorAgent> ProfessorAgents { get; set; }
     public DbSet<ProfessorAgentToken> ProfessorAgentTokens { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<ProviderKey> ProviderKeys { get; set; }
+    public DbSet<CourseTypeModel> CourseTypeModels { get; set; }
+    public DbSet<UniversityCourseTypeModel> UniversityCourseTypeModels { get; set; }
+    public DbSet<Plan> Plans { get; set; }
+    public DbSet<Subscription> Subscriptions { get; set; }
+    public DbSet<QuizUploadJob> QuizUploadJobs { get; set; }
+    public DbSet<StudentImportJob> StudentImportJobs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -101,6 +108,12 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.ContactPhone).HasColumnName("ContactPhone").HasMaxLength(50);
             entity.Property(e => e.ContactPerson).HasColumnName("ContactPerson").HasMaxLength(200);
             entity.Property(e => e.Website).HasColumnName("Website").HasMaxLength(255);
+            entity.Property(e => e.StripeCustomerId).HasColumnName("StripeCustomerId").HasMaxLength(255);
+            entity.Property(e => e.IsEnterprise).HasColumnName("IsEnterprise").HasDefaultValue(false);
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
+            entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
+            entity.Property(e => e.MaxStudents).HasColumnName("MaxStudents");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -427,6 +440,210 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Professor)
                 .WithMany()
                 .HasForeignKey(e => e.ProfessorId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // ProviderKey configuration
+        modelBuilder.Entity<ProviderKey>(entity =>
+        {
+            entity.ToTable("ProviderKeys");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Provider).HasColumnName("Provider").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.KeyName).HasColumnName("KeyName").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.EncryptedApiKey).HasColumnName("EncryptedApiKey").IsRequired();
+            entity.Property(e => e.Region).HasColumnName("Region").HasMaxLength(50);
+            entity.Property(e => e.Priority).HasColumnName("Priority").HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.LastUsedAt).HasColumnName("LastUsedAt");
+            entity.Property(e => e.FailureCount).HasColumnName("FailureCount").HasDefaultValue(0);
+            entity.Property(e => e.LastFailureAt).HasColumnName("LastFailureAt");
+            entity.Property(e => e.CooldownUntil).HasColumnName("CooldownUntil");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.KeyName).IsUnique();
+            entity.HasIndex(e => e.Provider);
+            entity.HasIndex(e => new { e.Provider, e.IsActive });
+        });
+
+        // CourseTypeModel configuration
+        modelBuilder.Entity<CourseTypeModel>(entity =>
+        {
+            entity.ToTable("CourseTypeModels");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseType).HasColumnName("CourseType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.Priority).HasColumnName("Priority").HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.CourseType);
+            entity.HasIndex(e => new { e.CourseType, e.Priority });
+
+            entity.HasOne(e => e.AIModel)
+                .WithMany()
+                .HasForeignKey(e => e.AIModelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // UniversityCourseTypeModel configuration
+        modelBuilder.Entity<UniversityCourseTypeModel>(entity =>
+        {
+            entity.ToTable("UniversityCourseTypeModels");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.CourseType).HasColumnName("CourseType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.AIModelId).HasColumnName("AIModelId");
+            entity.Property(e => e.Priority).HasColumnName("Priority").HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.UniversityId, e.CourseType });
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.AIModel)
+                .WithMany()
+                .HasForeignKey(e => e.AIModelId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Plan configuration
+        modelBuilder.Entity<Plan>(entity =>
+        {
+            entity.ToTable("Plans");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Slug).HasColumnName("Slug").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
+            entity.Property(e => e.MonthlyPriceBRL).HasColumnName("MonthlyPriceBRL").HasColumnType("decimal(10,2)");
+            entity.Property(e => e.StripePriceId).HasColumnName("StripePriceId").HasMaxLength(255);
+            entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
+            entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
+            entity.Property(e => e.MaxStudents).HasColumnName("MaxStudents");
+            entity.Property(e => e.HasAIQuizzes).HasColumnName("HasAIQuizzes").HasDefaultValue(false);
+            entity.Property(e => e.HasWhatsApp).HasColumnName("HasWhatsApp").HasDefaultValue(false);
+            entity.Property(e => e.HasPrioritySupport).HasColumnName("HasPrioritySupport").HasDefaultValue(false);
+            entity.Property(e => e.HasCustomModelConfig).HasColumnName("HasCustomModelConfig").HasDefaultValue(false);
+            entity.Property(e => e.TrialDays).HasColumnName("TrialDays").HasDefaultValue(0);
+            entity.Property(e => e.DisplayOrder).HasColumnName("DisplayOrder").HasDefaultValue(0);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.IsCustom).HasColumnName("IsCustom").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Slug).IsUnique();
+            entity.HasIndex(e => e.IsActive);
+        });
+
+        // Subscription configuration
+        modelBuilder.Entity<Subscription>(entity =>
+        {
+            entity.ToTable("Subscriptions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.PlanId).HasColumnName("PlanId");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.StripeSubscriptionId).HasColumnName("StripeSubscriptionId").HasMaxLength(255);
+            entity.Property(e => e.StripeCustomerId).HasColumnName("StripeCustomerId").HasMaxLength(255);
+            entity.Property(e => e.CurrentPeriodStart).HasColumnName("CurrentPeriodStart");
+            entity.Property(e => e.CurrentPeriodEnd).HasColumnName("CurrentPeriodEnd");
+            entity.Property(e => e.TrialEndsAt).HasColumnName("TrialEndsAt");
+            entity.Property(e => e.CanceledAt).HasColumnName("CanceledAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasIndex(e => e.StripeSubscriptionId).IsUnique().HasFilter("[StripeSubscriptionId] IS NOT NULL");
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Plan)
+                .WithMany(p => p.Subscriptions)
+                .HasForeignKey(e => e.PlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // QuizUploadJob configuration
+        modelBuilder.Entity<QuizUploadJob>(entity =>
+        {
+            entity.ToTable("QuizUploadJobs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.FileId).HasColumnName("FileId");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ExtractedCount).HasColumnName("ExtractedCount").HasDefaultValue(0);
+            entity.Property(e => e.ErrorMessage).HasColumnName("ErrorMessage");
+            entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.ModuleId);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // StudentImportJob configuration
+        modelBuilder.Entity<StudentImportJob>(entity =>
+        {
+            entity.ToTable("StudentImportJobs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.UploadedByUserId).HasColumnName("UploadedByUserId");
+            entity.Property(e => e.FileName).HasColumnName("FileName").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired().HasDefaultValue("pending");
+            entity.Property(e => e.TotalRows).HasColumnName("TotalRows").HasDefaultValue(0);
+            entity.Property(e => e.CreatedCount).HasColumnName("CreatedCount").HasDefaultValue(0);
+            entity.Property(e => e.EnrolledCount).HasColumnName("EnrolledCount").HasDefaultValue(0);
+            entity.Property(e => e.SkippedCount).HasColumnName("SkippedCount").HasDefaultValue(0);
+            entity.Property(e => e.ErrorCount).HasColumnName("ErrorCount").HasDefaultValue(0);
+            entity.Property(e => e.ErrorDetails).HasColumnName("ErrorDetails");
+            entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasCheckConstraint("CK_StudentImportJobs_Status",
+                "[Status] IN ('pending', 'processing', 'completed', 'failed')");
+
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.UploadedBy)
+                .WithMany()
+                .HasForeignKey(e => e.UploadedByUserId)
                 .HasPrincipalKey(u => u.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
         });

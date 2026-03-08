@@ -16,6 +16,8 @@ public class ModulesController : ControllerBase
 {
     private readonly IModuleService _moduleService;
     private readonly ICourseRepository _courseRepository;
+    private readonly IModuleRepository _moduleRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IAIModelService _aiModelService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IQuizGenerationService _quizGenerationService;
@@ -24,6 +26,8 @@ public class ModulesController : ControllerBase
     public ModulesController(
         IModuleService moduleService,
         ICourseRepository courseRepository,
+        IModuleRepository moduleRepository,
+        ISubscriptionRepository subscriptionRepository,
         IAIModelService aiModelService,
         ICurrentUserService currentUserService,
         IQuizGenerationService quizGenerationService,
@@ -31,6 +35,8 @@ public class ModulesController : ControllerBase
     {
         _moduleService = moduleService;
         _courseRepository = courseRepository;
+        _moduleRepository = moduleRepository;
+        _subscriptionRepository = subscriptionRepository;
         _aiModelService = aiModelService;
         _currentUserService = currentUserService;
         _quizGenerationService = quizGenerationService;
@@ -203,13 +209,39 @@ public class ModulesController : ControllerBase
 
         try
         {
+            // Plan enforcement: check module limit
+            var courseForLimits = await _courseRepository.GetWithDetailsAsync(request.CourseId);
+            if (courseForLimits?.University != null && !courseForLimits.University.IsEnterprise)
+            {
+                int? maxModules = courseForLimits.University.MaxModules;
+
+                // If no university-level override, check subscription plan
+                if (maxModules == null)
+                {
+                    var subscription = await _subscriptionRepository.GetActiveByUniversityIdAsync(courseForLimits.UniversityId);
+                    if (subscription?.Plan != null)
+                    {
+                        maxModules = subscription.Plan.MaxModules;
+                    }
+                }
+
+                if (maxModules.HasValue)
+                {
+                    var existingModules = await _moduleRepository.GetByUniversityIdAsync(courseForLimits.UniversityId);
+                    if (existingModules.Count() >= maxModules.Value)
+                    {
+                        return StatusCode(403, new { message = $"Module limit reached ({maxModules.Value}). Please upgrade your plan to create more modules." });
+                    }
+                }
+            }
+
             int? aiModelId = request.AIModelId;
 
             // If CourseType is provided but no AIModelId, auto-select AI model based on university tier
             if (request.CourseType.HasValue && !request.AIModelId.HasValue)
             {
-                // Get course with university to determine tier
-                var course = await _courseRepository.GetWithDetailsAsync(request.CourseId);
+                // Get course with university to determine tier - reuse if already fetched
+                var course = courseForLimits ?? await _courseRepository.GetWithDetailsAsync(request.CourseId);
                 if (course == null)
                 {
                     return BadRequest(new { message = "Course not found" });
@@ -275,7 +307,8 @@ public class ModulesController : ControllerBase
             {
                 try
                 {
-                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: false);
+                    // Use upsert: true to ensure quizzes are generated even on retry
+                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: true);
                 }
                 catch (Exception ex)
                 {

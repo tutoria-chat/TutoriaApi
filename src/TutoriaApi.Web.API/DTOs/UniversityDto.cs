@@ -26,6 +26,13 @@ public class UniversityDto
     public string? ContactPerson { get; set; }
     public string? Website { get; set; }
     public int SubscriptionTier { get; set; } // 1 = Basic, 2 = Standard, 3 = Premium
+
+    // Plan limits & enterprise config
+    public bool IsEnterprise { get; set; }
+    public int? MaxCourses { get; set; }
+    public int? MaxModules { get; set; }
+    public int? MaxStudents { get; set; }
+
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -88,6 +95,12 @@ public class UniversityCreateRequest
 
     [Range(1, 3, ErrorMessage = "Subscription tier must be between 1 and 3")]
     public int SubscriptionTier { get; set; } = 3;
+
+    // Plan limits & enterprise config (Super Admin only)
+    public bool IsEnterprise { get; set; }
+    public int? MaxCourses { get; set; }
+    public int? MaxModules { get; set; }
+    public int? MaxStudents { get; set; }
 }
 
 public class UniversityUpdateRequest
@@ -146,6 +159,12 @@ public class UniversityUpdateRequest
 
     [Range(1, 3, ErrorMessage = "Subscription tier must be between 1 and 3")]
     public int? SubscriptionTier { get; set; }
+
+    // Plan limits & enterprise config (Super Admin only)
+    public bool? IsEnterprise { get; set; }
+    public int? MaxCourses { get; set; }
+    public int? MaxModules { get; set; }
+    public int? MaxStudents { get; set; }
 }
 
 public class UniversityWithCoursesDto
@@ -172,10 +191,18 @@ public class UniversityWithCoursesDto
     public string? ContactPerson { get; set; }
     public string? Website { get; set; }
     public int SubscriptionTier { get; set; } // 1 = Basic, 2 = Standard, 3 = Premium
+
+    // Plan limits & enterprise config
+    public bool IsEnterprise { get; set; }
+    public int? MaxCourses { get; set; }
+    public int? MaxModules { get; set; }
+    public int? MaxStudents { get; set; }
+
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public int ProfessorsCount { get; set; }
     public int CoursesCount { get; set; }
+    public int StudentsCount { get; set; }
     public List<CourseDetailDto> Courses { get; set; } = new();
 }
 

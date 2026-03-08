@@ -28,15 +28,24 @@ public class CoursesController : ControllerBase
 {
     private readonly ICourseService _courseService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICourseRepository _courseRepository;
+    private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IUniversityRepository _universityRepository;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
         ICourseService courseService,
         ICurrentUserService currentUserService,
+        ICourseRepository courseRepository,
+        ISubscriptionRepository subscriptionRepository,
+        IUniversityRepository universityRepository,
         ILogger<CoursesController> logger)
     {
         _courseService = courseService;
         _currentUserService = currentUserService;
+        _courseRepository = courseRepository;
+        _subscriptionRepository = subscriptionRepository;
+        _universityRepository = universityRepository;
         _logger = logger;
     }
 
@@ -181,6 +190,32 @@ public class CoursesController : ControllerBase
 
         try
         {
+            // Plan enforcement: check course limit
+            var university = await _universityRepository.GetByIdAsync(request.UniversityId);
+            if (university != null && !university.IsEnterprise)
+            {
+                int? maxCourses = university.MaxCourses;
+
+                // If no university-level override, check subscription plan
+                if (maxCourses == null)
+                {
+                    var subscription = await _subscriptionRepository.GetActiveByUniversityIdAsync(request.UniversityId);
+                    if (subscription?.Plan != null)
+                    {
+                        maxCourses = subscription.Plan.MaxCourses;
+                    }
+                }
+
+                if (maxCourses.HasValue)
+                {
+                    var existingCourses = await _courseRepository.GetByUniversityIdAsync(request.UniversityId);
+                    if (existingCourses.Count() >= maxCourses.Value)
+                    {
+                        return StatusCode(403, new { message = $"Course limit reached ({maxCourses.Value}). Please upgrade your plan to create more courses." });
+                    }
+                }
+            }
+
             var course = new Course
             {
                 Name = request.Name,
