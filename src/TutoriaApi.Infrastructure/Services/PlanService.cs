@@ -12,6 +12,11 @@ public class PlanService : IPlanService
         _planRepository = planRepository;
     }
 
+    public async Task<IEnumerable<Plan>> GetAllAsync()
+    {
+        return await _planRepository.GetAllAsync();
+    }
+
     public async Task<IEnumerable<Plan>> GetActivePlansAsync()
     {
         return await _planRepository.GetActivePlansAsync();

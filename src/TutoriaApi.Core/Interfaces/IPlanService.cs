@@ -4,6 +4,7 @@ namespace TutoriaApi.Core.Interfaces;
 
 public interface IPlanService
 {
+    Task<IEnumerable<Plan>> GetAllAsync();
     Task<IEnumerable<Plan>> GetActivePlansAsync();
     Task<Plan?> GetByIdAsync(int id);
     Task<Plan?> GetBySlugAsync(string slug);

@@ -241,6 +241,32 @@ public class SubscriptionsController : BaseAuthController
         }
     }
 
+    /// <summary>
+    /// Get all subscriptions with university and plan details (SuperAdmin only).
+    /// </summary>
+    [HttpGet("admin/all")]
+    [Authorize(Policy = "SuperAdminOnly")]
+    [ProducesResponseType(typeof(List<SubscriptionDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<SubscriptionDto>>> GetAllSubscriptions()
+    {
+        try
+        {
+            var subscriptions = await _dbContext.Subscriptions
+                .Include(s => s.University)
+                .Include(s => s.Plan)
+                .OrderByDescending(s => s.CreatedAt)
+                .ToListAsync();
+
+            var dtos = subscriptions.Select(MapToDto).ToList();
+            return Ok(dtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting all subscriptions");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     private static SubscriptionDto MapToDto(Subscription subscription)
     {
         return new SubscriptionDto
