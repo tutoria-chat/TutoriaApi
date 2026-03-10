@@ -87,6 +87,9 @@ public class TutoriaDbContext : DbContext
     public DbSet<Subscription> Subscriptions { get; set; }
     public DbSet<QuizUploadJob> QuizUploadJobs { get; set; }
     public DbSet<StudentImportJob> StudentImportJobs { get; set; }
+    public DbSet<Permission> Permissions { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
+    public DbSet<UserPermission> UserPermissions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -687,6 +690,69 @@ public class TutoriaDbContext : DbContext
             entity.HasIndex(e => e.Action);
             entity.HasIndex(e => e.EntityType);
             entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // Permission configuration
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.ToTable("Permissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Code).HasColumnName("Code").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Resource).HasColumnName("Resource").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Action).HasColumnName("Action").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Scope).HasColumnName("Scope").HasMaxLength(20).HasDefaultValue("university");
+            entity.Property(e => e.Category).HasColumnName("Category").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(200);
+            entity.Property(e => e.DisplayOrder).HasColumnName("DisplayOrder");
+
+            entity.HasIndex(e => e.Code).IsUnique();
+        });
+
+        // RolePermission configuration
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.ToTable("RolePermissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Role).HasColumnName("Role").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.PermissionId).HasColumnName("PermissionId");
+
+            entity.HasOne(e => e.Permission)
+                .WithMany(p => p.RolePermissions)
+                .HasForeignKey(e => e.PermissionId);
+
+            entity.HasIndex(e => new { e.Role, e.PermissionId }).IsUnique();
+        });
+
+        // UserPermission configuration
+        modelBuilder.Entity<UserPermission>(entity =>
+        {
+            entity.ToTable("UserPermissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.PermissionId).HasColumnName("PermissionId");
+            entity.Property(e => e.GrantedBy).HasColumnName("GrantedBy");
+            entity.Property(e => e.GrantedAt).HasColumnName("GrantedAt");
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Permission)
+                .WithMany(p => p.UserPermissions)
+                .HasForeignKey(e => e.PermissionId);
+
+            entity.HasOne(e => e.GrantedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.GrantedBy)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasIndex(e => new { e.UserId, e.PermissionId }).IsUnique();
         });
     }
 }

@@ -103,6 +103,8 @@ public class UserDto
     public DateTime? UpdatedAt { get; set; }
     public string ThemePreference { get; set; } = "system";
     public string LanguagePreference { get; set; } = "pt-br";
+    public List<string>? Permissions { get; set; } // Effective permissions (role + extra)
+    public List<string>? ExtraPermissions { get; set; } // User-specific extra permissions only
 }
 
 public class UpdateProfileRequest
@@ -180,7 +182,8 @@ public class UserCreateRequest
     public string Password { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "User type is required")]
-    [RegularExpression("^(student|professor|super_admin)$", ErrorMessage = "User type must be: student, professor, or super_admin")]
+    [RegularExpression("^(student|professor|super_admin|manager|tutor|platform_coordinator)$",
+        ErrorMessage = "User type must be: student, professor, super_admin, manager, tutor, or platform_coordinator")]
     public string UserType { get; set; } = string.Empty;
 
     public int? UniversityId { get; set; }

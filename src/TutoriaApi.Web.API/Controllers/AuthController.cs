@@ -36,6 +36,7 @@ public class AuthController : ControllerBase
     private readonly IUniversityRepository _universityRepository;
     private readonly IPlanRepository _planRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
+    private readonly IPermissionService _permissionService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -47,6 +48,7 @@ public class AuthController : ControllerBase
         IUniversityRepository universityRepository,
         IPlanRepository planRepository,
         ISubscriptionRepository subscriptionRepository,
+        IPermissionService permissionService,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
@@ -57,6 +59,7 @@ public class AuthController : ControllerBase
         _universityRepository = universityRepository;
         _planRepository = planRepository;
         _subscriptionRepository = subscriptionRepository;
+        _permissionService = permissionService;
         _logger = logger;
     }
 
@@ -295,7 +298,7 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        var additionalClaims = BuildUserClaims(user);
+        var additionalClaims = await BuildUserClaims(user);
 
         // Generate JWT access token
         var accessToken = _jwtService.GenerateToken(
@@ -408,7 +411,7 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Student registered: {Username} with {CourseCount} courses", student.Username, request.CourseIds.Count);
 
         // Generate JWT access token for immediate login
-        var studentClaims = BuildUserClaims(student);
+        var studentClaims = await BuildUserClaims(student);
         var accessToken = _jwtService.GenerateToken(
             subject: student.UserId.ToString(),
             type: "student",
@@ -494,7 +497,7 @@ public class AuthController : ControllerBase
         _logger.LogInformation("Student activated: {Email} (ID: {UserId})", user.Email, user.UserId);
 
         // Generate JWT tokens
-        var activateClaims = BuildUserClaims(user);
+        var activateClaims = await BuildUserClaims(user);
         var accessToken = _jwtService.GenerateToken(
             subject: user.UserId.ToString(),
             type: "student",
@@ -646,7 +649,7 @@ public class AuthController : ControllerBase
 
         // Generate JWT tokens for immediate login
         var scopes = new[] { "api.read", "api.write", "api.manage" };
-        var additionalClaims = BuildUserClaims(adminUser);
+        var additionalClaims = await BuildUserClaims(adminUser);
 
         var accessToken = _jwtService.GenerateToken(
             subject: adminUser.UserId.ToString(),
@@ -909,7 +912,7 @@ public class AuthController : ControllerBase
             _ => Array.Empty<string>()
         };
 
-        var additionalClaims = BuildUserClaims(user);
+        var additionalClaims = await BuildUserClaims(user);
 
         // Generate new access token
         var newAccessToken = _jwtService.GenerateToken(
@@ -1011,6 +1014,17 @@ public class AuthController : ControllerBase
                 .ToListAsync();
         }
 
+        // Get effective permissions (role defaults + user extras)
+        var effectivePermissions = await _permissionService.GetUserEffectivePermissionsAsync(user.UserId, user.UserType);
+        var permissionCodes = effectivePermissions.Select(p => p.Code).ToList();
+
+        // Get extra (user-specific) permissions only
+        var extraPermissions = await _permissionService.GetUserExtraPermissionsAsync(user.UserId);
+        var extraPermissionCodes = extraPermissions
+            .Where(up => up.Permission != null)
+            .Select(up => up.Permission!.Code)
+            .ToList();
+
         return Ok(new UserDto
         {
             UserId = user.UserId,
@@ -1028,7 +1042,9 @@ public class AuthController : ControllerBase
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt,
             ThemePreference = user.ThemePreference,
-            LanguagePreference = user.LanguagePreference
+            LanguagePreference = user.LanguagePreference,
+            Permissions = permissionCodes,
+            ExtraPermissions = extraPermissionCodes
         });
     }
 
@@ -1343,7 +1359,7 @@ public class AuthController : ControllerBase
     /// Includes both .NET standard ClaimTypes (for .NET consumers) and simple-named
     /// claims (for cross-platform consumers like tutoria-app).
     /// </summary>
-    private static Dictionary<string, string> BuildUserClaims(User user)
+    private async Task<Dictionary<string, string>> BuildUserClaims(User user)
     {
         var claims = new Dictionary<string, string>
         {
@@ -1378,6 +1394,12 @@ public class AuthController : ControllerBase
         {
             claims["UniversityId"] = user.UniversityId.Value.ToString();
         }
+
+        // Permissions claim — effective permissions (role defaults + user extras)
+        var effectivePermissions = await _permissionService.GetUserEffectivePermissionsAsync(user.UserId, user.UserType);
+        claims["permissions"] = JsonSerializer.Serialize(
+            effectivePermissions.Select(p => p.Code).ToList()
+        );
 
         return claims;
     }

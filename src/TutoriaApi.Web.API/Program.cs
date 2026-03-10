@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -93,48 +94,50 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // Configure Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // SuperAdmin-only policy (full system access)
-    options.AddPolicy("SuperAdminOnly", policy =>
-        policy.RequireRole("super_admin"));
+    // Helper to check permission codes in the JWT's "permissions" claim
+    Func<AuthorizationHandlerContext, string, bool> hasPermission = (context, permissionCode) =>
+    {
+        var permissionsClaim = context.User.FindFirst("permissions")?.Value;
+        if (string.IsNullOrEmpty(permissionsClaim)) return false;
+        try
+        {
+            var permissions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(permissionsClaim);
+            return permissions?.Contains(permissionCode) ?? false;
+        }
+        catch { return false; }
+    };
 
-    // AdminOrAbove policy (SuperAdmin or Manager)
-    // Updated to support new Manager role
+    // SuperAdmin-only: requires universities:read (only super_admins have global university access)
+    options.AddPolicy("SuperAdminOnly", policy =>
+        policy.RequireAssertion(context =>
+            hasPermission(context, "universities:read")));
+
+    // AdminOrAbove: requires staff:create permission (managers and super_admins)
     options.AddPolicy("AdminOrAbove", policy =>
         policy.RequireAssertion(context =>
-            context.User.IsInRole("super_admin") ||
-            context.User.IsInRole("manager") ||
-            (context.User.IsInRole("professor") &&
-             context.User.HasClaim(c => c.Type == "isAdmin" && c.Value.ToLower() == "true"))));
+            hasPermission(context, "staff:create")));
 
-    // AnalyticsAccess policy (SuperAdmin or Manager only - NO regular professors/tutors/platform coordinators)
+    // AnalyticsAccess: requires analytics:read permission
     options.AddPolicy("AnalyticsAccess", policy =>
         policy.RequireAssertion(context =>
-            context.User.IsInRole("super_admin") ||
-            context.User.IsInRole("manager")));
+            hasPermission(context, "analytics:read")));
 
-    // ProfessorOrAbove policy (SuperAdmin, Manager, Tutor, PlatformCoordinator, or Professor)
-    // Updated to support all staff roles
+    // ProfessorOrAbove: requires students:read permission (all staff roles have it, students do not)
+    // NOTE: courses:read was previously used but students also have it, allowing them to
+    // satisfy ProfessorOrAbove and hit management endpoints. students:read is the correct
+    // differentiator: all 5 staff roles (super_admin, manager, tutor, platform_coordinator,
+    // professor) have it, but the student role does not.
     options.AddPolicy("ProfessorOrAbove", policy =>
         policy.RequireAssertion(context =>
-            context.User.IsInRole("super_admin") ||
-            context.User.IsInRole("manager") ||
-            context.User.IsInRole("tutor") ||
-            context.User.IsInRole("platform_coordinator") ||
-            context.User.IsInRole("professor")));
+            hasPermission(context, "students:read")));
 
-    // ReadScope policy (requires api.read scope)
+    // Scope-based policies remain unchanged (they check JWT scopes, not permissions)
     options.AddPolicy("ReadAccess", policy =>
         policy.RequireClaim("scope", "api.read"));
-
-    // WriteScope policy (requires api.write scope)
     options.AddPolicy("WriteAccess", policy =>
         policy.RequireClaim("scope", "api.write"));
-
-    // AdminScope policy (requires api.admin scope)
     options.AddPolicy("AdminAccess", policy =>
         policy.RequireClaim("scope", "api.admin"));
-
-    // ManageScope policy (requires api.manage scope for AdminProfessors)
     options.AddPolicy("ManageAccess", policy =>
         policy.RequireClaim("scope", "api.manage"));
 });
