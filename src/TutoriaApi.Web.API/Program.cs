@@ -94,6 +94,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // Configure Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
+    // Helper: super_admin always passes regardless of permissions claim state.
+    // This is a defense-in-depth safeguard — if the RolePermissions table hasn't
+    // been seeded yet, the JWT permissions claim will be empty, but super_admin
+    // should never be locked out of any endpoint.
+    Func<AuthorizationHandlerContext, bool> isSuperAdmin = (context) =>
+        context.User.FindFirst("type")?.Value == "super_admin";
+
     // Helper to check permission codes in the JWT's "permissions" claim
     Func<AuthorizationHandlerContext, string, bool> hasPermission = (context, permissionCode) =>
     {
@@ -110,17 +117,17 @@ builder.Services.AddAuthorization(options =>
     // SuperAdmin-only: requires universities:read (only super_admins have global university access)
     options.AddPolicy("SuperAdminOnly", policy =>
         policy.RequireAssertion(context =>
-            hasPermission(context, "universities:read")));
+            isSuperAdmin(context) || hasPermission(context, "universities:read")));
 
     // AdminOrAbove: requires staff:create permission (managers and super_admins)
     options.AddPolicy("AdminOrAbove", policy =>
         policy.RequireAssertion(context =>
-            hasPermission(context, "staff:create")));
+            isSuperAdmin(context) || hasPermission(context, "staff:create")));
 
     // AnalyticsAccess: requires analytics:read permission
     options.AddPolicy("AnalyticsAccess", policy =>
         policy.RequireAssertion(context =>
-            hasPermission(context, "analytics:read")));
+            isSuperAdmin(context) || hasPermission(context, "analytics:read")));
 
     // ProfessorOrAbove: requires students:read permission (all staff roles have it, students do not)
     // NOTE: courses:read was previously used but students also have it, allowing them to
@@ -129,7 +136,7 @@ builder.Services.AddAuthorization(options =>
     // professor) have it, but the student role does not.
     options.AddPolicy("ProfessorOrAbove", policy =>
         policy.RequireAssertion(context =>
-            hasPermission(context, "students:read")));
+            isSuperAdmin(context) || hasPermission(context, "students:read")));
 
     // Scope-based policies remain unchanged (they check JWT scopes, not permissions)
     options.AddPolicy("ReadAccess", policy =>
