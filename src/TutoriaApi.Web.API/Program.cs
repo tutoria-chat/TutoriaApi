@@ -292,12 +292,17 @@ RecurringJob.AddOrUpdate<ITranscriptionRetryService>(
     service => service.RetryFailedTranscriptionsAsync(),
     Cron.Daily(3)); // Run daily at 3:00 AM UTC
 
+RecurringJob.AddOrUpdate<IDataRetentionService>(
+    "lgpd-data-retention-cleanup",
+    service => service.RunCleanupAsync(),
+    Cron.Weekly(DayOfWeek.Sunday, 2)); // Run weekly on Sundays at 2:00 AM UTC
+
 // Log registered services on startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("🚀 Tutoria Unified API starting...");
 logger.LogInformation("📦 Management API: /api/* (Universities, Courses, Modules, etc.)");
 logger.LogInformation("🔐 Auth API: /api/auth/* (Login, Register, Password Reset)");
-logger.LogInformation("🔄 Background Jobs: /hangfire (Transcription retry job scheduled daily at 3:00 AM UTC)");
+logger.LogInformation("🔄 Background Jobs: /hangfire (Transcription retry daily 3AM, LGPD data retention weekly Sun 2AM)");
 logger.LogInformation("📦 All repositories and services auto-registered via DI");
 logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
 

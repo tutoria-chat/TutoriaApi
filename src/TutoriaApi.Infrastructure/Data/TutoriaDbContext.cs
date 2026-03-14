@@ -90,6 +90,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<UserPermission> UserPermissions { get; set; }
+    public DbSet<Consent> Consents { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -753,6 +754,37 @@ public class TutoriaDbContext : DbContext
                 .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasIndex(e => new { e.UserId, e.PermissionId }).IsUnique();
+        });
+
+        // Consent configuration
+        modelBuilder.Entity<Consent>(entity =>
+        {
+            // Disable OUTPUT clause because this table has a trigger (TR_Consents_UpdatedAt)
+            entity.ToTable("Consents", t => t.UseSqlOutputClause(false));
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.ConsentType).HasColumnName("ConsentType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Version).HasColumnName("Version").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.IpAddress).HasColumnName("IpAddress").HasMaxLength(50);
+            entity.Property(e => e.UserAgent).HasColumnName("UserAgent").HasMaxLength(500);
+            entity.Property(e => e.AcceptedAt).HasColumnName("AcceptedAt");
+            entity.Property(e => e.RevokedAt).HasColumnName("RevokedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => new { e.UserId, e.ConsentType });
+            entity.HasIndex(e => e.ConsentType);
+
+            entity.HasCheckConstraint("CK_Consents_ConsentType",
+                "[ConsentType] IN ('lgpd_privacy_policy', 'ai_data_processing', 'openai_cross_border_transfer')");
+
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }
