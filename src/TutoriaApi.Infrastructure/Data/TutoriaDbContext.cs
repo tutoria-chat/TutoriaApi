@@ -91,6 +91,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<UserPermission> UserPermissions { get; set; }
     public DbSet<Consent> Consents { get; set; }
+    public DbSet<UserUniversity> UserUniversities { get; set; }
+    public DbSet<UserInvitation> UserInvitations { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -322,6 +324,37 @@ public class TutoriaDbContext : DbContext
             entity.Property(sc => sc.StudentId).HasColumnName("StudentId");
             entity.Property(sc => sc.CourseId).HasColumnName("CourseId");
             entity.Property(sc => sc.CreatedAt).HasColumnName("CreatedAt");
+        });
+
+        // UserUniversity configuration (many-to-many for multi-tenancy)
+        // RAW configuration - no relationships, just table mapping
+        modelBuilder.Entity<UserUniversity>(entity =>
+        {
+            entity.ToTable("UserUniversities");
+            entity.HasKey(uu => new { uu.UserId, uu.UniversityId });
+            entity.Property(uu => uu.UserId).HasColumnName("UserId");
+            entity.Property(uu => uu.UniversityId).HasColumnName("UniversityId");
+            entity.Property(uu => uu.JoinedAt).HasColumnName("JoinedAt");
+        });
+
+        // UserInvitation configuration
+        modelBuilder.Entity<UserInvitation>(entity =>
+        {
+            entity.ToTable("UserInvitations");
+            entity.HasKey(ui => ui.Id);
+            entity.Property(ui => ui.Id).HasColumnName("Id");
+            entity.Property(ui => ui.Token).HasColumnName("Token").HasMaxLength(255).IsRequired();
+            entity.Property(ui => ui.Email).HasColumnName("Email").HasMaxLength(255).IsRequired();
+            entity.Property(ui => ui.UserType).HasColumnName("UserType").HasMaxLength(20).IsRequired();
+            entity.Property(ui => ui.UniversityId).HasColumnName("UniversityId");
+            entity.Property(ui => ui.IsAdmin).HasColumnName("IsAdmin");
+            entity.Property(ui => ui.LanguagePreference).HasColumnName("LanguagePreference").HasMaxLength(10);
+            entity.Property(ui => ui.InvitedByUserId).HasColumnName("InvitedByUserId");
+            entity.Property(ui => ui.Status).HasColumnName("Status").HasMaxLength(20).IsRequired();
+            entity.Property(ui => ui.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.Property(ui => ui.AcceptedAt).HasColumnName("AcceptedAt");
+            entity.Property(ui => ui.CreatedUserId).HasColumnName("CreatedUserId");
+            entity.Property(ui => ui.CreatedAt).HasColumnName("CreatedAt");
         });
 
         // ApiClient configuration

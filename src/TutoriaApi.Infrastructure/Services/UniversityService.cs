@@ -6,13 +6,16 @@ namespace TutoriaApi.Infrastructure.Services;
 public class UniversityService : IUniversityService
 {
     private readonly IUniversityRepository _universityRepository;
+    private readonly IUserUniversityRepository _userUniversityRepository;
     private readonly IAuditLogService _auditLogService;
 
     public UniversityService(
         IUniversityRepository universityRepository,
+        IUserUniversityRepository userUniversityRepository,
         IAuditLogService auditLogService)
     {
         _universityRepository = universityRepository;
+        _userUniversityRepository = userUniversityRepository;
         _auditLogService = auditLogService;
     }
 
@@ -131,6 +134,9 @@ public class UniversityService : IUniversityService
         {
             throw new KeyNotFoundException("University not found");
         }
+
+        // Clean up junction table entries before deleting the university
+        await _userUniversityRepository.RemoveAllForUniversityAsync(id);
 
         await _universityRepository.DeleteAsync(university);
 

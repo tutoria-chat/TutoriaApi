@@ -28,6 +28,13 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
             .FirstOrDefaultAsync(u => u.Id == id);
     }
 
+    public async Task<List<University>> GetByIdsAsync(List<int> ids)
+    {
+        return await _dbSet
+            .Where(u => ids.Contains(u.Id))
+            .ToListAsync();
+    }
+
     public async Task<bool> ExistsByNameAsync(string name)
     {
         return await _dbSet.AnyAsync(u => u.Name == name);

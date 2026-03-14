@@ -11,16 +11,22 @@ namespace TutoriaApi.Web.API.Controllers;
 public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IUserUniversityService _userUniversityService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUserInvitationService _userInvitationService;
     private readonly ILogger<UsersController> _logger;
 
     public UsersController(
         IUserService userService,
+        IUserUniversityService userUniversityService,
         ICurrentUserService currentUserService,
+        IUserInvitationService userInvitationService,
         ILogger<UsersController> logger)
     {
         _userService = userService;
+        _userUniversityService = userUniversityService;
         _currentUserService = currentUserService;
+        _userInvitationService = userInvitationService;
         _logger = logger;
     }
 
@@ -468,6 +474,238 @@ public class UsersController : ControllerBase
         {
             _logger.LogError(ex, "Error changing password for user {UserId}", id);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpGet("{id}/universities")]
+    public async Task<ActionResult<List<UserUniversityResponse>>> GetUserUniversities(int id)
+    {
+        try
+        {
+            var summaries = await _userUniversityService.GetUserUniversitiesAsync(id);
+
+            var response = summaries.Select(s => new UserUniversityResponse
+            {
+                Id = s.Id,
+                Name = s.Name,
+                Code = s.Code,
+                JoinedAt = s.JoinedAt
+            }).ToList();
+
+            return Ok(response);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving universities for user {UserId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpPost("{id}/universities")]
+    public async Task<ActionResult> AddUserToUniversity(int id, [FromBody] AddUserToUniversityRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            await _userUniversityService.AddUserToUniversityAsync(id, request.UniversityId, currentUser);
+
+            _logger.LogInformation("Added user {UserId} to university {UniversityId}", id, request.UniversityId);
+
+            return Ok(new { message = "User added to university successfully" });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized attempt to add user {UserId} to university", id);
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding user {UserId} to university {UniversityId}", id, request.UniversityId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpDelete("{id}/universities/{universityId}")]
+    public async Task<ActionResult> RemoveUserFromUniversity(int id, int universityId)
+    {
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            if (currentUser == null)
+            {
+                return Unauthorized();
+            }
+
+            await _userUniversityService.RemoveUserFromUniversityAsync(id, universityId, currentUser);
+
+            _logger.LogInformation("Removed user {UserId} from university {UniversityId}", id, universityId);
+
+            return Ok(new { message = "User removed from university successfully" });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized attempt to remove user {UserId} from university {UniversityId}", id, universityId);
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing user {UserId} from university {UniversityId}", id, universityId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpGet("search")]
+    public async Task<ActionResult<PaginatedResponse<UserSearchResult>>> SearchUsers(
+        [FromQuery] string query,
+        [FromQuery] int? excludeUniversityId = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int size = 10)
+    {
+        if (page < 1) page = 1;
+        if (size < 1) size = 10;
+        if (size > 100) size = 100;
+
+        try
+        {
+            var (viewModels, total) = await _userUniversityService.SearchUsersAsync(
+                query, excludeUniversityId, page, size);
+
+            var items = viewModels.Select(vm => new UserSearchResult
+            {
+                Id = vm.User.UserId,
+                FirstName = vm.User.FirstName,
+                LastName = vm.User.LastName,
+                Email = vm.User.Email,
+                UserType = vm.User.UserType,
+                IsActive = vm.User.IsActive,
+                Universities = vm.Universities.Select(u => new UserUniversityResponse
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Code = u.Code,
+                    JoinedAt = u.JoinedAt
+                }).ToList()
+            }).ToList();
+
+            return Ok(new PaginatedResponse<UserSearchResult>
+            {
+                Items = items,
+                Total = total,
+                Page = page,
+                Size = size,
+                Pages = (int)Math.Ceiling(total / (double)size)
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching users with query {Query}", query);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpPost("/api/invitations")]
+    [Authorize]
+    public async Task<ActionResult> CreateInvitation([FromBody] CreateInvitationRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        try
+        {
+            var currentUserId = _currentUserService.GetUserId();
+            var currentUserType = _currentUserService.GetUserType();
+            var currentUserUniversityId = _currentUserService.GetUniversityId();
+
+            var result = await _userInvitationService.CreateInvitationAsync(
+                request.Email, request.UserType, request.UniversityId, request.IsAdmin,
+                request.LanguagePreference, currentUserId, currentUserType, currentUserUniversityId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating invitation for {Email}", request.Email);
+            return StatusCode(500, new { message = "An error occurred" });
+        }
+    }
+
+    [HttpPost("/api/invitations/bulk")]
+    [Authorize]
+    public async Task<ActionResult> BulkInvite([FromBody] BulkInviteRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (request.Emails.Count > 50)
+            return BadRequest(new { message = "Maximum 50 emails per batch" });
+
+        try
+        {
+            var currentUserId = _currentUserService.GetUserId();
+            var currentUserType = _currentUserService.GetUserType();
+            var currentUserUniversityId = _currentUserService.GetUniversityId();
+
+            var result = await _userInvitationService.BulkInviteAsync(
+                request.Emails, request.UserType, request.UniversityId, request.IsAdmin,
+                request.LanguagePreference, currentUserId, currentUserType, currentUserUniversityId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing bulk invite");
+            return StatusCode(500, new { message = "An error occurred" });
         }
     }
 }

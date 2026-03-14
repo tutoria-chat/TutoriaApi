@@ -37,6 +37,9 @@ public class AuthController : ControllerBase
     private readonly IPlanRepository _planRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IPermissionService _permissionService;
+    private readonly IUserUniversityService _userUniversityService;
+    private readonly IUserUniversityRepository _userUniversityRepository;
+    private readonly IUserInvitationService _userInvitationService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -49,6 +52,9 @@ public class AuthController : ControllerBase
         IPlanRepository planRepository,
         ISubscriptionRepository subscriptionRepository,
         IPermissionService permissionService,
+        IUserUniversityService userUniversityService,
+        IUserUniversityRepository userUniversityRepository,
+        IUserInvitationService userInvitationService,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
@@ -60,6 +66,9 @@ public class AuthController : ControllerBase
         _planRepository = planRepository;
         _subscriptionRepository = subscriptionRepository;
         _permissionService = permissionService;
+        _userUniversityService = userUniversityService;
+        _userUniversityRepository = userUniversityRepository;
+        _userInvitationService = userInvitationService;
         _logger = logger;
     }
 
@@ -321,6 +330,27 @@ public class AuthController : ControllerBase
         user.LastLoginAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
 
+        // Fetch user's university memberships for multi-tenancy
+        List<UserUniversityResponse>? universities = null;
+        try
+        {
+            var universityList = await _userUniversityService.GetUserUniversitiesAsync(user.UserId);
+            if (universityList.Count > 0)
+            {
+                universities = universityList.Select(u => new UserUniversityResponse
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Code = u.Code,
+                    JoinedAt = u.JoinedAt
+                }).ToList();
+            }
+        }
+        catch
+        {
+            // Non-critical: continue login even if university fetch fails
+        }
+
         _logger.LogInformation("User {Username} logged in successfully", user.Username);
 
         return Ok(new LoginResponse
@@ -331,7 +361,8 @@ public class AuthController : ControllerBase
             ExpiresIn = 28800, // 8 hours in seconds
             UserId = user.UserId,
             Username = user.Username,
-            UserType = user.UserType
+            UserType = user.UserType,
+            Universities = universities
         });
     }
 
@@ -442,6 +473,97 @@ public class AuthController : ControllerBase
             Username = student.Username,
             UserType = student.UserType
         });
+    }
+
+    /// <summary>
+    /// Self-service user registration without a university.
+    /// </summary>
+    /// <remarks>
+    /// Creates a standalone user account with no university association.
+    /// The user can log in and see an empty dashboard until a university admin
+    /// searches for them and adds them to a university.
+    ///
+    /// **Flow**: User signs up -> creates account with no university -> can log in ->
+    /// admin at a university searches for them and invites them (adds to university).
+    ///
+    /// **Defaults**:
+    /// - UserType: "professor" (can be changed later by admin)
+    /// - UniversityId: null (no university)
+    /// - IsAdmin: false
+    /// - IsActive: true
+    ///
+    /// **Username**: Auto-generated from email prefix. If taken, a random suffix is appended.
+    /// </remarks>
+    /// <response code="201">User account created successfully.</response>
+    /// <response code="400">Validation failed or email already exists.</response>
+    [HttpPost("register/user")]
+    [AllowAnonymous]
+    [ProducesResponseType(typeof(RegisterUserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<RegisterUserResponse>> RegisterUser([FromBody] RegisterUserRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            // Check if email already exists
+            if (await _userRepository.ExistsByEmailAsync(request.Email))
+            {
+                return BadRequest(new { message = "Email already exists" });
+            }
+
+            // Use provided username or auto-generate from email prefix
+            var username = !string.IsNullOrWhiteSpace(request.Username)
+                ? request.Username
+                : request.Email.Split('@')[0];
+
+            // Check username uniqueness
+            if (await _userRepository.ExistsByUsernameAsync(username))
+            {
+                if (!string.IsNullOrWhiteSpace(request.Username))
+                {
+                    // User explicitly provided a username that's taken
+                    return Conflict(new { message = "Username already exists" });
+                }
+                // Auto-generated username is taken, append a random suffix
+                username = $"{username}_{Guid.NewGuid().ToString("N")[..6]}";
+            }
+
+            // Create user with no university
+            var user = new User
+            {
+                Username = username,
+                Email = request.Email,
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                HashedPassword = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                UserType = "professor",
+                UniversityId = null,
+                IsAdmin = false,
+                IsActive = true
+            };
+
+            user = await _userRepository.AddAsync(user);
+
+            _logger.LogInformation(
+                "User self-registered: {Username} ({Email}) with no university",
+                user.Username, user.Email);
+
+            return CreatedAtAction(nameof(GetCurrentUser), new RegisterUserResponse
+            {
+                UserId = user.UserId,
+                Email = user.Email,
+                Message = "Account created successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during user self-registration for email {Email}", request.Email);
+            return StatusCode(500, new { message = "An error occurred while creating the account" });
+        }
     }
 
     /// <summary>
@@ -628,6 +750,9 @@ public class AuthController : ControllerBase
         // Set CreatedByUserId on university
         university.CreatedByUserId = adminUser.UserId;
         await _universityRepository.UpdateAsync(university);
+
+        // Create junction table entry for multi-tenancy
+        await _userUniversityRepository.AddAsync(adminUser.UserId, university.Id);
 
         // Create subscription with trial
         var trialDays = plan.TrialDays > 0 ? plan.TrialDays : 30;
@@ -1025,6 +1150,27 @@ public class AuthController : ControllerBase
             .Select(up => up.Permission!.Code)
             .ToList();
 
+        // Fetch user's university memberships for multi-tenancy
+        List<UserUniversityResponse>? universities = null;
+        try
+        {
+            var universityList = await _userUniversityService.GetUserUniversitiesAsync(user.UserId);
+            if (universityList.Count > 0)
+            {
+                universities = universityList.Select(u => new UserUniversityResponse
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Code = u.Code,
+                    JoinedAt = u.JoinedAt
+                }).ToList();
+            }
+        }
+        catch
+        {
+            // Non-critical: continue even if university fetch fails
+        }
+
         return Ok(new UserDto
         {
             UserId = user.UserId,
@@ -1044,7 +1190,8 @@ public class AuthController : ControllerBase
             ThemePreference = user.ThemePreference,
             LanguagePreference = user.LanguagePreference,
             Permissions = permissionCodes,
-            ExtraPermissions = extraPermissionCodes
+            ExtraPermissions = extraPermissionCodes,
+            Universities = universities
         });
     }
 
@@ -1351,6 +1498,174 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error validating token");
             return Unauthorized(new { detail = "Token validation failed" });
+        }
+    }
+
+    /// <summary>
+    /// Switch the current user's active university context.
+    /// Validates the user belongs to the target university, updates Users.UniversityId,
+    /// and re-issues JWT tokens with the updated universityId claim.
+    /// </summary>
+    /// <param name="request">Request containing the target university ID.</param>
+    /// <returns>New JWT access and refresh tokens with updated claims.</returns>
+    /// <response code="200">University switched successfully, new tokens issued.</response>
+    /// <response code="400">User does not belong to the specified university.</response>
+    /// <response code="401">Missing or invalid JWT token.</response>
+    /// <response code="404">User or university not found.</response>
+    [HttpPost("switch-university")]
+    [Authorize]
+    [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<LoginResponse>> SwitchUniversity([FromBody] SwitchUniversityRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            // Extract current user ID from JWT
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { message = "Invalid user ID" });
+            }
+
+            // Switch university (validates membership and updates Users.UniversityId)
+            var user = await _userUniversityService.SwitchUniversityAsync(userId, request.UniversityId);
+
+            // Rebuild claims with updated universityId
+            var additionalClaims = await BuildUserClaims(user);
+
+            // Determine scopes based on user type
+            string[] scopes = user.UserType switch
+            {
+                "super_admin" => new[] { "api.read", "api.write", "api.admin" },
+                "professor" when user.IsAdmin == true => new[] { "api.read", "api.write", "api.manage" },
+                "professor" => new[] { "api.read", "api.write" },
+                "student" => new[] { "api.read" },
+                _ => Array.Empty<string>()
+            };
+
+            // Re-issue access token
+            var accessToken = _jwtService.GenerateToken(
+                subject: user.UserId.ToString(),
+                type: user.UserType,
+                scopes: scopes,
+                expiresInMinutes: 480,
+                additionalClaims: additionalClaims
+            );
+
+            // Re-issue refresh token
+            var refreshToken = _jwtService.GenerateRefreshToken(
+                subject: user.UserId.ToString(),
+                type: user.UserType,
+                scopes: scopes,
+                additionalClaims: additionalClaims
+            );
+
+            // Fetch updated university list
+            List<UserUniversityResponse>? universities = null;
+            try
+            {
+                var universityList = await _userUniversityService.GetUserUniversitiesAsync(user.UserId);
+                if (universityList.Count > 0)
+                {
+                    universities = universityList.Select(u => new UserUniversityResponse
+                    {
+                        Id = u.Id,
+                        Name = u.Name,
+                        Code = u.Code,
+                        JoinedAt = u.JoinedAt
+                    }).ToList();
+                }
+            }
+            catch
+            {
+                // Non-critical
+            }
+
+            _logger.LogInformation("User {UserId} switched to university {UniversityId}",
+                userId, request.UniversityId);
+
+            return Ok(new LoginResponse
+            {
+                AccessToken = accessToken,
+                RefreshToken = refreshToken,
+                TokenType = "Bearer",
+                ExpiresIn = 28800,
+                UserId = user.UserId,
+                Username = user.Username,
+                UserType = user.UserType,
+                Universities = universities
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error switching university");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get invitation details by token (public endpoint for accept-invitation page).
+    /// </summary>
+    [HttpGet("invitations/{token}")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetInvitation(string token)
+    {
+        try
+        {
+            var result = await _userInvitationService.GetInvitationByTokenAsync(token);
+            if (result == null)
+                return NotFound(new { message = "Invitation not found" });
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting invitation");
+            return StatusCode(500, new { message = "An error occurred" });
+        }
+    }
+
+    /// <summary>
+    /// Accept an invitation and create a new user account.
+    /// </summary>
+    [HttpPost("accept-invitation")]
+    [AllowAnonymous]
+    public async Task<ActionResult> AcceptInvitation([FromBody] AcceptInvitationRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+        try
+        {
+            var result = await _userInvitationService.AcceptInvitationAsync(
+                request.Token, request.Username, request.FirstName, request.LastName, request.Password);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error accepting invitation");
+            return StatusCode(500, new { message = "An error occurred" });
         }
     }
 

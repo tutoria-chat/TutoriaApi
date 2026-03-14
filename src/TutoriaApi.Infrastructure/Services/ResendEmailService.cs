@@ -143,6 +143,36 @@ public class ResendEmailService : IEmailService
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
     }
 
+    public async Task SendUniversityAddedEmailAsync(string toEmail, string toName, string universityName, string languageCode = "en")
+    {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(toName))
+            throw new ArgumentException("Recipient name cannot be null or empty.", nameof(toName));
+        if (string.IsNullOrWhiteSpace(universityName))
+            throw new ArgumentException("University name cannot be null or empty.", nameof(universityName));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping university added email to {Email}", toEmail);
+            return;
+        }
+
+        // HTML-escape user input to prevent XSS
+        var safeName = WebUtility.HtmlEncode(toName);
+        var safeUniversityName = WebUtility.HtmlEncode(universityName);
+
+        var (subject, htmlBody, textBody) = languageCode.ToLower() switch
+        {
+            "pt-br" => GetUniversityAddedEmailPtBr(safeName, safeUniversityName),
+            "es" => GetUniversityAddedEmailEs(safeName, safeUniversityName),
+            _ => GetUniversityAddedEmailEn(safeName, safeUniversityName)
+        };
+
+        await SendEmailAsync(toEmail, subject, htmlBody, textBody);
+    }
+
     public async Task SendPasswordChangedConfirmationEmailAsync(string toEmail, string toName, string languageCode = "en")
     {
         // Input validation
@@ -226,6 +256,38 @@ public class ResendEmailService : IEmailService
             "pt-br" => GetSecurityAlertEmailPtBr(safeName, safeAlertMessage),
             "es" => GetSecurityAlertEmailEs(safeName, safeAlertMessage),
             _ => GetSecurityAlertEmailEn(safeName, safeAlertMessage)
+        };
+
+        await SendEmailAsync(toEmail, subject, htmlBody, textBody);
+    }
+
+    public async Task SendInvitationEmailAsync(string toEmail, string universityName, string roleName, string token, string languageCode = "en")
+    {
+        // Input validation
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+        if (string.IsNullOrWhiteSpace(roleName))
+            throw new ArgumentException("Role name cannot be null or empty.", nameof(roleName));
+        if (string.IsNullOrWhiteSpace(token))
+            throw new ArgumentException("Invitation token cannot be null or empty.", nameof(token));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping invitation email to {Email}", toEmail);
+            _logger.LogInformation("Invitation token for {Email}: {Token}", toEmail, token);
+            return;
+        }
+
+        // HTML-escape user input to prevent XSS
+        var safeUniversityName = string.IsNullOrWhiteSpace(universityName) ? null : WebUtility.HtmlEncode(universityName);
+        var safeRoleName = WebUtility.HtmlEncode(roleName);
+        var invitationLink = $"{_frontendUrl}/accept-invitation?token={WebUtility.UrlEncode(token)}";
+
+        var (subject, htmlBody, textBody) = languageCode.ToLower() switch
+        {
+            "pt-br" => GetInvitationEmailPtBr(safeUniversityName, safeRoleName, invitationLink),
+            "es" => GetInvitationEmailEs(safeUniversityName, safeRoleName, invitationLink),
+            _ => GetInvitationEmailEn(safeUniversityName, safeRoleName, invitationLink)
         };
 
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
@@ -1366,6 +1428,443 @@ Detectamos actividad inusual en tu cuenta:
 {alertMessage}
 
 Si fuiste tú, puedes ignorar este mensaje de forma segura. De lo contrario, asegura tu cuenta inmediatamente cambiando tu contraseña.
+
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
+
+        return (subject, html, text);
+    }
+
+    #endregion
+
+    #region University Added Email Templates
+
+    private (string subject, string html, string text) GetUniversityAddedEmailEn(string name, string universityName)
+    {
+        var subject = $"You've Been Added to {universityName} - Tutoria Platform";
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""en"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Added to University</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Hi {name},</p>
+                            <p>You have been added to <strong>{universityName}</strong> on the Tutoria platform.</p>
+                            <p>You can now access courses, modules, and resources associated with this university by logging in to your account.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{_frontendUrl}/login"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Go to Tutoria</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Hi {name},
+
+You have been added to {universityName} on the Tutoria platform.
+
+You can now access courses, modules, and resources associated with this university by logging in to your account.
+
+Log in at: {_frontendUrl}/login
+
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
+
+        return (subject, html, text);
+    }
+
+    private (string subject, string html, string text) GetUniversityAddedEmailPtBr(string name, string universityName)
+    {
+        var subject = $"Você foi adicionado à {universityName} - Plataforma Tutoria";
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""pt-BR"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Adicionado à Universidade</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Olá {name},</p>
+                            <p>Você foi adicionado à <strong>{universityName}</strong> na plataforma Tutoria.</p>
+                            <p>Agora você pode acessar cursos, módulos e recursos associados a esta universidade fazendo login na sua conta.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{_frontendUrl}/login"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Acessar Tutoria</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Olá {name},
+
+Você foi adicionado à {universityName} na plataforma Tutoria.
+
+Agora você pode acessar cursos, módulos e recursos associados a esta universidade fazendo login na sua conta.
+
+Acesse: {_frontendUrl}/login
+
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
+
+        return (subject, html, text);
+    }
+
+    private (string subject, string html, string text) GetUniversityAddedEmailEs(string name, string universityName)
+    {
+        var subject = $"Has sido agregado a {universityName} - Plataforma Tutoria";
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""es"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Agregado a Universidad</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Hola {name},</p>
+                            <p>Has sido agregado a <strong>{universityName}</strong> en la plataforma Tutoria.</p>
+                            <p>Ahora puedes acceder a cursos, módulos y recursos asociados con esta universidad iniciando sesión en tu cuenta.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{_frontendUrl}/login"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Ir a Tutoria</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Hola {name},
+
+Has sido agregado a {universityName} en la plataforma Tutoria.
+
+Ahora puedes acceder a cursos, módulos y recursos asociados con esta universidad iniciando sesión en tu cuenta.
+
+Inicia sesión en: {_frontendUrl}/login
+
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
+
+        return (subject, html, text);
+    }
+
+    #endregion
+
+    #region Invitation Email Templates
+
+    private (string subject, string html, string text) GetInvitationEmailEn(string? universityName, string roleName, string invitationLink)
+    {
+        var roleDisplay = roleName switch
+        {
+            "super_admin" => "Super Administrator",
+            "professor" => "Professor",
+            _ => "User"
+        };
+
+        var contextText = universityName != null
+            ? $"join <strong>{universityName}</strong> on Tutoria"
+            : "join the Tutoria platform";
+        var contextTextPlain = universityName != null
+            ? $"join {universityName} on Tutoria"
+            : "join the Tutoria platform";
+
+        var subject = universityName != null
+            ? $"You've been invited to join {universityName} on Tutoria"
+            : "You've been invited to join Tutoria";
+
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""en"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">You're Invited!</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Hello,</p>
+                            <p>You've been invited to {contextText} as a <strong>{roleDisplay}</strong>.</p>
+                            <p>Click the button below to accept the invitation and create your account:</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{invitationLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Accept Invitation</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
+                            <p>Or copy and paste this link into your browser:</p>
+                            <p style=""word-break: break-all; color: #4F46E5;"">{invitationLink}</p>
+                            <p><strong>This invitation link expires in 7 days.</strong></p>
+                            <p>If you weren't expecting this invitation, you can safely ignore this email.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Hello,
+
+You've been invited to {contextTextPlain} as a {roleDisplay}.
+
+Click this link to accept the invitation and create your account:
+{invitationLink}
+
+This invitation link expires in 7 days.
+
+If you weren't expecting this invitation, you can safely ignore this email.
+
+© {DateTime.UtcNow.Year} Tutoria Platform. All rights reserved.";
+
+        return (subject, html, text);
+    }
+
+    private (string subject, string html, string text) GetInvitationEmailPtBr(string? universityName, string roleName, string invitationLink)
+    {
+        var roleDisplay = roleName switch
+        {
+            "super_admin" => "Super Administrador",
+            "professor" => "Professor",
+            _ => "Usuário"
+        };
+
+        var contextText = universityName != null
+            ? $"entrar em <strong>{universityName}</strong> na Tutoria"
+            : "entrar na plataforma Tutoria";
+        var contextTextPlain = universityName != null
+            ? $"entrar em {universityName} na Tutoria"
+            : "entrar na plataforma Tutoria";
+
+        var subject = universityName != null
+            ? $"Voce foi convidado(a) para {universityName} na Tutoria"
+            : "Voce foi convidado(a) para a Tutoria";
+
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""pt-BR"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Voce Foi Convidado(a)!</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Olá,</p>
+                            <p>Voce foi convidado(a) para {contextText} como <strong>{roleDisplay}</strong>.</p>
+                            <p>Clique no botão abaixo para aceitar o convite e criar sua conta:</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{invitationLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Aceitar Convite</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
+                            <p>Ou copie e cole este link no seu navegador:</p>
+                            <p style=""word-break: break-all; color: #4F46E5;"">{invitationLink}</p>
+                            <p><strong>Este link de convite expira em 7 dias.</strong></p>
+                            <p>Se voce não esperava este convite, pode ignorar este e-mail com segurança.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Olá,
+
+Voce foi convidado(a) para {contextTextPlain} como {roleDisplay}.
+
+Clique neste link para aceitar o convite e criar sua conta:
+{invitationLink}
+
+Este link de convite expira em 7 dias.
+
+Se voce não esperava este convite, pode ignorar este e-mail com segurança.
+
+© {DateTime.UtcNow.Year} Plataforma Tutoria. Todos os direitos reservados.";
+
+        return (subject, html, text);
+    }
+
+    private (string subject, string html, string text) GetInvitationEmailEs(string? universityName, string roleName, string invitationLink)
+    {
+        var roleDisplay = roleName switch
+        {
+            "super_admin" => "Super Administrador",
+            "professor" => "Profesor",
+            _ => "Usuario"
+        };
+
+        var contextText = universityName != null
+            ? $"unirte a <strong>{universityName}</strong> en Tutoria"
+            : "unirte a la plataforma Tutoria";
+        var contextTextPlain = universityName != null
+            ? $"unirte a {universityName} en Tutoria"
+            : "unirte a la plataforma Tutoria";
+
+        var subject = universityName != null
+            ? $"Has sido invitado(a) a {universityName} en Tutoria"
+            : "Has sido invitado(a) a Tutoria";
+
+        var html = $@"
+<!DOCTYPE html>
+<html lang=""es"">
+<head>
+    <meta charset=""UTF-8"">
+    <meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;"">
+    <table role=""presentation"" style=""width: 100%; border-collapse: collapse;"">
+        <tr>
+            <td align=""center"" style=""padding: 40px 0;"">
+                <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
+                    <tr>
+                        <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
+                            <img src=""{_logoUrl}"" alt=""Tutoria Logo"" style=""max-width: 200px; height: auto; margin-bottom: 20px;"" />
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">¡Has Sido Invitado(a)!</h1>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
+                            <p>Hola,</p>
+                            <p>Has sido invitado(a) a {contextText} como <strong>{roleDisplay}</strong>.</p>
+                            <p>Haz clic en el botón de abajo para aceptar la invitación y crear tu cuenta:</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align=""center"" style=""padding: 20px 40px;"">
+                            <a href=""{invitationLink}"" style=""display: inline-block; padding: 14px 32px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;"">Aceptar Invitacion</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #666666; font-size: 14px; line-height: 20px;"">
+                            <p>O copia y pega este enlace en tu navegador:</p>
+                            <p style=""word-break: break-all; color: #4F46E5;"">{invitationLink}</p>
+                            <p><strong>Este enlace de invitación expira en 7 días.</strong></p>
+                            <p>Si no esperabas esta invitación, puedes ignorar este correo de forma segura.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style=""padding: 20px 40px; color: #999999; font-size: 12px; text-align: center; border-top: 1px solid #eeeeee;"">
+                            <p>&copy; {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+        var text = $@"Hola,
+
+Has sido invitado(a) a {contextTextPlain} como {roleDisplay}.
+
+Haz clic en este enlace para aceptar la invitación y crear tu cuenta:
+{invitationLink}
+
+Este enlace de invitación expira en 7 días.
+
+Si no esperabas esta invitación, puedes ignorar este correo de forma segura.
 
 © {DateTime.UtcNow.Year} Plataforma Tutoria. Todos los derechos reservados.";
 

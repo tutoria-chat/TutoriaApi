@@ -59,6 +59,16 @@ public interface IEmailService
     Task SendTwoFactorCodeEmailAsync(string toEmail, string toName, string code, int expiryMinutes, string languageCode = "en");
 
     /// <summary>
+    /// Send notification email when a user is added to a university by an admin.
+    /// </summary>
+    /// <param name="toEmail">Recipient email address</param>
+    /// <param name="toName">Recipient first name for personalization</param>
+    /// <param name="universityName">Name of the university the user was added to</param>
+    /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
+    /// <returns>Task representing the async operation</returns>
+    Task SendUniversityAddedEmailAsync(string toEmail, string toName, string universityName, string languageCode = "en");
+
+    /// <summary>
     /// Send security alert email for suspicious activity.
     /// </summary>
     /// <param name="toEmail">Recipient email address</param>
@@ -67,4 +77,15 @@ public interface IEmailService
     /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
     /// <returns>Task representing the async operation</returns>
     Task SendSecurityAlertEmailAsync(string toEmail, string toName, string alertMessage, string languageCode = "en");
+
+    /// <summary>
+    /// Send invitation email for a new user to join a university on the platform.
+    /// </summary>
+    /// <param name="toEmail">Recipient email address</param>
+    /// <param name="universityName">Name of the university (null for super_admin invitations)</param>
+    /// <param name="roleName">Role being assigned (e.g., "professor", "super_admin")</param>
+    /// <param name="token">Invitation token for accepting the invitation</param>
+    /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
+    /// <returns>Task representing the async operation</returns>
+    Task SendInvitationEmailAsync(string toEmail, string universityName, string roleName, string token, string languageCode = "en");
 }

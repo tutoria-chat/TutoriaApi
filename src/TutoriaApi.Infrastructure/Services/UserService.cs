@@ -12,6 +12,7 @@ public class UserService : IUserService
     private readonly IUserRepository _userRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly IUserUniversityRepository _userUniversityRepository;
     private readonly IEmailService _emailService;
     private readonly IAuditLogService _auditLogService;
     private readonly int[] _platformOwnerUserIds;
@@ -20,6 +21,7 @@ public class UserService : IUserService
         IUserRepository userRepository,
         IUniversityRepository universityRepository,
         ICourseRepository courseRepository,
+        IUserUniversityRepository userUniversityRepository,
         IEmailService emailService,
         IAuditLogService auditLogService,
         IConfiguration configuration)
@@ -27,6 +29,7 @@ public class UserService : IUserService
         _userRepository = userRepository;
         _universityRepository = universityRepository;
         _courseRepository = courseRepository;
+        _userUniversityRepository = userUniversityRepository;
         _emailService = emailService;
         _auditLogService = auditLogService;
         _platformOwnerUserIds = configuration.GetSection("Platform:OwnerUserIds").Get<int[]>() ?? Array.Empty<int>();
@@ -235,6 +238,12 @@ public class UserService : IUserService
         user.PasswordResetToken = resetToken;
         user.PasswordResetExpires = DateTime.UtcNow.AddHours(24);
         await _userRepository.SaveChangesAsync();
+
+        // Create junction table entry for multi-tenancy
+        if (user.UniversityId.HasValue)
+        {
+            await _userUniversityRepository.AddAsync(user.UserId, user.UniversityId.Value);
+        }
 
         // Send welcome email
         try
@@ -663,6 +672,9 @@ public class UserService : IUserService
         var deletedUsername = user.Username;
         var deletedEmail = user.Email;
         var deletedUniversityId = user.UniversityId;
+
+        // Clean up junction table entries before deleting the user
+        await _userUniversityRepository.RemoveAllForUserAsync(id);
 
         await _userRepository.DeleteAsync(user);
 

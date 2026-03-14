@@ -36,6 +36,9 @@ public class LoginResponse
     public int UserId { get; set; }
     public string Username { get; set; } = string.Empty;
     public string UserType { get; set; } = string.Empty;
+
+    // Multi-tenancy: list of universities the user belongs to
+    public List<UserUniversityResponse>? Universities { get; set; }
 }
 
 public class RegisterStudentRequest
@@ -105,6 +108,9 @@ public class UserDto
     public string LanguagePreference { get; set; } = "pt-br";
     public List<string>? Permissions { get; set; } // Effective permissions (role + extra)
     public List<string>? ExtraPermissions { get; set; } // User-specific extra permissions only
+
+    // Multi-tenancy: list of universities the user belongs to
+    public List<UserUniversityResponse>? Universities { get; set; }
 }
 
 public class UpdateProfileRequest
@@ -259,6 +265,36 @@ public class ActivateStudentResponse
     public string LastName { get; set; } = string.Empty;
 }
 
+public class RegisterUserRequest
+{
+    [Required(ErrorMessage = "Email is required")]
+    [EmailAddress(ErrorMessage = "Invalid email address")]
+    [MaxLength(255, ErrorMessage = "Email cannot exceed 255 characters")]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Password is required")]
+    [PasswordComplexity(minLength: 8)]
+    public string Password { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "First name is required")]
+    [MaxLength(100, ErrorMessage = "First name cannot exceed 100 characters")]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Last name is required")]
+    [MaxLength(100, ErrorMessage = "Last name cannot exceed 100 characters")]
+    public string LastName { get; set; } = string.Empty;
+
+    [MaxLength(100, ErrorMessage = "Username cannot exceed 100 characters")]
+    public string? Username { get; set; }
+}
+
+public class RegisterUserResponse
+{
+    public int UserId { get; set; }
+    public string Email { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
 public class RegisterUniversityRequest
 {
     [Required(ErrorMessage = "University name is required")]
@@ -318,4 +354,65 @@ public class RegisterUniversityResponse
     public int ExpiresIn { get; set; }
     public string PlanName { get; set; } = string.Empty;
     public string SubscriptionStatus { get; set; } = string.Empty;
+}
+
+// ==================== Invitation DTOs ====================
+
+public class CreateInvitationRequest
+{
+    [Required]
+    [EmailAddress]
+    [MaxLength(255)]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(20)]
+    public string UserType { get; set; } = string.Empty;
+
+    public int? UniversityId { get; set; }
+
+    public bool IsAdmin { get; set; } = false;
+
+    [MaxLength(10)]
+    public string LanguagePreference { get; set; } = "pt-br";
+}
+
+public class BulkInviteRequest
+{
+    [Required]
+    [MinLength(1)]
+    public List<string> Emails { get; set; } = new();
+
+    [Required]
+    [MaxLength(20)]
+    public string UserType { get; set; } = string.Empty;
+
+    public int? UniversityId { get; set; }
+
+    public bool IsAdmin { get; set; } = false;
+
+    [MaxLength(10)]
+    public string LanguagePreference { get; set; } = "pt-br";
+}
+
+public class AcceptInvitationRequest
+{
+    [Required]
+    public string Token { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string Username { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(100)]
+    public string LastName { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(8)]
+    public string Password { get; set; } = string.Empty;
 }
