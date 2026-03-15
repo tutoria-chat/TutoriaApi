@@ -1,6 +1,6 @@
-using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Azure.Storage.Sas;
+using Amazon;
+using Amazon.S3;
+using Amazon.S3.Model;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Interfaces;
@@ -9,51 +9,69 @@ namespace TutoriaApi.Infrastructure.Services;
 
 public class BlobStorageService : IBlobStorageService
 {
-    private readonly BlobServiceClient _blobServiceClient;
-    private readonly string _containerName;
+    private readonly IAmazonS3 _s3Client;
+    private readonly string _bucketName;
+    private readonly string _region;
     private readonly ILogger<BlobStorageService> _logger;
 
     public BlobStorageService(IConfiguration configuration, ILogger<BlobStorageService> logger)
     {
         _logger = logger;
 
-        var connectionString = configuration["AzureStorage:ConnectionString"];
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException("Azure Storage connection string not configured");
-        }
+        _bucketName = configuration["S3:BucketName"]
+            ?? throw new InvalidOperationException("S3:BucketName not configured");
+        _region = configuration["S3:Region"]
+            ?? configuration["AWS:Region"]
+            ?? "us-east-2";
 
-        _containerName = configuration["AzureStorage:ContainerName"] ?? "tutoria-files";
+        var accessKeyId = configuration["AWS:AccessKeyId"];
+        var secretAccessKey = configuration["AWS:SecretAccessKey"];
 
         try
         {
-            _blobServiceClient = new BlobServiceClient(connectionString);
-            EnsureContainerExistsAsync().Wait();
+            if (!string.IsNullOrWhiteSpace(accessKeyId) && !string.IsNullOrWhiteSpace(secretAccessKey))
+            {
+                _s3Client = new AmazonS3Client(
+                    accessKeyId,
+                    secretAccessKey,
+                    RegionEndpoint.GetBySystemName(_region));
+            }
+            else
+            {
+                // Fall back to default credential chain (IAM role, env vars, etc.)
+                _s3Client = new AmazonS3Client(RegionEndpoint.GetBySystemName(_region));
+            }
+
+            EnsureBucketExistsAsync().Wait();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize blob storage service");
-            throw new InvalidOperationException($"Invalid Azure Storage configuration: {ex.Message}", ex);
+            _logger.LogError(ex, "Failed to initialize S3 storage service");
+            throw new InvalidOperationException($"Invalid S3 configuration: {ex.Message}", ex);
         }
     }
 
-    private async Task EnsureContainerExistsAsync()
+    private async Task EnsureBucketExistsAsync()
     {
         try
         {
-            var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
-
-            // Check if container exists
-            if (!await containerClient.ExistsAsync())
+            await _s3Client.GetBucketLocationAsync(new GetBucketLocationRequest
             {
-                // Create container if it doesn't exist
-                await _blobServiceClient.CreateBlobContainerAsync(_containerName);
-                _logger.LogInformation("Created container: {ContainerName}", _containerName);
-            }
+                BucketName = _bucketName
+            });
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            await _s3Client.PutBucketAsync(new PutBucketRequest
+            {
+                BucketName = _bucketName,
+                BucketRegion = S3Region.FindValue(_region)
+            });
+            _logger.LogInformation("Created S3 bucket: {BucketName}", _bucketName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ensure container exists: {ContainerName}", _containerName);
+            _logger.LogError(ex, "Failed to ensure S3 bucket exists: {BucketName}", _bucketName);
             throw;
         }
     }
@@ -71,26 +89,22 @@ public class BlobStorageService : IBlobStorageService
     {
         try
         {
-            var blobClient = _blobServiceClient.GetBlobContainerClient(_containerName).GetBlobClient(blobPath);
-
-            // Set content type
-            var blobHttpHeaders = new BlobHttpHeaders
+            var putRequest = new PutObjectRequest
             {
+                BucketName = _bucketName,
+                Key = blobPath,
+                InputStream = fileStream,
                 ContentType = contentType ?? "application/octet-stream"
             };
 
-            // Upload with proper content settings
-            await blobClient.UploadAsync(fileStream, new BlobUploadOptions
-            {
-                HttpHeaders = blobHttpHeaders
-            });
+            await _s3Client.PutObjectAsync(putRequest);
 
-            // Return the blob URL
-            return blobClient.Uri.ToString();
+            // Return the S3 object URL
+            return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{blobPath}";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload file to blob storage: {BlobPath}", blobPath);
+            _logger.LogError(ex, "Failed to upload file to S3: {BlobPath}", blobPath);
             throw new InvalidOperationException("Failed to upload file", ex);
         }
     }
@@ -99,21 +113,20 @@ public class BlobStorageService : IBlobStorageService
     {
         try
         {
-            var blobClient = _blobServiceClient.GetBlobContainerClient(_containerName).GetBlobClient(blobPath);
-
-            var response = await blobClient.DeleteIfExistsAsync();
-
-            if (!response.Value)
+            var deleteRequest = new DeleteObjectRequest
             {
-                _logger.LogWarning("Blob not found for deletion: {BlobPath}", blobPath);
-                return false;
-            }
+                BucketName = _bucketName,
+                Key = blobPath
+            };
 
+            await _s3Client.DeleteObjectAsync(deleteRequest);
+
+            // S3 DeleteObject doesn't fail if key doesn't exist — always returns 204
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete blob: {BlobPath}", blobPath);
+            _logger.LogError(ex, "Failed to delete S3 object: {BlobPath}", blobPath);
             throw new InvalidOperationException("Failed to delete file", ex);
         }
     }
@@ -122,36 +135,19 @@ public class BlobStorageService : IBlobStorageService
     {
         try
         {
-            var blobClient = _blobServiceClient.GetBlobContainerClient(_containerName).GetBlobClient(blobPath);
-
-            // Check if the blob client can generate SAS URI
-            if (blobClient.CanGenerateSasUri)
+            var request = new GetPreSignedUrlRequest
             {
-                // Generate SAS token
-                var sasBuilder = new BlobSasBuilder
-                {
-                    BlobContainerName = _containerName,
-                    BlobName = blobPath,
-                    Resource = "b",
-                    ExpiresOn = DateTimeOffset.UtcNow.AddHours(expiresInHours)
-                };
+                BucketName = _bucketName,
+                Key = blobPath,
+                Expires = DateTime.UtcNow.AddHours(expiresInHours),
+                Verb = HttpVerb.GET
+            };
 
-                sasBuilder.SetPermissions(BlobSasPermissions.Read);
-
-                var sasUri = blobClient.GenerateSasUri(sasBuilder);
-                return sasUri.ToString();
-            }
-            else
-            {
-                // If SAS generation is not possible, return the direct URL
-                // (This happens when using connection strings without account key)
-                _logger.LogWarning("Cannot generate SAS URL, returning direct blob URL");
-                return blobClient.Uri.ToString();
-            }
+            return _s3Client.GetPreSignedURL(request);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate download URL for blob: {BlobPath}", blobPath);
+            _logger.LogError(ex, "Failed to generate download URL for S3 object: {BlobPath}", blobPath);
             throw new InvalidOperationException("Failed to generate download URL", ex);
         }
     }
@@ -160,20 +156,25 @@ public class BlobStorageService : IBlobStorageService
     {
         try
         {
-            var blobClient = _blobServiceClient.GetBlobContainerClient(_containerName).GetBlobClient(blobPath);
-
-            if (!await blobClient.ExistsAsync())
+            var getRequest = new GetObjectRequest
             {
-                _logger.LogWarning("Blob not found: {BlobPath}", blobPath);
-                return null;
-            }
+                BucketName = _bucketName,
+                Key = blobPath
+            };
 
-            var response = await blobClient.DownloadContentAsync();
-            return response.Value.Content.ToArray();
+            using var response = await _s3Client.GetObjectAsync(getRequest);
+            using var ms = new MemoryStream();
+            await response.ResponseStream.CopyToAsync(ms);
+            return ms.ToArray();
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("S3 object not found: {BlobPath}", blobPath);
+            return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get file content: {BlobPath}", blobPath);
+            _logger.LogError(ex, "Failed to get file content from S3: {BlobPath}", blobPath);
             return null;
         }
     }
