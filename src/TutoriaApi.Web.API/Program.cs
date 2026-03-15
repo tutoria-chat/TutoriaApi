@@ -40,10 +40,10 @@ else
     Console.WriteLine("[Config] AWS_SSM_PREFIX not set — using appsettings/env vars only (local dev mode)");
 }
 
-// Configure Kestrel to allow large file uploads (15MB)
+// Configure Kestrel to allow large file uploads (30MB)
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {
-    serverOptions.Limits.MaxRequestBodySize = 15728640; // 15 MB in bytes (15 * 1024 * 1024)
+    serverOptions.Limits.MaxRequestBodySize = 31457280; // 30 MB in bytes (30 * 1024 * 1024)
     serverOptions.Limits.RequestHeadersTimeout = TimeSpan.FromMinutes(5); // 5 minutes for slow connections
     serverOptions.Limits.KeepAliveTimeout = TimeSpan.FromMinutes(5); // 5 minutes keep-alive
 });
@@ -68,9 +68,9 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 // Configure form options to allow large file uploads
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 15728640; // 15 MB
-    options.ValueLengthLimit = 15728640;
-    options.MultipartHeadersLengthLimit = 15728640;
+    options.MultipartBodyLengthLimit = 31457280; // 30 MB
+    options.ValueLengthLimit = 31457280;
+    options.MultipartHeadersLengthLimit = 31457280;
 });
 
 // Add services to the container
