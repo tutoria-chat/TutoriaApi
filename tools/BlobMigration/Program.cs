@@ -99,26 +99,27 @@ await foreach (var blobItem in containerClient.GetBlobsAsync(BlobTraits.Metadata
     {
         var blobClient = containerClient.GetBlobClient(blobItem.Name);
 
-        // Download from Azure as a stream
-        var downloadResponse = await blobClient.DownloadStreamingAsync();
+        // Download from Azure (buffered — S3 needs content length)
+        var downloadResponse = await blobClient.DownloadContentAsync();
+        var content = downloadResponse.Value.Content.ToArray();
         var contentType = downloadResponse.Value.Details.ContentType ?? "application/octet-stream";
-        var contentLength = downloadResponse.Value.Details.ContentLength;
 
         // Upload to S3 with same key
+        using var ms = new MemoryStream(content);
         var putRequest = new PutObjectRequest
         {
             BucketName = config.S3Bucket,
             Key = blobItem.Name,
-            InputStream = downloadResponse.Value.Content,
+            InputStream = ms,
             ContentType = contentType
         };
 
         await s3Client.PutObjectAsync(putRequest);
 
-        totalBytes += contentLength;
+        totalBytes += content.Length;
         copied++;
 
-        var sizeKb = contentLength / 1024.0;
+        var sizeKb = content.Length / 1024.0;
         Console.WriteLine($"    done  {blobItem.Name,-50} {sizeKb,8:N1} KB");
     }
     catch (Exception ex)
