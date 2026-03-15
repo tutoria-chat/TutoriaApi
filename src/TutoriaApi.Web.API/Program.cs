@@ -13,6 +13,26 @@ using TutoriaApi.Core.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// =============================================================================
+// AWS Systems Manager Parameter Store — loads ALL config under /tutoria/{env}/
+// Add a param in SSM → app picks it up. No pipeline changes needed.
+// Local dev skips this (uses appsettings.Development.json as usual).
+// =============================================================================
+var ssmPrefix = Environment.GetEnvironmentVariable("AWS_SSM_PREFIX");
+if (!string.IsNullOrEmpty(ssmPrefix))
+{
+    builder.Configuration.AddSystemsManager(
+        path: ssmPrefix,
+        optional: true,                          // Don't crash if SSM is unreachable
+        reloadAfter: TimeSpan.FromMinutes(5)     // Auto-refresh config every 5 min
+    );
+    Console.WriteLine($"[Config] Loading from AWS SSM Parameter Store: {ssmPrefix}");
+}
+else
+{
+    Console.WriteLine("[Config] AWS_SSM_PREFIX not set — using appsettings/env vars only (local dev mode)");
+}
+
 // Configure Kestrel to allow large file uploads (15MB)
 builder.WebHost.ConfigureKestrel(serverOptions =>
 {

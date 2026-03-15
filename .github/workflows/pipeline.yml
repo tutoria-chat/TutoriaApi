@@ -412,6 +412,15 @@ jobs:
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_DEV }}'].ServiceArn" --output text)
 
+        # Only 2 env vars needed — the app loads everything else from SSM Parameter Store
+        IMAGE_CONFIG='{
+          "Port": "8080",
+          "RuntimeEnvironmentVariables": {
+            "ASPNETCORE_ENVIRONMENT": "Production",
+            "AWS_SSM_PREFIX": "/tutoria/dev/"
+          }
+        }'
+
         if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
           echo "Creating new App Runner service..."
           aws apprunner create-service \
@@ -424,29 +433,13 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": {
-                  "Port": "8080",
-                  "RuntimeEnvironmentVariables": {
-                    "ConnectionStrings__DefaultConnection": "${{ secrets.DEV_DB_CONNECTION_STRING }}",
-                    "Jwt__SecretKey": "${{ secrets.DEV_JWT_SECRET_KEY }}",
-                    "Jwt__Issuer": "${{ secrets.DEV_JWT_ISSUER }}",
-                    "Jwt__Audience": "${{ secrets.DEV_JWT_AUDIENCE }}",
-                    "AzureStorage__ConnectionString": "${{ secrets.DEV_AZURE_STORAGE_CONNECTION_STRING }}",
-                    "AzureStorage__ContainerName": "${{ secrets.DEV_AZURE_STORAGE_CONTAINER }}",
-                    "OpenAI__ApiKey": "${{ secrets.DEV_OPENAI_API_KEY }}",
-                    "AiApi__BaseUrl": "${{ secrets.DEV_AI_API_BASE_URL }}",
-                    "Stripe__SecretKey": "${{ secrets.DEV_STRIPE_SECRET_KEY }}",
-                    "Stripe__WebhookSecret": "${{ secrets.DEV_STRIPE_WEBHOOK_SECRET }}",
-                    "Resend__ApiKey": "${{ secrets.DEV_RESEND_API_KEY }}",
-                    "Email__Enabled": "true",
-                    "Email__FrontendUrl": "${{ secrets.DEV_EMAIL_FRONTEND_URL }}"
-                  }
-                }
+                "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
             }' \
             --instance-configuration '{
               "Cpu": "0.25 vCPU",
-              "Memory": "0.5 GB"
+              "Memory": "0.5 GB",
+              "InstanceRoleArn": "${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}"
             }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
@@ -468,25 +461,11 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": {
-                  "Port": "8080",
-                  "RuntimeEnvironmentVariables": {
-                    "ConnectionStrings__DefaultConnection": "${{ secrets.DEV_DB_CONNECTION_STRING }}",
-                    "Jwt__SecretKey": "${{ secrets.DEV_JWT_SECRET_KEY }}",
-                    "Jwt__Issuer": "${{ secrets.DEV_JWT_ISSUER }}",
-                    "Jwt__Audience": "${{ secrets.DEV_JWT_AUDIENCE }}",
-                    "AzureStorage__ConnectionString": "${{ secrets.DEV_AZURE_STORAGE_CONNECTION_STRING }}",
-                    "AzureStorage__ContainerName": "${{ secrets.DEV_AZURE_STORAGE_CONTAINER }}",
-                    "OpenAI__ApiKey": "${{ secrets.DEV_OPENAI_API_KEY }}",
-                    "AiApi__BaseUrl": "${{ secrets.DEV_AI_API_BASE_URL }}",
-                    "Stripe__SecretKey": "${{ secrets.DEV_STRIPE_SECRET_KEY }}",
-                    "Stripe__WebhookSecret": "${{ secrets.DEV_STRIPE_WEBHOOK_SECRET }}",
-                    "Resend__ApiKey": "${{ secrets.DEV_RESEND_API_KEY }}",
-                    "Email__Enabled": "true",
-                    "Email__FrontendUrl": "${{ secrets.DEV_EMAIL_FRONTEND_URL }}"
-                  }
-                }
+                "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
+            }' \
+            --instance-configuration '{
+              "InstanceRoleArn": "${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}"
             }'
         fi
 
@@ -544,6 +523,15 @@ jobs:
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_PROD }}'].ServiceArn" --output text)
 
+        # Only 2 env vars needed — the app loads everything else from SSM Parameter Store
+        IMAGE_CONFIG='{
+          "Port": "8080",
+          "RuntimeEnvironmentVariables": {
+            "ASPNETCORE_ENVIRONMENT": "Production",
+            "AWS_SSM_PREFIX": "/tutoria/prod/"
+          }
+        }'
+
         if [ -z "$SERVICE_ARN" ] || [ "$SERVICE_ARN" = "None" ]; then
           echo "Creating new App Runner service..."
           aws apprunner create-service \
@@ -556,29 +544,13 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": {
-                  "Port": "8080",
-                  "RuntimeEnvironmentVariables": {
-                    "ConnectionStrings__DefaultConnection": "${{ secrets.PROD_DB_CONNECTION_STRING }}",
-                    "Jwt__SecretKey": "${{ secrets.PROD_JWT_SECRET_KEY }}",
-                    "Jwt__Issuer": "${{ secrets.PROD_JWT_ISSUER }}",
-                    "Jwt__Audience": "${{ secrets.PROD_JWT_AUDIENCE }}",
-                    "AzureStorage__ConnectionString": "${{ secrets.PROD_AZURE_STORAGE_CONNECTION_STRING }}",
-                    "AzureStorage__ContainerName": "${{ secrets.PROD_AZURE_STORAGE_CONTAINER }}",
-                    "OpenAI__ApiKey": "${{ secrets.PROD_OPENAI_API_KEY }}",
-                    "AiApi__BaseUrl": "${{ secrets.PROD_AI_API_BASE_URL }}",
-                    "Stripe__SecretKey": "${{ secrets.PROD_STRIPE_SECRET_KEY }}",
-                    "Stripe__WebhookSecret": "${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}",
-                    "Resend__ApiKey": "${{ secrets.PROD_RESEND_API_KEY }}",
-                    "Email__Enabled": "true",
-                    "Email__FrontendUrl": "${{ secrets.PROD_EMAIL_FRONTEND_URL }}"
-                  }
-                }
+                "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
             }' \
             --instance-configuration '{
               "Cpu": "0.25 vCPU",
-              "Memory": "0.5 GB"
+              "Memory": "0.5 GB",
+              "InstanceRoleArn": "${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}"
             }' \
             --health-check-configuration '{
               "Protocol": "HTTP",
@@ -600,25 +572,11 @@ jobs:
               "ImageRepository": {
                 "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
                 "ImageRepositoryType": "ECR",
-                "ImageConfiguration": {
-                  "Port": "8080",
-                  "RuntimeEnvironmentVariables": {
-                    "ConnectionStrings__DefaultConnection": "${{ secrets.PROD_DB_CONNECTION_STRING }}",
-                    "Jwt__SecretKey": "${{ secrets.PROD_JWT_SECRET_KEY }}",
-                    "Jwt__Issuer": "${{ secrets.PROD_JWT_ISSUER }}",
-                    "Jwt__Audience": "${{ secrets.PROD_JWT_AUDIENCE }}",
-                    "AzureStorage__ConnectionString": "${{ secrets.PROD_AZURE_STORAGE_CONNECTION_STRING }}",
-                    "AzureStorage__ContainerName": "${{ secrets.PROD_AZURE_STORAGE_CONTAINER }}",
-                    "OpenAI__ApiKey": "${{ secrets.PROD_OPENAI_API_KEY }}",
-                    "AiApi__BaseUrl": "${{ secrets.PROD_AI_API_BASE_URL }}",
-                    "Stripe__SecretKey": "${{ secrets.PROD_STRIPE_SECRET_KEY }}",
-                    "Stripe__WebhookSecret": "${{ secrets.PROD_STRIPE_WEBHOOK_SECRET }}",
-                    "Resend__ApiKey": "${{ secrets.PROD_RESEND_API_KEY }}",
-                    "Email__Enabled": "true",
-                    "Email__FrontendUrl": "${{ secrets.PROD_EMAIL_FRONTEND_URL }}"
-                  }
-                }
+                "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
+            }' \
+            --instance-configuration '{
+              "InstanceRoleArn": "${{ secrets.APP_RUNNER_INSTANCE_ROLE_ARN }}"
             }'
         fi
 
