@@ -64,18 +64,20 @@ var insertionOrder = new[]
     "Permissions",
     "ApiClients",
     "Universities",
+    "UpBusinessTeams",
 
     // Tier 1 - Depends on tier 0
     "Courses",
     "Users",
     "Professors",       // legacy
-    "Students",         // legacy
     "SuperAdmins",      // legacy
     "ProviderKeys",
     "RolePermissions",
     "CourseTypeModels",
+    "UpBusinessReports", // depends on UpBusinessTeams
 
     // Tier 2 - Depends on tier 1
+    "Students",          // legacy, depends on Courses
     "Modules",
     "ProfessorCourses",
     "ProfessorAgents",
@@ -88,7 +90,7 @@ var insertionOrder = new[]
     // Tier 3 - Depends on tier 2
     "Files",
     "ModuleAccessTokens",
-    "Quizzes",
+    "Quizzes",           // depends on Modules
     "Logs",
     "ProfessorAgentTokens",
     "StudentImportRecords",
