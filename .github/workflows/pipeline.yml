@@ -29,7 +29,7 @@ on:
           - prod
 
 env:
-  DOTNET_VERSION: '8.0.x'
+  DOTNET_VERSION: '10.0.x'
   AWS_REGION: us-east-2
   ECR_REPOSITORY: tutoria-dotnet-api
   APP_RUNNER_SERVICE_DEV: tutoria-dotnet-api-dev
