@@ -268,12 +268,13 @@ jobs:
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_DEV }}'].ServiceArn" --output text)
 
-        # Only 2 env vars needed — the app loads everything else from SSM Parameter Store
+        # Only env vars needed — the app loads everything else from SSM Parameter Store
         IMAGE_CONFIG='{
           "Port": "8080",
           "RuntimeEnvironmentVariables": {
             "ASPNETCORE_ENVIRONMENT": "Production",
-            "AWS_SSM_PREFIX": "/tutoria/dev/"
+            "AWS_SSM_PREFIX": "/tutoria/dev/",
+            "AWS_REGION": "us-east-2"
           }
         }'
 
@@ -380,12 +381,13 @@ jobs:
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_PROD }}'].ServiceArn" --output text)
 
-        # Only 2 env vars needed — the app loads everything else from SSM Parameter Store
+        # Only env vars needed — the app loads everything else from SSM Parameter Store
         IMAGE_CONFIG='{
           "Port": "8080",
           "RuntimeEnvironmentVariables": {
             "ASPNETCORE_ENVIRONMENT": "Production",
-            "AWS_SSM_PREFIX": "/tutoria/prod/"
+            "AWS_SSM_PREFIX": "/tutoria/prod/",
+            "AWS_REGION": "us-east-2"
           }
         }'
 
