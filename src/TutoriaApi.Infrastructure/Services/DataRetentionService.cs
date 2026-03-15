@@ -76,7 +76,7 @@ public class DataRetentionService : IDataRetentionService
             var cutoffDate = DateTime.UtcNow.AddDays(-_logRetentionDays);
 
             var deletedCount = await _context.Database.ExecuteSqlRawAsync(
-                "DELETE FROM [dbo].[Logs] WHERE [CreatedAt] < {0}",
+                "DELETE FROM \"Logs\" WHERE \"CreatedAt\" < {0}",
                 cutoffDate);
 
             if (deletedCount > 0)

@@ -17,11 +17,11 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register DbContext
+        // Register DbContext (PostgreSQL)
         services.AddDbContext<TutoriaDbContext>(options =>
-            options.UseSqlServer(
-                configuration.GetConnectionString("DefaultConnection"),
-                sqlOptions => sqlOptions.EnableRetryOnFailure()));
+            options.UseNpgsql(
+                configuration.GetConnectionString("TutoriaDb"),
+                npgsqlOptions => npgsqlOptions.EnableRetryOnFailure()));
 
         // Register helper classes
         services.AddScoped<AccessControlHelper>();

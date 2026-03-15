@@ -13,7 +13,7 @@ public class TutoriaDbContext : DbContext
 
     /// <summary>
     /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
-    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// Tables with database triggers handle UpdatedAt server-side via PL/pgSQL BEFORE UPDATE triggers.
     /// </summary>
     public override int SaveChanges()
     {
@@ -23,7 +23,7 @@ public class TutoriaDbContext : DbContext
 
     /// <summary>
     /// Automatically updates CreatedAt and UpdatedAt for entities implementing IAuditable.
-    /// Only applies to entities without database triggers (those not using UseSqlOutputClause(false)).
+    /// Tables with database triggers handle UpdatedAt server-side via PL/pgSQL BEFORE UPDATE triggers.
     /// </summary>
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
@@ -101,8 +101,7 @@ public class TutoriaDbContext : DbContext
         // University configuration
         modelBuilder.Entity<University>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_Universities_UpdatedAt)
-            entity.ToTable("Universities", t => t.UseSqlOutputClause(false));
+            entity.ToTable("Universities");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -130,8 +129,7 @@ public class TutoriaDbContext : DbContext
         // Course configuration
         modelBuilder.Entity<Course>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_Courses_UpdatedAt)
-            entity.ToTable("Courses", t => t.UseSqlOutputClause(false));
+            entity.ToTable("Courses");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -150,8 +148,7 @@ public class TutoriaDbContext : DbContext
         // Module configuration
         modelBuilder.Entity<Module>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_Modules_UpdatedAt)
-            entity.ToTable("Modules", t => t.UseSqlOutputClause(false));
+            entity.ToTable("Modules");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -184,8 +181,8 @@ public class TutoriaDbContext : DbContext
                 .HasForeignKey(e => e.AIModelId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            entity.HasCheckConstraint("CK_Modules_Semester", "[Semester] BETWEEN 1 AND 8");
-            entity.HasCheckConstraint("CK_Modules_Year", "[Year] BETWEEN 2020 AND 2050");
+            entity.HasCheckConstraint("CK_Modules_Semester", "\"Semester\" BETWEEN 1 AND 8");
+            entity.HasCheckConstraint("CK_Modules_Year", "\"Year\" BETWEEN 2020 AND 2050");
         });
 
         // Legacy entity configurations removed - using unified Users table instead
@@ -228,14 +225,13 @@ public class TutoriaDbContext : DbContext
                 .HasForeignKey(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.SetNull);
             // Updated to include all valid user types: super_admin, manager, tutor, platform_coordinator, professor, student
-            entity.HasCheckConstraint("CK_Users_UserType", "[UserType] IN ('super_admin', 'manager', 'tutor', 'platform_coordinator', 'professor', 'student')");
+            entity.HasCheckConstraint("CK_Users_UserType", "\"UserType\" IN ('super_admin', 'manager', 'tutor', 'platform_coordinator', 'professor', 'student')");
         });
 
         // File configuration
         modelBuilder.Entity<FileEntity>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_Files_UpdatedAt)
-            entity.ToTable("Files", t => t.UseSqlOutputClause(false));
+            entity.ToTable("Files");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255).IsRequired();
@@ -260,7 +256,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.VideoDurationSeconds).HasColumnName("VideoDurationSeconds");
             entity.Property(e => e.TranscriptedAt).HasColumnName("TranscriptedAt");
             entity.Property(e => e.TranscriptWordCount).HasColumnName("TranscriptWordCount");
-            entity.Property(e => e.TranscriptionCostUSD).HasColumnName("TranscriptionCostUSD").HasColumnType("decimal(10, 4)");
+            entity.Property(e => e.TranscriptionCostUSD).HasColumnName("TranscriptionCostUSD").HasColumnType("numeric(10, 4)");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -273,8 +269,7 @@ public class TutoriaDbContext : DbContext
         // ModuleAccessToken configuration
         modelBuilder.Entity<ModuleAccessToken>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_ModuleAccessTokens_UpdatedAt)
-            entity.ToTable("ModuleAccessTokens", t => t.UseSqlOutputClause(false));
+            entity.ToTable("ModuleAccessTokens");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(64).IsRequired();
@@ -360,8 +355,7 @@ public class TutoriaDbContext : DbContext
         // ApiClient configuration
         modelBuilder.Entity<ApiClient>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_ApiClients_UpdatedAt)
-            entity.ToTable("ApiClients", t => t.UseSqlOutputClause(false));
+            entity.ToTable("ApiClients");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.ClientId).HasColumnName("ClientId").HasMaxLength(100).IsRequired();
@@ -389,8 +383,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.MaxTokens).HasColumnName("MaxTokens");
             entity.Property(e => e.SupportsVision).HasColumnName("SupportsVision").HasDefaultValue(false);
             entity.Property(e => e.SupportsFunctionCalling).HasColumnName("SupportsFunctionCalling").HasDefaultValue(false);
-            entity.Property(e => e.InputCostPer1M).HasColumnName("InputCostPer1M").HasColumnType("decimal(10,4)");
-            entity.Property(e => e.OutputCostPer1M).HasColumnName("OutputCostPer1M").HasColumnType("decimal(10,4)");
+            entity.Property(e => e.InputCostPer1M).HasColumnName("InputCostPer1M").HasColumnType("numeric(10,4)");
+            entity.Property(e => e.OutputCostPer1M).HasColumnName("OutputCostPer1M").HasColumnType("numeric(10,4)");
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.IsDeprecated).HasColumnName("IsDeprecated").HasDefaultValue(false);
             entity.Property(e => e.DeprecationDate).HasColumnName("DeprecationDate");
@@ -400,14 +394,13 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.ModelName).IsUnique();
-            entity.HasCheckConstraint("CK_AIModels_Provider", "[Provider] IN ('openai', 'anthropic')");
+            entity.HasCheckConstraint("CK_AIModels_Provider", "\"Provider\" IN ('openai', 'anthropic', 'bedrock', 'deepseek', 'gemini', 'groq')");
         });
 
         // ProfessorAgent configuration
         modelBuilder.Entity<ProfessorAgent>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgents_UpdatedAt)
-            entity.ToTable("ProfessorAgents", t => t.UseSqlOutputClause(false));
+            entity.ToTable("ProfessorAgents");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.ProfessorId).HasColumnName("ProfessorId");
@@ -448,8 +441,7 @@ public class TutoriaDbContext : DbContext
         // ProfessorAgentToken configuration
         modelBuilder.Entity<ProfessorAgentToken>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_ProfessorAgentTokens_UpdatedAt)
-            entity.ToTable("ProfessorAgentTokens", t => t.UseSqlOutputClause(false));
+            entity.ToTable("ProfessorAgentTokens");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(64).IsRequired();
@@ -563,7 +555,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
             entity.Property(e => e.Slug).HasColumnName("Slug").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
-            entity.Property(e => e.MonthlyPriceBRL).HasColumnName("MonthlyPriceBRL").HasColumnType("decimal(10,2)");
+            entity.Property(e => e.MonthlyPriceBRL).HasColumnName("MonthlyPriceBRL").HasColumnType("numeric(10,2)");
             entity.Property(e => e.StripePriceId).HasColumnName("StripePriceId").HasMaxLength(255);
             entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
             entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
@@ -602,7 +594,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.UniversityId);
-            entity.HasIndex(e => e.StripeSubscriptionId).IsUnique().HasFilter("[StripeSubscriptionId] IS NOT NULL");
+            entity.HasIndex(e => e.StripeSubscriptionId).IsUnique().HasFilter("\"StripeSubscriptionId\" IS NOT NULL");
             entity.HasIndex(e => e.Status);
 
             entity.HasOne(e => e.University)
@@ -662,7 +654,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasCheckConstraint("CK_StudentImportJobs_Status",
-                "[Status] IN ('pending', 'processing', 'completed', 'failed')");
+                "\"Status\" IN ('pending', 'processing', 'completed', 'failed')");
 
             entity.HasIndex(e => e.CourseId);
             entity.HasIndex(e => e.UniversityId);
@@ -688,8 +680,7 @@ public class TutoriaDbContext : DbContext
         // AuditLog configuration
         modelBuilder.Entity<AuditLog>(entity =>
         {
-            // Disable OUTPUT clause to prevent issues with database operations
-            entity.ToTable("AuditLogs", t => t.UseSqlOutputClause(false));
+            entity.ToTable("AuditLogs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.UserId).HasColumnName("UserId").IsRequired();
@@ -792,8 +783,7 @@ public class TutoriaDbContext : DbContext
         // Consent configuration
         modelBuilder.Entity<Consent>(entity =>
         {
-            // Disable OUTPUT clause because this table has a trigger (TR_Consents_UpdatedAt)
-            entity.ToTable("Consents", t => t.UseSqlOutputClause(false));
+            entity.ToTable("Consents");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.UserId).HasColumnName("UserId");
@@ -811,7 +801,7 @@ public class TutoriaDbContext : DbContext
             entity.HasIndex(e => e.ConsentType);
 
             entity.HasCheckConstraint("CK_Consents_ConsentType",
-                "[ConsentType] IN ('lgpd_privacy_policy', 'ai_data_processing', 'openai_cross_border_transfer')");
+                "\"ConsentType\" IN ('lgpd_privacy_policy', 'ai_data_processing', 'openai_cross_border_transfer')");
 
             entity.HasOne(e => e.User)
                 .WithMany()

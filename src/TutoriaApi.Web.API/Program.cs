@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -8,7 +9,7 @@ using TutoriaApi.Infrastructure.Middleware;
 using AspNetCoreRateLimit;
 using Hangfire;
 using Hangfire.Dashboard;
-using Hangfire.SqlServer;
+using Hangfire.PostgreSql;
 using TutoriaApi.Core.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -222,7 +223,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddScoped<TutoriaApi.Infrastructure.Services.DbSeederService>();
 
 // Add Hangfire services (background jobs) — skip if no connection string (avoids crash on startup)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var connectionString = builder.Configuration.GetConnectionString("TutoriaDb");
 var hangfireEnabled = !string.IsNullOrEmpty(connectionString);
 
 if (hangfireEnabled)
@@ -231,15 +232,8 @@ if (hangfireEnabled)
         .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
         .UseSimpleAssemblyNameTypeSerializer()
         .UseRecommendedSerializerSettings()
-        .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-        {
-            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-            QueuePollInterval = TimeSpan.Zero,
-            UseRecommendedIsolationLevel = true,
-            DisableGlobalLocks = true,
-            SchemaName = "Hangfire"
-        }));
+        .UsePostgreSqlStorage(options =>
+            options.UseNpgsqlConnection(connectionString)));
 
     // Add the processing server as IHostedService
     builder.Services.AddHangfireServer(options =>
@@ -250,7 +244,7 @@ if (hangfireEnabled)
 }
 else
 {
-    Console.WriteLine("[Hangfire] ⚠️ Skipped — ConnectionStrings:DefaultConnection is not configured");
+    Console.WriteLine("[Hangfire] ⚠️ Skipped — ConnectionStrings:TutoriaDb is not configured");
 }
 
 // Add CORS
@@ -272,6 +266,23 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Apply pending EF Core migrations on startup (self-healing fallback if pipeline migration was skipped)
+using (var migrationScope = app.Services.CreateScope())
+{
+    var db = migrationScope.ServiceProvider.GetRequiredService<TutoriaApi.Infrastructure.Data.TutoriaDbContext>();
+    var migrationLogger = migrationScope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        migrationLogger.LogInformation("[Migrations] Checking for pending EF Core migrations...");
+        await db.Database.MigrateAsync();
+        migrationLogger.LogInformation("[Migrations] Database is up to date.");
+    }
+    catch (Exception ex)
+    {
+        migrationLogger.LogError(ex, "[Migrations] Failed to apply migrations. App will continue but database may be out of sync.");
+    }
+}
 
 // Seed database with default API clients in development
 if (app.Environment.IsDevelopment())
@@ -324,16 +335,19 @@ app.MapGet("/ping", () => Results.Ok(new { status = "healthy", timestamp = DateT
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
-// Schedule recurring background jobs
-RecurringJob.AddOrUpdate<ITranscriptionRetryService>(
-    "retry-failed-transcriptions",
-    service => service.RetryFailedTranscriptionsAsync(),
-    Cron.Daily(3)); // Run daily at 3:00 AM UTC
+// Schedule recurring background jobs (only if Hangfire was configured)
+if (hangfireEnabled)
+{
+    RecurringJob.AddOrUpdate<ITranscriptionRetryService>(
+        "retry-failed-transcriptions",
+        service => service.RetryFailedTranscriptionsAsync(),
+        Cron.Daily(3)); // Run daily at 3:00 AM UTC
 
-RecurringJob.AddOrUpdate<IDataRetentionService>(
-    "lgpd-data-retention-cleanup",
-    service => service.RunCleanupAsync(),
-    Cron.Weekly(DayOfWeek.Sunday, 2)); // Run weekly on Sundays at 2:00 AM UTC
+    RecurringJob.AddOrUpdate<IDataRetentionService>(
+        "lgpd-data-retention-cleanup",
+        service => service.RunCleanupAsync(),
+        Cron.Weekly(DayOfWeek.Sunday, 2)); // Run weekly on Sundays at 2:00 AM UTC
+}
 
 // Log registered services on startup
 var logger = app.Services.GetRequiredService<ILogger<Program>>();

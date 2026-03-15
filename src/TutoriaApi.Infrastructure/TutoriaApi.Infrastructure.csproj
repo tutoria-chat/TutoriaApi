@@ -11,10 +11,10 @@
     <PackageReference Include="EPPlus" Version="7.5.2" />
     <PackageReference Include="FuzzySharp" Version="2.0.2" />
     <PackageReference Include="Hangfire.Core" Version="1.8.17" />
-    <PackageReference Include="Hangfire.SqlServer" Version="1.8.17" />
+    <PackageReference Include="Hangfire.PostgreSql" Version="1.20.9" />
     <!-- AspNetCore.Http types come from the shared framework via Core's FrameworkReference -->
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.*" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.*">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
