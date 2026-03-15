@@ -21,12 +21,18 @@ var builder = WebApplication.CreateBuilder(args);
 var ssmPrefix = Environment.GetEnvironmentVariable("AWS_SSM_PREFIX");
 if (!string.IsNullOrEmpty(ssmPrefix))
 {
-    builder.Configuration.AddSystemsManager(
-        path: ssmPrefix,
-        optional: false,                         // Crash loud if SSM is unreachable — don't hide config problems
-        reloadAfter: TimeSpan.FromMinutes(5)     // Auto-refresh config every 5 min
-    );
-    Console.WriteLine($"[Config] Loading from AWS SSM Parameter Store: {ssmPrefix}");
+    var ssmRegion = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-2";
+    builder.Configuration.AddSystemsManager(configSource =>
+    {
+        configSource.Path = ssmPrefix;
+        configSource.Optional = false;               // Crash loud if SSM is unreachable — don't hide config problems
+        configSource.ReloadAfter = TimeSpan.FromMinutes(5);  // Auto-refresh config every 5 min
+        configSource.AwsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
+        {
+            Region = Amazon.RegionEndpoint.GetBySystemName(ssmRegion)
+        };
+    });
+    Console.WriteLine($"[Config] Loading from AWS SSM Parameter Store: {ssmPrefix} (region: {ssmRegion})");
 }
 else
 {
