@@ -215,28 +215,37 @@ builder.Services.AddInfrastructure(builder.Configuration);
 // Add seeder service for development data
 builder.Services.AddScoped<TutoriaApi.Infrastructure.Services.DbSeederService>();
 
-// Add Hangfire services (background jobs)
+// Add Hangfire services (background jobs) — skip if no connection string (avoids crash on startup)
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddHangfire(configuration => configuration
-    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
-    .UseSimpleAssemblyNameTypeSerializer()
-    .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
-    {
-        CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
-        SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
-        QueuePollInterval = TimeSpan.Zero,
-        UseRecommendedIsolationLevel = true,
-        DisableGlobalLocks = true,
-        SchemaName = "Hangfire"
-    }));
+var hangfireEnabled = !string.IsNullOrEmpty(connectionString);
 
-// Add the processing server as IHostedService
-builder.Services.AddHangfireServer(options =>
+if (hangfireEnabled)
 {
-    options.WorkerCount = 1; // One worker for background jobs
-    options.ServerName = $"TutoriaApi-{Environment.MachineName}";
-});
+    builder.Services.AddHangfire(configuration => configuration
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+        {
+            CommandBatchMaxTimeout = TimeSpan.FromMinutes(5),
+            SlidingInvisibilityTimeout = TimeSpan.FromMinutes(5),
+            QueuePollInterval = TimeSpan.Zero,
+            UseRecommendedIsolationLevel = true,
+            DisableGlobalLocks = true,
+            SchemaName = "Hangfire"
+        }));
+
+    // Add the processing server as IHostedService
+    builder.Services.AddHangfireServer(options =>
+    {
+        options.WorkerCount = 1; // One worker for background jobs
+        options.ServerName = $"TutoriaApi-{Environment.MachineName}";
+    });
+}
+else
+{
+    Console.WriteLine("[Hangfire] ⚠️ Skipped — ConnectionStrings:DefaultConnection is not configured");
+}
 
 // Add CORS
 builder.Services.AddCors(options =>
@@ -285,12 +294,15 @@ app.UseCors();
 // Add global exception handler (should be early in the pipeline)
 app.UseGlobalExceptionHandler();
 
-// Add Hangfire Dashboard (for monitoring background jobs)
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
+// Add Hangfire Dashboard (for monitoring background jobs) — only if Hangfire was configured
+if (hangfireEnabled)
 {
-    Authorization = new[] { new HangfireSuperAdminAuthFilter() },
-    DashboardTitle = "Tutoria Background Jobs"
-});
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireSuperAdminAuthFilter() },
+        DashboardTitle = "Tutoria Background Jobs"
+    });
+}
 
 app.UseRequestResponseLogging();
 app.UseIpRateLimiting();
