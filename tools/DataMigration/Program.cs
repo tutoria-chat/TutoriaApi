@@ -300,30 +300,43 @@ try
     // --- Reset identity sequences ---
     // After bulk insert with explicit IDs, PostgreSQL sequences are stale.
     // Reset each to MAX(id) so the next INSERT auto-generates correctly.
+    // Handles BOTH serial columns (nextval default) and identity columns (GENERATED AS IDENTITY).
     Console.Write("  Resetting identity sequences... ");
     await pgConn.ExecuteAsync(@"
         DO $$
         DECLARE
             r RECORD;
             max_val BIGINT;
+            seq_name TEXT;
         BEGIN
+            -- 1. Serial columns (column_default LIKE 'nextval%')
             FOR r IN (
-                SELECT
-                    c.table_name,
-                    c.column_name,
-                    pg_get_serial_sequence('""' || c.table_name || '""', c.column_name) AS seq
+                SELECT c.table_name, c.column_name,
+                       pg_get_serial_sequence('""' || c.table_name || '""', c.column_name) AS seq
                 FROM information_schema.columns c
                 WHERE c.column_default LIKE 'nextval%'
                   AND c.table_schema = 'public'
             ) LOOP
                 IF r.seq IS NOT NULL THEN
-                    EXECUTE format(
-                        'SELECT COALESCE(MAX(%I), 0) FROM %I',
-                        r.column_name, r.table_name
-                    ) INTO max_val;
+                    EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I', r.column_name, r.table_name) INTO max_val;
                     IF max_val > 0 THEN
                         PERFORM setval(r.seq, max_val);
+                        RAISE NOTICE 'Reset serial %.% to %', r.table_name, r.column_name, max_val;
                     END IF;
+                END IF;
+            END LOOP;
+
+            -- 2. Identity columns (GENERATED ALWAYS/BY DEFAULT AS IDENTITY)
+            FOR r IN (
+                SELECT c.table_name, c.column_name
+                FROM information_schema.columns c
+                WHERE c.is_identity = 'YES'
+                  AND c.table_schema = 'public'
+            ) LOOP
+                EXECUTE format('SELECT COALESCE(MAX(%I), 0) FROM %I', r.column_name, r.table_name) INTO max_val;
+                IF max_val > 0 THEN
+                    EXECUTE format('ALTER TABLE %I ALTER COLUMN %I RESTART WITH %s', r.table_name, r.column_name, max_val + 1);
+                    RAISE NOTICE 'Reset identity %.% to %', r.table_name, r.column_name, max_val + 1;
                 END IF;
             END LOOP;
         END $$;
