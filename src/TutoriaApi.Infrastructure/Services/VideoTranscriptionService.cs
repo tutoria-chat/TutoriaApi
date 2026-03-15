@@ -63,7 +63,10 @@ public class VideoTranscriptionService : IVideoTranscriptionService
 
         // Call AI API
         var aiApiUrl = _configuration["AiApi:BaseUrl"] ?? "http://localhost:8000";
+        var internalKey = _configuration["AiApi:InternalApiKey"] ?? "";
         var httpClient = _httpClientFactory.CreateClient();
+        if (!string.IsNullOrEmpty(internalKey))
+            httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalKey);
 
         var payload = new
         {

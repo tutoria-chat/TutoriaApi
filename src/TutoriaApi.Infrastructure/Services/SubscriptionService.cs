@@ -61,11 +61,20 @@ public class SubscriptionService : ISubscriptionService
         if (!plan.IsActive)
             throw new InvalidOperationException("This plan is no longer available");
 
+        string stripePriceId;
         if (plan.IsCustom)
-            throw new InvalidOperationException("Enterprise plans require contacting sales");
-
-        if (string.IsNullOrEmpty(plan.StripePriceId))
-            throw new InvalidOperationException($"Plan '{plan.Name}' does not have a Stripe Price ID configured");
+        {
+            var currentSub = await _subscriptionRepository.GetByUniversityIdAsync(universityId);
+            if (currentSub?.CustomStripePriceId == null)
+                throw new InvalidOperationException("Enterprise plans require contacting sales. Contact your account manager to configure custom pricing.");
+            stripePriceId = currentSub.CustomStripePriceId;
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(plan.StripePriceId))
+                throw new InvalidOperationException($"Plan '{plan.Name}' does not have a Stripe Price ID configured");
+            stripePriceId = plan.StripePriceId;
+        }
 
         // Create or reuse Stripe customer
         var stripeCustomerId = university.StripeCustomerId;
@@ -109,7 +118,7 @@ public class SubscriptionService : ISubscriptionService
 
         var checkoutUrl = await _stripeService.CreateCheckoutSessionAsync(
             stripeCustomerId,
-            plan.StripePriceId,
+            stripePriceId,
             created.Id,
             successUrl ?? defaultSuccessUrl,
             cancelUrl ?? defaultCancelUrl);
@@ -222,6 +231,21 @@ public class SubscriptionService : ISubscriptionService
         }
 
         await _subscriptionRepository.UpdateAsync(subscription);
+    }
+
+    public async Task<Subscription> SetEnterprisePricingAsync(int universityId, string customStripePriceId)
+    {
+        var subscription = await _subscriptionRepository.GetByUniversityIdAsync(universityId);
+        if (subscription == null)
+            throw new KeyNotFoundException($"No subscription found for university {universityId}");
+
+        subscription.CustomStripePriceId = customStripePriceId;
+        await _subscriptionRepository.UpdateAsync(subscription);
+
+        _logger.LogInformation("Set custom Stripe price {PriceId} for university {UniversityId}",
+            customStripePriceId, universityId);
+
+        return subscription;
     }
 
     /// <summary>

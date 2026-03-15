@@ -11,6 +11,7 @@ public class Subscription : BaseEntity
     public DateTime? CurrentPeriodEnd { get; set; }
     public DateTime? TrialEndsAt { get; set; }
     public DateTime? CanceledAt { get; set; }
+    public string? CustomStripePriceId { get; set; }
 
     // Navigation properties
     public University University { get; set; } = null!;

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TutoriaApi.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TutoriaApi.Infrastructure.Data;
 namespace TutoriaApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TutoriaDbContext))]
-    partial class TutoriaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260315204643_AddXaiProviderAndEnterpriseFields")]
+    partial class AddXaiProviderAndEnterpriseFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -109,12 +112,6 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("UpdatedAt");
-
-                    b.Property<bool>("UseForFileExtraction")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("UseForFileExtraction");
 
                     b.HasKey("Id");
 
@@ -454,16 +451,13 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnName("CreatedAt");
 
                     b.Property<DateTime?>("ExtractedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("ExtractedAt");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("ExtractedText")
-                        .HasColumnType("text")
-                        .HasColumnName("ExtractedText");
+                        .HasColumnType("text");
 
                     b.Property<int?>("ExtractedWordCount")
-                        .HasColumnType("integer")
-                        .HasColumnName("ExtractedWordCount");
+                        .HasColumnType("integer");
 
                     b.Property<string>("FileName")
                         .HasMaxLength(255)
@@ -500,13 +494,6 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("OpenAIFileId");
-
-                    b.Property<string>("ProcessingStatus")
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("pending")
-                        .HasColumnName("ProcessingStatus");
 
                     b.Property<string>("SourceType")
                         .HasMaxLength(50)

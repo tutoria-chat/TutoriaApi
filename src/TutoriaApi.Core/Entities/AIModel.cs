@@ -24,6 +24,9 @@ public class AIModel : BaseEntity
     public bool IsDeprecated { get; set; }
     public DateTime? DeprecationDate { get; set; }
 
+    // File processing
+    public bool UseForFileExtraction { get; set; }
+
     // Metadata
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }

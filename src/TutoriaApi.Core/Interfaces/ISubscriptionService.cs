@@ -15,4 +15,9 @@ public interface ISubscriptionService
     /// Returns the checkout URL.
     /// </summary>
     Task<string> CreateCheckoutSessionAsync(int universityId, string planSlug, string? successUrl, string? cancelUrl);
+
+    /// <summary>
+    /// Sets a custom Stripe Price ID on a university's subscription for enterprise pricing.
+    /// </summary>
+    Task<Subscription> SetEnterprisePricingAsync(int universityId, string customStripePriceId);
 }

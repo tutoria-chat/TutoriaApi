@@ -16,17 +16,23 @@ public class FilesController : ControllerBase
     private readonly IFileService _fileService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IQuizGenerationService _quizGenerationService;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<FilesController> _logger;
 
     public FilesController(
         IFileService fileService,
         ICurrentUserService currentUserService,
         IQuizGenerationService quizGenerationService,
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration,
         ILogger<FilesController> logger)
     {
         _fileService = fileService;
         _currentUserService = currentUserService;
         _quizGenerationService = quizGenerationService;
+        _httpClientFactory = httpClientFactory;
+        _configuration = configuration;
         _logger = logger;
     }
 
@@ -63,6 +69,7 @@ public class FilesController : ControllerBase
                 ModuleId = f.ModuleId,
                 ModuleName = f.Module?.Name,
                 IsActive = f.IsActive,
+                ProcessingStatus = f.ProcessingStatus,
                 OpenAIFileId = f.OpenAIFileId,
                 AnthropicFileId = f.AnthropicFileId,
                 // Video/Transcription fields
@@ -124,6 +131,7 @@ public class FilesController : ControllerBase
                 UniversityId = file.Module?.Course?.UniversityId,
                 UniversityName = viewModel.UniversityName,
                 IsActive = file.IsActive,
+                ProcessingStatus = file.ProcessingStatus,
                 OpenAIFileId = file.OpenAIFileId,
                 AnthropicFileId = file.AnthropicFileId,
                 // Video/Transcription fields
@@ -174,6 +182,31 @@ public class FilesController : ControllerBase
 
             _logger.LogInformation("Uploaded file {FileName} for module {ModuleId}", file.FileName, request.ModuleId);
 
+            // Trigger text extraction in background (for RAG / AI file processing)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var aiApiUrl = _configuration["AiApi:BaseUrl"] ?? "http://localhost:8000";
+                    var internalKey = _configuration["AiApi:InternalApiKey"] ?? "";
+                    var httpClient = _httpClientFactory.CreateClient();
+                    httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalKey);
+
+                    var response = await httpClient.PostAsync(
+                        $"{aiApiUrl}/api/v2/modules/files/{file.Id}/extract-text",
+                        null);
+
+                    if (response.IsSuccessStatusCode)
+                        _logger.LogInformation("Text extraction triggered for file {FileId}", file.Id);
+                    else
+                        _logger.LogWarning("Text extraction returned {StatusCode} for file {FileId}", response.StatusCode, file.Id);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Background text extraction failed for file {FileId}", file.Id);
+                }
+            });
+
             // Trigger quiz regeneration in background (new file uploaded = new content)
             _ = Task.Run(async () =>
             {
@@ -205,6 +238,7 @@ public class FilesController : ControllerBase
                 UniversityName = viewModel?.UniversityName,
                 OpenAIFileId = file.OpenAIFileId,
                 IsActive = file.IsActive,
+                ProcessingStatus = file.ProcessingStatus,
                 // ErrorMessage removed: null,
                 CreatedAt = file.CreatedAt,
                 UpdatedAt = file.UpdatedAt
@@ -253,6 +287,7 @@ public class FilesController : ControllerBase
                 ModuleName = file.Module?.Name,
                 OpenAIFileId = file.OpenAIFileId,
                 IsActive = file.IsActive,
+                ProcessingStatus = file.ProcessingStatus,
                 // ErrorMessage removed: null,
                 CreatedAt = file.CreatedAt,
                 UpdatedAt = file.UpdatedAt
@@ -359,6 +394,7 @@ public class FilesController : ControllerBase
                 ModuleName = file.Module?.Name,
                 OpenAIFileId = file.OpenAIFileId,
                 IsActive = file.IsActive,
+                ProcessingStatus = file.ProcessingStatus,
                 // ErrorMessage removed: null,
                 CreatedAt = file.CreatedAt,
                 UpdatedAt = file.UpdatedAt

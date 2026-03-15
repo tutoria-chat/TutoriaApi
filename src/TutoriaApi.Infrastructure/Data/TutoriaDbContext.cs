@@ -257,6 +257,12 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.TranscriptedAt).HasColumnName("TranscriptedAt");
             entity.Property(e => e.TranscriptWordCount).HasColumnName("TranscriptWordCount");
             entity.Property(e => e.TranscriptionCostUSD).HasColumnName("TranscriptionCostUSD").HasColumnType("numeric(10, 4)");
+            // File processing status
+            entity.Property(e => e.ProcessingStatus).HasColumnName("ProcessingStatus").HasMaxLength(50).HasDefaultValue("pending");
+            // Document text extraction (internal)
+            entity.Property(e => e.ExtractedText).HasColumnName("ExtractedText");
+            entity.Property(e => e.ExtractedAt).HasColumnName("ExtractedAt");
+            entity.Property(e => e.ExtractedWordCount).HasColumnName("ExtractedWordCount");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -388,13 +394,14 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.IsDeprecated).HasColumnName("IsDeprecated").HasDefaultValue(false);
             entity.Property(e => e.DeprecationDate).HasColumnName("DeprecationDate");
+            entity.Property(e => e.UseForFileExtraction).HasColumnName("UseForFileExtraction").HasDefaultValue(false);
             entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
             entity.Property(e => e.RecommendedFor).HasColumnName("RecommendedFor").HasMaxLength(200);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.ModelName).IsUnique();
-            entity.HasCheckConstraint("CK_AIModels_Provider", "\"Provider\" IN ('openai', 'anthropic', 'bedrock', 'deepseek', 'gemini', 'groq')");
+            entity.HasCheckConstraint("CK_AIModels_Provider", "\"Provider\" IN ('openai', 'anthropic', 'bedrock', 'deepseek', 'gemini', 'xai')");
         });
 
         // ProfessorAgent configuration
@@ -590,6 +597,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CurrentPeriodEnd).HasColumnName("CurrentPeriodEnd");
             entity.Property(e => e.TrialEndsAt).HasColumnName("TrialEndsAt");
             entity.Property(e => e.CanceledAt).HasColumnName("CanceledAt");
+            entity.Property(e => e.CustomStripePriceId).HasColumnName("CustomStripePriceId").HasMaxLength(255);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

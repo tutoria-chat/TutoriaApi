@@ -14,6 +14,7 @@ public class TranscriptionRetryService : ITranscriptionRetryService
     private readonly IConfiguration _configuration;
     private readonly ILogger<TranscriptionRetryService> _logger;
     private readonly string _aiApiBaseUrl;
+    private readonly string _internalApiKey;
     private readonly int _delayBetweenRetriesMs;
     private readonly int _maxRetryAgeHours;
 
@@ -28,6 +29,7 @@ public class TranscriptionRetryService : ITranscriptionRetryService
         _configuration = configuration;
         _logger = logger;
         _aiApiBaseUrl = configuration["AiApi:BaseUrl"] ?? throw new InvalidOperationException("AiApi:BaseUrl not configured");
+        _internalApiKey = configuration["AiApi:InternalApiKey"] ?? "";
 
         // Load retry configuration with defaults
         _delayBetweenRetriesMs = configuration.GetValue("TranscriptionRetry:DelayBetweenRetriesMs", 2000);
@@ -105,6 +107,8 @@ public class TranscriptionRetryService : ITranscriptionRetryService
             var httpClient = _httpClientFactory.CreateClient();
             httpClient.BaseAddress = new Uri(_aiApiBaseUrl);
             httpClient.Timeout = TimeSpan.FromMinutes(10); // Long timeout for transcription processing
+            if (!string.IsNullOrEmpty(_internalApiKey))
+                httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", _internalApiKey);
 
             var response = await httpClient.PostAsync($"/api/v2/transcription/retry/{fileId}", null);
 

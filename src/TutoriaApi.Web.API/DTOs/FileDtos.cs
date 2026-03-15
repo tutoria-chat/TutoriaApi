@@ -15,6 +15,7 @@ public class FileListDto
     public int ModuleId { get; set; }
     public string? ModuleName { get; set; }
     public bool IsActive { get; set; }
+    public string? ProcessingStatus { get; set; }
     public string? OpenAIFileId { get; set; }
     public string? AnthropicFileId { get; set; }
     // Video/Transcription fields
@@ -46,6 +47,7 @@ public class FileDetailDto
     public int? UniversityId { get; set; }
     public string? UniversityName { get; set; }
     public bool IsActive { get; set; }
+    public string? ProcessingStatus { get; set; }
     public string? OpenAIFileId { get; set; }
     public string? AnthropicFileId { get; set; }
     // Video/Transcription fields

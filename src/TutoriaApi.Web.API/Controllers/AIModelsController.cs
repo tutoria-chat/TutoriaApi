@@ -84,6 +84,7 @@ public class AIModelsController : ControllerBase
                 RequiredTier = vm.AIModel.RequiredTier,
                 IsActive = vm.AIModel.IsActive,
                 IsDeprecated = vm.AIModel.IsDeprecated,
+                UseForFileExtraction = vm.AIModel.UseForFileExtraction,
                 RecommendedFor = vm.AIModel.RecommendedFor,
                 ModulesCount = vm.ModulesCount
             }).ToList();
@@ -132,6 +133,7 @@ public class AIModelsController : ControllerBase
                 RequiredTier = viewModel.AIModel.RequiredTier,
                 IsActive = viewModel.AIModel.IsActive,
                 IsDeprecated = viewModel.AIModel.IsDeprecated,
+                UseForFileExtraction = viewModel.AIModel.UseForFileExtraction,
                 DeprecationDate = viewModel.AIModel.DeprecationDate,
                 Description = viewModel.AIModel.Description,
                 RecommendedFor = viewModel.AIModel.RecommendedFor,
@@ -188,6 +190,7 @@ public class AIModelsController : ControllerBase
                 MaxTokens = request.MaxTokens,
                 SupportsVision = request.SupportsVision,
                 SupportsFunctionCalling = request.SupportsFunctionCalling,
+                UseForFileExtraction = request.UseForFileExtraction,
                 InputCostPer1M = request.InputCostPer1M,
                 OutputCostPer1M = request.OutputCostPer1M,
                 RequiredTier = request.RequiredTier,
@@ -216,6 +219,7 @@ public class AIModelsController : ControllerBase
                 RequiredTier = created.RequiredTier,
                 IsActive = created.IsActive,
                 IsDeprecated = created.IsDeprecated,
+                UseForFileExtraction = created.UseForFileExtraction,
                 DeprecationDate = created.DeprecationDate,
                 Description = created.Description,
                 RecommendedFor = created.RecommendedFor,
@@ -287,6 +291,7 @@ public class AIModelsController : ControllerBase
             aiModel.MaxTokens = request.MaxTokens ?? aiModel.MaxTokens;
             aiModel.SupportsVision = request.SupportsVision ?? aiModel.SupportsVision;
             aiModel.SupportsFunctionCalling = request.SupportsFunctionCalling ?? aiModel.SupportsFunctionCalling;
+            aiModel.UseForFileExtraction = request.UseForFileExtraction ?? aiModel.UseForFileExtraction;
             aiModel.InputCostPer1M = request.InputCostPer1M ?? aiModel.InputCostPer1M;
             aiModel.OutputCostPer1M = request.OutputCostPer1M ?? aiModel.OutputCostPer1M;
             aiModel.RequiredTier = request.RequiredTier ?? aiModel.RequiredTier;
@@ -317,6 +322,7 @@ public class AIModelsController : ControllerBase
                 RequiredTier = viewModel.AIModel.RequiredTier,
                 IsActive = viewModel.AIModel.IsActive,
                 IsDeprecated = viewModel.AIModel.IsDeprecated,
+                UseForFileExtraction = viewModel.AIModel.UseForFileExtraction,
                 DeprecationDate = viewModel.AIModel.DeprecationDate,
                 Description = viewModel.AIModel.Description,
                 RecommendedFor = viewModel.AIModel.RecommendedFor,

@@ -27,10 +27,13 @@ public class File : BaseEntity
     public int? TranscriptWordCount { get; set; }  // Word count for analytics
     public decimal? TranscriptionCostUSD { get; set; }  // Cost in USD (e.g., AssemblyAI $0.25/hour)
 
-    // Document Text Extraction (for RAG performance optimization)
-    public string? ExtractedText { get; set; }  // Pre-extracted text from PDFs/documents
-    public DateTime? ExtractedAt { get; set; }  // When extraction completed
-    public int? ExtractedWordCount { get; set; }  // Word count for analytics
+    // File processing status (shown to user as "Preparing" / "Ready")
+    public string? ProcessingStatus { get; set; }  // 'pending', 'processing', 'ready', 'failed'
+
+    // Document Text Extraction (for RAG performance optimization - internal)
+    public string? ExtractedText { get; set; }
+    public DateTime? ExtractedAt { get; set; }
+    public int? ExtractedWordCount { get; set; }
 
     // Navigation properties
     public Module Module { get; set; } = null!;

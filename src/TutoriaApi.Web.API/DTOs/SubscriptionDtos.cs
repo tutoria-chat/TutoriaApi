@@ -35,6 +35,12 @@ public class CheckoutResponse
     public string CheckoutUrl { get; set; } = string.Empty;
 }
 
+public class SetEnterprisePricingRequest
+{
+    [Required(ErrorMessage = "Custom Stripe Price ID is required")]
+    public required string CustomStripePriceId { get; set; }
+}
+
 public class UniversityLimitsDto
 {
     public int MaxCourses { get; set; }

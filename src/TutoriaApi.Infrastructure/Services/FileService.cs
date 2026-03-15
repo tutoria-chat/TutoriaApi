@@ -191,7 +191,8 @@ public class FileService : IFileService
             ContentType = contentType,
             FileSize = fileSize,
             ModuleId = moduleId,
-            IsActive = true
+            IsActive = true,
+            ProcessingStatus = "pending"
         };
 
         var created = await _fileRepository.AddAsync(fileEntity);

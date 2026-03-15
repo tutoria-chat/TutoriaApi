@@ -16,6 +16,7 @@ public class AIModelListDto
     public int RequiredTier { get; set; }
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
+    public bool UseForFileExtraction { get; set; }
     public string? RecommendedFor { get; set; }
     public int ModulesCount { get; set; }
 }
@@ -34,6 +35,7 @@ public class AIModelDetailDto
     public int RequiredTier { get; set; }
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
+    public bool UseForFileExtraction { get; set; }
     public DateTime? DeprecationDate { get; set; }
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
@@ -54,7 +56,7 @@ public class AIModelCreateRequest
 
     [Required(ErrorMessage = "Provider is required")]
     [MaxLength(50, ErrorMessage = "Provider cannot exceed 50 characters")]
-    [RegularExpression("^(openai|anthropic)$", ErrorMessage = "Provider must be either 'openai' or 'anthropic'")]
+    [RegularExpression("^(openai|anthropic|bedrock|deepseek|gemini|xai)$", ErrorMessage = "Provider must be one of: openai, anthropic, bedrock, deepseek, gemini, xai")]
     public string Provider { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Max tokens is required")]
@@ -64,6 +66,8 @@ public class AIModelCreateRequest
     public bool SupportsVision { get; set; } = false;
 
     public bool SupportsFunctionCalling { get; set; } = false;
+
+    public bool UseForFileExtraction { get; set; } = false;
 
     [Range(0, double.MaxValue, ErrorMessage = "Input cost must be non-negative")]
     public decimal? InputCostPer1M { get; set; }
@@ -98,6 +102,8 @@ public class AIModelUpdateRequest
     public bool? SupportsVision { get; set; }
 
     public bool? SupportsFunctionCalling { get; set; }
+
+    public bool? UseForFileExtraction { get; set; }
 
     [Range(0, double.MaxValue, ErrorMessage = "Input cost must be non-negative")]
     public decimal? InputCostPer1M { get; set; }

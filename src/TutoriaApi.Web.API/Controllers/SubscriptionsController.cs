@@ -267,6 +267,43 @@ public class SubscriptionsController : BaseAuthController
         }
     }
 
+    /// <summary>
+    /// Set custom Stripe pricing for a university's enterprise subscription (SuperAdmin only).
+    /// </summary>
+    [HttpPut("{universityId}/enterprise-pricing")]
+    [Authorize(Roles = "super_admin")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetEnterprisePricing(int universityId, [FromBody] SetEnterprisePricingRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var subscription = await _subscriptionService.SetEnterprisePricingAsync(
+                universityId, request.CustomStripePriceId);
+
+            _logger.LogInformation("Set enterprise pricing for university {UniversityId}", universityId);
+
+            return Ok(new { message = "Enterprise pricing configured successfully", subscriptionId = subscription.Id });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting enterprise pricing for university {UniversityId}", universityId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     private static SubscriptionDto MapToDto(Subscription subscription)
     {
         return new SubscriptionDto
