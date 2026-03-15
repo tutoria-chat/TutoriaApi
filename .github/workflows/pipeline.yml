@@ -264,6 +264,7 @@ jobs:
     - name: Deploy to App Runner
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_DEV }}'].ServiceArn" --output text)
 
@@ -286,7 +287,7 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "ImageRepository": {
-                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
+                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG'",
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
@@ -314,7 +315,7 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "ImageRepository": {
-                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
+                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG'",
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
@@ -375,6 +376,7 @@ jobs:
     - name: Deploy to App Runner
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_PROD }}'].ServiceArn" --output text)
 
@@ -397,7 +399,7 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "ImageRepository": {
-                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
+                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG'",
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
@@ -425,7 +427,7 @@ jobs:
               },
               "AutoDeploymentsEnabled": false,
               "ImageRepository": {
-                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:latest'",
+                "ImageIdentifier": "'$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG'",
                 "ImageRepositoryType": "ECR",
                 "ImageConfiguration": '"$IMAGE_CONFIG"'
               }
