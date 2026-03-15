@@ -5,6 +5,7 @@ COPY TutoriaApi.sln .
 COPY src/TutoriaApi.Core/TutoriaApi.Core.csproj src/TutoriaApi.Core/
 COPY src/TutoriaApi.Infrastructure/TutoriaApi.Infrastructure.csproj src/TutoriaApi.Infrastructure/
 COPY src/TutoriaApi.Web.API/TutoriaApi.Web.API.csproj src/TutoriaApi.Web.API/
+COPY tests/TutoriaApi.Tests.Unit/TutoriaApi.Tests.Unit.csproj tests/TutoriaApi.Tests.Unit/
 RUN dotnet restore TutoriaApi.sln
 
 COPY . .
