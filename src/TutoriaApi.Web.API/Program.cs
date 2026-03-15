@@ -23,7 +23,7 @@ if (!string.IsNullOrEmpty(ssmPrefix))
 {
     builder.Configuration.AddSystemsManager(
         path: ssmPrefix,
-        optional: true,                          // Don't crash if SSM is unreachable
+        optional: false,                         // Crash loud if SSM is unreachable — don't hide config problems
         reloadAfter: TimeSpan.FromMinutes(5)     // Auto-refresh config every 5 min
     );
     Console.WriteLine($"[Config] Loading from AWS SSM Parameter Store: {ssmPrefix}");
