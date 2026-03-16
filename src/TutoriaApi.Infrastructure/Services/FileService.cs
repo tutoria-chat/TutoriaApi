@@ -187,6 +187,7 @@ public class FileService : IFileService
             Name = sanitizedName,
             FileType = string.IsNullOrEmpty(fileExtension) ? "upload" : fileExtension,
             FileName = sanitizedName,
+            BlobUrl = blobUrl,
             BlobPath = blobPath,
             ContentType = contentType,
             FileSize = fileSize,
