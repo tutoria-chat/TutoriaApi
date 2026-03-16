@@ -235,53 +235,9 @@ public class ModulesController : ControllerBase
                 }
             }
 
-            int? aiModelId = request.AIModelId;
-
-            // If CourseType is provided but no AIModelId, auto-select AI model based on university tier
-            if (request.CourseType.HasValue && !request.AIModelId.HasValue)
-            {
-                // Get course with university to determine tier - reuse if already fetched
-                var course = courseForLimits ?? await _courseRepository.GetWithDetailsAsync(request.CourseId);
-                if (course == null)
-                {
-                    return BadRequest(new { message = "Course not found" });
-                }
-
-                // Select AI model based on course type and university tier
-                var selectedModel = await _aiModelService.SelectModelByCourseTypeAsync(
-                    request.CourseType.Value,
-                    course.University?.SubscriptionTier ?? 1);
-
-                if (selectedModel != null)
-                {
-                    aiModelId = selectedModel.Id;
-                    _logger.LogInformation(
-                        "Auto-selected AI model {ModelName} (ID: {ModelId}) for course type {CourseType} and tier {Tier}",
-                        selectedModel.ModelName,
-                        selectedModel.Id,
-                        request.CourseType.Value,
-                        course.University?.SubscriptionTier ?? 1);
-                }
-                else
-                {
-                    _logger.LogError(
-                        "CRITICAL: Could not auto-select AI model for course type {CourseType} and tier {Tier}. Module creation will fail without AI model.",
-                        request.CourseType,
-                        course.University?.SubscriptionTier ?? 1);
-                    return BadRequest(new {
-                        message = $"Could not select an AI model for course type '{request.CourseType}'. Please contact support or manually select an AI model.",
-                        courseType = request.CourseType.ToString(),
-                        tier = course.University?.SubscriptionTier ?? 1
-                    });
-                }
-            }
-            // If neither CourseType nor AIModelId is provided, warn but allow (for backward compatibility)
-            else if (!request.CourseType.HasValue && !request.AIModelId.HasValue)
-            {
-                _logger.LogWarning(
-                    "Module being created without AIModelId or CourseType for course {CourseId}. This may cause issues with AI functionality.",
-                    request.CourseId);
-            }
+            // AI model selection is handled at runtime by Python AI orchestrator
+            // via CourseTypeModels / UniversityCourseTypeModels tables (round-robin).
+            // Module-level AIModelId is no longer auto-assigned.
 
             var module = new Module
             {
@@ -292,7 +248,7 @@ public class ModulesController : ControllerBase
                 Semester = request.Semester,
                 Year = request.Year,
                 CourseId = request.CourseId,
-                AIModelId = aiModelId,
+                AIModelId = request.AIModelId,
                 CourseType = request.CourseType,
                 TutorLanguage = request.TutorLanguage,
                 PromptImprovementCount = 0
@@ -393,43 +349,12 @@ public class ModulesController : ControllerBase
             if (request.CourseType.HasValue)
                 existing.CourseType = request.CourseType;
 
-            // Handle AI Model selection
+            // AI model selection is handled at runtime by Python AI orchestrator.
+            // Only set AIModelId if explicitly provided (manual override).
             if (request.AIModelId.HasValue)
             {
                 existing.AIModelId = request.AIModelId;
                 _logger.LogInformation("Manually set AI model to {ModelId} for module {ModuleId}", request.AIModelId, id);
-            }
-            else if (request.CourseType.HasValue)
-            {
-                // Auto-select AI model based on course type and university tier
-                var course = await _courseRepository.GetWithDetailsAsync(existing.CourseId);
-                if (course != null)
-                {
-                    var selectedModel = await _aiModelService.SelectModelByCourseTypeAsync(
-                        request.CourseType.Value,
-                        course.University?.SubscriptionTier ?? 1);
-
-                    if (selectedModel != null)
-                    {
-                        existing.AIModelId = selectedModel.Id;
-                        _logger.LogInformation(
-                            "Auto-selected AI model {ModelName} (ID: {ModelId}) for module {ModuleId} with course type {CourseType}",
-                            selectedModel.ModelName,
-                            selectedModel.Id,
-                            id,
-                            request.CourseType.Value);
-                    }
-                    else
-                    {
-                        _logger.LogWarning(
-                            "Could not auto-select AI model for course type {CourseType} and tier {Tier} when updating module {ModuleId}. Keeping existing AIModelId: {ExistingAIModelId}",
-                            request.CourseType,
-                            course.University?.SubscriptionTier ?? 1,
-                            id,
-                            existing.AIModelId);
-                        // Note: For updates, we keep the existing AIModelId if auto-selection fails
-                    }
-                }
             }
 
             var updated = await _moduleService.UpdateAsync(id, existing, _currentUserService.GetCurrentUser());
