@@ -100,9 +100,8 @@ public class ProviderKeyService : IProviderKeyService
 
     private static string EncryptApiKey(string rawApiKey)
     {
-        // Base64 encoding as a simple reversible transformation
-        // In production, use Azure Key Vault or a proper encryption service
-        var bytes = Encoding.UTF8.GetBytes(rawApiKey);
-        return Convert.ToBase64String(bytes);
+        // Store as plain text — providers handle key exposure detection
+        // and keys are rotatable from the dashboard
+        return rawApiKey;
     }
 }
