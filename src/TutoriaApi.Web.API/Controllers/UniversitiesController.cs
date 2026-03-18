@@ -215,6 +215,11 @@ public class UniversitiesController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating university");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpPut("{id}")]

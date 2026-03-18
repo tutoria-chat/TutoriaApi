@@ -91,11 +91,17 @@ public class SubscriptionsController : BaseAuthController
                 .Distinct()
                 .CountAsync();
 
+            // Check for university-level overrides
+            var university = await _dbContext.Universities.FindAsync(universityId);
+            var maxCourses = university?.MaxCourses ?? subscription?.Plan?.MaxCourses ?? 3;
+            var maxModules = university?.MaxModules ?? subscription?.Plan?.MaxModules ?? 12;
+            var maxStudents = university?.MaxStudents ?? subscription?.Plan?.MaxStudents;
+
             var limits = new UniversityLimitsDto
             {
-                MaxCourses = subscription?.Plan?.MaxCourses ?? 3,
-                MaxModules = subscription?.Plan?.MaxModules ?? 12,
-                MaxStudents = subscription?.Plan?.MaxStudents,
+                MaxCourses = maxCourses,
+                MaxModules = maxModules,
+                MaxStudents = maxStudents,
                 CurrentCourses = coursesUsed,
                 CurrentModules = modulesUsed,
                 CurrentStudents = studentsUsed,
@@ -106,6 +112,44 @@ public class SubscriptionsController : BaseAuthController
                 PlanName = subscription?.Plan?.Name ?? string.Empty,
                 PlanSlug = subscription?.Plan?.Slug ?? string.Empty
             };
+
+            // Compute over-limit IDs (newest items that exceed the limit)
+            if (coursesUsed > maxCourses)
+            {
+                limits.OverLimitCourseIds = await _dbContext.Courses
+                    .Where(c => c.UniversityId == universityId)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .Take(coursesUsed - maxCourses)
+                    .Select(c => c.Id)
+                    .ToListAsync();
+            }
+
+            if (modulesUsed > maxModules)
+            {
+                limits.OverLimitModuleIds = await _dbContext.Modules
+                    .Where(m => m.Course.UniversityId == universityId)
+                    .OrderByDescending(m => m.CreatedAt)
+                    .Take(modulesUsed - maxModules)
+                    .Select(m => m.Id)
+                    .ToListAsync();
+            }
+
+            if (maxStudents.HasValue && studentsUsed > maxStudents.Value)
+            {
+                // Get the newest student IDs that exceed the limit
+                var allStudentIds = await _dbContext.StudentCourses
+                    .Where(sc => courseIds.Contains(sc.CourseId))
+                    .Select(sc => sc.StudentId)
+                    .Distinct()
+                    .ToListAsync();
+
+                limits.OverLimitStudentIds = await _dbContext.Users
+                    .Where(u => allStudentIds.Contains(u.UserId) && u.UserType == "student")
+                    .OrderByDescending(u => u.CreatedAt)
+                    .Take(studentsUsed - maxStudents.Value)
+                    .Select(u => u.UserId)
+                    .ToListAsync();
+            }
 
             return Ok(limits);
         }

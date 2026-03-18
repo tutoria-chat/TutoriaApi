@@ -211,12 +211,13 @@ public class ModulesController : ControllerBase
         {
             // Plan enforcement: check module limit
             var courseForLimits = await _courseRepository.GetWithDetailsAsync(request.CourseId);
-            if (courseForLimits?.University != null && !courseForLimits.University.IsEnterprise)
+            if (courseForLimits?.University != null)
             {
+                // Check university-level override first (applies to ALL universities including enterprise)
                 int? maxModules = courseForLimits.University.MaxModules;
 
-                // If no university-level override, check subscription plan
-                if (maxModules == null)
+                // If no university-level override and NOT enterprise, check subscription plan
+                if (maxModules == null && !courseForLimits.University.IsEnterprise)
                 {
                     var subscription = await _subscriptionRepository.GetActiveByUniversityIdAsync(courseForLimits.UniversityId);
                     if (subscription?.Plan != null)

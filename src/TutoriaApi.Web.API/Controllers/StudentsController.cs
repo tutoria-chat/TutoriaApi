@@ -257,11 +257,13 @@ public class StudentsController : ControllerBase
             if (course != null)
             {
                 var university = await _universityRepository.GetByIdAsync(course.UniversityId);
-                if (university != null && !university.IsEnterprise)
+                if (university != null)
                 {
+                    // Check university-level override first (applies to ALL universities including enterprise)
                     int? maxStudents = university.MaxStudents;
 
-                    if (maxStudents == null)
+                    // If no university-level override and NOT enterprise, check subscription plan
+                    if (maxStudents == null && !university.IsEnterprise)
                     {
                         var subscription = await _subscriptionRepository.GetActiveByUniversityIdAsync(course.UniversityId);
                         if (subscription?.Plan != null)

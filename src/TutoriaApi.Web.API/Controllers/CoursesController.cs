@@ -192,12 +192,13 @@ public class CoursesController : ControllerBase
         {
             // Plan enforcement: check course limit
             var university = await _universityRepository.GetByIdAsync(request.UniversityId);
-            if (university != null && !university.IsEnterprise)
+            if (university != null)
             {
+                // Check university-level override first (applies to ALL universities including enterprise)
                 int? maxCourses = university.MaxCourses;
 
-                // If no university-level override, check subscription plan
-                if (maxCourses == null)
+                // If no university-level override and NOT enterprise, check subscription plan
+                if (maxCourses == null && !university.IsEnterprise)
                 {
                     var subscription = await _subscriptionRepository.GetActiveByUniversityIdAsync(request.UniversityId);
                     if (subscription?.Plan != null)

@@ -55,4 +55,10 @@ public class UniversityLimitsDto
     public bool HasCustomModelConfig { get; set; }
     public string PlanName { get; set; } = string.Empty;
     public string PlanSlug { get; set; } = string.Empty;
+    /// <summary>IDs of courses that exceed the plan limit (newest first, should be grayed out).</summary>
+    public List<int> OverLimitCourseIds { get; set; } = new();
+    /// <summary>IDs of modules that exceed the plan limit (newest first, should be grayed out).</summary>
+    public List<int> OverLimitModuleIds { get; set; } = new();
+    /// <summary>IDs of students that exceed the plan limit (newest first, should be grayed out).</summary>
+    public List<int> OverLimitStudentIds { get; set; } = new();
 }
