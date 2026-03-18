@@ -2,9 +2,9 @@
 
 ## Technology Stack
 - **Framework**: .NET 8
-- **Database**: MS SQL Server (via TutoriaDb in parent directory)
-- **ORM**: Entity Framework Core
-- **No Migrations**: Database schema is managed externally
+- **Database**: PostgreSQL
+- **ORM**: Entity Framework Core with EF Migrations
+- **Migrations**: Run `dotnet ef migrations add <Name> --project src/TutoriaApi.Infrastructure --startup-project src/TutoriaApi.Web.API` to create; migrations auto-apply on startup
 
 ## Architecture
 
@@ -564,7 +564,7 @@ dotnet test --collect:"XPlat Code Coverage"
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "SQL Server connection string"
+    "TutoriaDb": "PostgreSQL connection string (Host=...;Database=...;Username=...;Password=...)"
   },
   "AiApi": {
     "BaseUrl": "http://localhost:8000"  // tutoria-api (Python AI service)
@@ -610,7 +610,7 @@ dotnet test --collect:"XPlat Code Coverage"
 **Current Required Secrets:**
 
 **Development Secrets (DEV_*):**
-- `DEV_DB_CONNECTION_STRING` - SQL Server connection string
+- `DEV_DB_CONNECTION_STRING` - PostgreSQL connection string
 - `DEV_AI_API_BASE_URL` - AI API (Python) base URL
 - `DEV_JWT_SECRET_KEY` - JWT signing key
 - `DEV_JWT_ISSUER` - JWT issuer
