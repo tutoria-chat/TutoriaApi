@@ -17,6 +17,7 @@ public class AIModelListDto
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
     public bool UseForFileExtraction { get; set; }
+    public bool UseForFormatting { get; set; }
     public string? RecommendedFor { get; set; }
     public int ModulesCount { get; set; }
 }
@@ -36,6 +37,7 @@ public class AIModelDetailDto
     public bool IsActive { get; set; }
     public bool IsDeprecated { get; set; }
     public bool UseForFileExtraction { get; set; }
+    public bool UseForFormatting { get; set; }
     public DateTime? DeprecationDate { get; set; }
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
@@ -68,6 +70,8 @@ public class AIModelCreateRequest
     public bool SupportsFunctionCalling { get; set; } = false;
 
     public bool UseForFileExtraction { get; set; } = false;
+
+    public bool UseForFormatting { get; set; } = false;
 
     [Range(0, double.MaxValue, ErrorMessage = "Input cost must be non-negative")]
     public decimal? InputCostPer1M { get; set; }
@@ -112,6 +116,8 @@ public class AIModelUpdateRequest
     public bool? SupportsFunctionCalling { get; set; }
 
     public bool? UseForFileExtraction { get; set; }
+
+    public bool? UseForFormatting { get; set; }
 
     [Range(0, double.MaxValue, ErrorMessage = "Input cost must be non-negative")]
     public decimal? InputCostPer1M { get; set; }

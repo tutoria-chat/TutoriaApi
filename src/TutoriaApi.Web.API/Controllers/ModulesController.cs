@@ -177,6 +177,7 @@ public class ModulesController : ControllerBase
                     IsActive = f.IsActive,
                     OpenAIFileId = f.OpenAIFileId,
                     AnthropicFileId = f.AnthropicFileId,
+                    ProcessingStatus = f.ProcessingStatus,
                     // Video/Transcription fields
                     SourceType = f.SourceType,
                     SourceUrl = f.SourceUrl,
@@ -435,6 +436,7 @@ public class ModulesController : ControllerBase
                     IsActive = f.IsActive,
                     OpenAIFileId = f.OpenAIFileId,
                     AnthropicFileId = f.AnthropicFileId,
+                    ProcessingStatus = f.ProcessingStatus,
                     // Video/Transcription fields
                     SourceType = f.SourceType,
                     SourceUrl = f.SourceUrl,

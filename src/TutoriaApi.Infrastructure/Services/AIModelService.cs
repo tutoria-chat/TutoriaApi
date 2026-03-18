@@ -101,6 +101,8 @@ public class AIModelService : IAIModelService
         existing.MaxTokens = aiModel.MaxTokens;
         existing.SupportsVision = aiModel.SupportsVision;
         existing.SupportsFunctionCalling = aiModel.SupportsFunctionCalling;
+        existing.UseForFileExtraction = aiModel.UseForFileExtraction;
+        existing.UseForFormatting = aiModel.UseForFormatting;
         existing.InputCostPer1M = aiModel.InputCostPer1M;
         existing.OutputCostPer1M = aiModel.OutputCostPer1M;
         existing.RequiredTier = aiModel.RequiredTier;

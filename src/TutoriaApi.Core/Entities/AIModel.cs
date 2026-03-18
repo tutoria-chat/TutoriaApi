@@ -27,6 +27,9 @@ public class AIModel : BaseEntity
     // File processing
     public bool UseForFileExtraction { get; set; }
 
+    // Response formatting
+    public bool UseForFormatting { get; set; }
+
     // Metadata
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
