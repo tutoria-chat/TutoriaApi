@@ -26,5 +26,6 @@ public interface IStudentService
         bool? isActive,
         int? courseId);
     Task DeleteAsync(int id);
+    Task UnenrollFromCourseAsync(int studentId, int courseId);
     Task<int> GetStudentCountByUniversityAsync(int universityId);
 }

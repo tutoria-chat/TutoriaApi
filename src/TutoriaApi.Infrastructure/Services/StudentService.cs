@@ -152,6 +152,23 @@ public class StudentService : IStudentService
         return student;
     }
 
+    public async Task UnenrollFromCourseAsync(int studentId, int courseId)
+    {
+        var student = await _userRepository.GetStudentByIdAsync(studentId);
+        if (student == null)
+            throw new KeyNotFoundException("Student not found");
+
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course == null)
+            throw new KeyNotFoundException("Course not found");
+
+        var isEnrolled = await _studentCourseRepository.IsStudentEnrolledInCourseAsync(studentId, courseId);
+        if (!isEnrolled)
+            throw new InvalidOperationException("Student is not enrolled in this course");
+
+        await _studentCourseRepository.RemoveStudentFromCourseAsync(studentId, courseId);
+    }
+
     public async Task DeleteAsync(int id)
     {
         var student = await _userRepository.GetStudentByIdAsync(id);

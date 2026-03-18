@@ -107,12 +107,14 @@ public class ModuleService : IModuleService
         }
 
         // Build view models with counts
+        var moduleIds = modules.Select(m => m.Id).ToList();
+        var tokenCounts = await _moduleRepository.GetTokenCountsAsync(moduleIds);
+
         var viewModels = new List<ModuleListViewModel>();
         foreach (var module in modules)
         {
             var filesCount = (await _fileRepository.GetByModuleIdAsync(module.Id)).Count();
-            // TODO: Add tokens count when IModuleAccessTokenRepository is implemented
-            var tokensCount = 0;
+            tokenCounts.TryGetValue(module.Id, out var tokensCount);
 
             viewModels.Add(new ModuleListViewModel
             {

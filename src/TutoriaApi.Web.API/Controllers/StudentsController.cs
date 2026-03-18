@@ -170,13 +170,28 @@ public class StudentsController : ControllerBase
                 UpdatedAt = u.UpdatedAt
             }).ToList();
 
-            return Ok(new PaginatedResponse<StudentDetailDto>
+            // Count active students across all pages (not just current page)
+            int? activeCount = null;
+            if (courseId.HasValue)
+            {
+                var allStudentIdsInCourse = await _dbContext.StudentCourses
+                    .Where(sc => sc.CourseId == courseId.Value)
+                    .Select(sc => sc.StudentId)
+                    .ToListAsync();
+
+                activeCount = await _dbContext.Users
+                    .Where(u => allStudentIdsInCourse.Contains(u.UserId) && u.UserType == "student" && u.IsActive)
+                    .CountAsync();
+            }
+
+            return Ok(new
             {
                 Items = items,
                 Total = total,
                 Page = page,
                 Size = size,
-                Pages = (int)Math.Ceiling(total / (double)size)
+                Pages = (int)Math.Ceiling(total / (double)size),
+                ActiveCount = activeCount
             });
         }
         catch (Exception ex)
@@ -353,6 +368,39 @@ public class StudentsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating student {StudentId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpDelete("{id}/courses/{courseId}")]
+    public async Task<ActionResult> UnenrollStudent(int id, int courseId)
+    {
+        try
+        {
+            // Tenant isolation: verify caller owns this student and course
+            if (!await CallerOwnsStudentAsync(id))
+                return NotFound(new { message = "Student not found" });
+
+            if (!await CallerOwnsCourseAsync(courseId))
+                return NotFound(new { message = "Course not found" });
+
+            await _studentService.UnenrollFromCourseAsync(id, courseId);
+
+            _logger.LogInformation("Unenrolled student {StudentId} from course {CourseId}", id, courseId);
+
+            return Ok(new { message = "Student unenrolled successfully" });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unenrolling student {StudentId} from course {CourseId}", id, courseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
