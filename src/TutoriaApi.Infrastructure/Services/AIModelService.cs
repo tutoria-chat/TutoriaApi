@@ -94,7 +94,9 @@ public class AIModelService : IAIModelService
             throw new KeyNotFoundException("AI model not found");
         }
 
-        // Update properties (note: ModelName and Provider should NOT be changed)
+        // Update properties (ModelName and Provider are now editable)
+        existing.ModelName = aiModel.ModelName;
+        existing.Provider = aiModel.Provider;
         existing.DisplayName = aiModel.DisplayName;
         existing.MaxTokens = aiModel.MaxTokens;
         existing.SupportsVision = aiModel.SupportsVision;
@@ -129,9 +131,8 @@ public class AIModelService : IAIModelService
         // Get count of modules using this model
         var modulesCount = await _aiModelRepository.GetModulesCountAsync(id);
 
-        // Soft delete - mark as inactive
-        aiModel.IsActive = false;
-        await _aiModelRepository.UpdateAsync(aiModel);
+        // Hard delete - permanently remove the model
+        await _aiModelRepository.DeleteAsync(aiModel);
 
         return (true, modulesCount);
     }

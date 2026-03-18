@@ -287,6 +287,8 @@ public class AIModelsController : ControllerBase
 
             // Build update entity from existing + request
             var aiModel = existing.AIModel;
+            aiModel.ModelName = request.ModelName ?? aiModel.ModelName;
+            aiModel.Provider = request.Provider?.ToLower() ?? aiModel.Provider;
             aiModel.DisplayName = request.DisplayName ?? aiModel.DisplayName;
             aiModel.MaxTokens = request.MaxTokens ?? aiModel.MaxTokens;
             aiModel.SupportsVision = request.SupportsVision ?? aiModel.SupportsVision;
@@ -382,9 +384,8 @@ public class AIModelsController : ControllerBase
 
             return Ok(new
             {
-                message = "AI model deactivated successfully",
-                affectedModules = modulesCount,
-                note = "Model marked as inactive. Existing modules can still use it but it won't appear in new module selections."
+                message = "AI model deleted successfully",
+                affectedModules = modulesCount
             });
         }
         catch (KeyNotFoundException)

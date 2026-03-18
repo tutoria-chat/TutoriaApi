@@ -93,6 +93,14 @@ public class AIModelCreateRequest
 
 public class AIModelUpdateRequest
 {
+    [MaxLength(100, ErrorMessage = "Model name cannot exceed 100 characters")]
+    public string? ModelName { get; set; }
+
+    [RegularExpression("^(openai|anthropic|bedrock|deepseek|gemini|xai)$",
+        ErrorMessage = "Provider must be one of: openai, anthropic, bedrock, deepseek, gemini, xai")]
+    [MaxLength(50)]
+    public string? Provider { get; set; }
+
     [MaxLength(100, ErrorMessage = "Display name cannot exceed 100 characters")]
     public string? DisplayName { get; set; }
 
