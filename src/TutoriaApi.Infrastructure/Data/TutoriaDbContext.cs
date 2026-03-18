@@ -263,6 +263,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.ExtractedText).HasColumnName("ExtractedText");
             entity.Property(e => e.ExtractedAt).HasColumnName("ExtractedAt");
             entity.Property(e => e.ExtractedWordCount).HasColumnName("ExtractedWordCount");
+            entity.Property(e => e.SummarizedText).HasColumnName("SummarizedText");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

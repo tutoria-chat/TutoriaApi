@@ -34,6 +34,7 @@ public class File : BaseEntity
     public string? ExtractedText { get; set; }
     public DateTime? ExtractedAt { get; set; }
     public int? ExtractedWordCount { get; set; }
+    public string? SummarizedText { get; set; }  // AI-generated summary for large files
 
     // Navigation properties
     public Module Module { get; set; } = null!;
