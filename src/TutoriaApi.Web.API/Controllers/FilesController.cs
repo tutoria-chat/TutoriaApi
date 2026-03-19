@@ -15,24 +15,18 @@ public class FilesController : ControllerBase
 {
     private readonly IFileService _fileService;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IQuizGenerationService _quizGenerationService;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
+    private readonly ISqsMessagingService _sqsMessagingService;
     private readonly ILogger<FilesController> _logger;
 
     public FilesController(
         IFileService fileService,
         ICurrentUserService currentUserService,
-        IQuizGenerationService quizGenerationService,
-        IHttpClientFactory httpClientFactory,
-        IConfiguration configuration,
+        ISqsMessagingService sqsMessagingService,
         ILogger<FilesController> logger)
     {
         _fileService = fileService;
         _currentUserService = currentUserService;
-        _quizGenerationService = quizGenerationService;
-        _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
+        _sqsMessagingService = sqsMessagingService;
         _logger = logger;
     }
 
@@ -182,41 +176,29 @@ public class FilesController : ControllerBase
 
             _logger.LogInformation("Uploaded file {FileName} for module {ModuleId}", file.FileName, request.ModuleId);
 
-            // Trigger text extraction in background (for RAG / AI file processing)
+            // Enqueue text extraction job — tutoria-worker picks it up via SQS
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var aiApiUrl = _configuration["AiApi:BaseUrl"] ?? "http://localhost:8000";
-                    var internalKey = _configuration["AiApi:InternalApiKey"] ?? "";
-                    var httpClient = _httpClientFactory.CreateClient();
-                    httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalKey);
-
-                    var response = await httpClient.PostAsync(
-                        $"{aiApiUrl}/api/v2/modules/files/{file.Id}/extract-text",
-                        null);
-
-                    if (response.IsSuccessStatusCode)
-                        _logger.LogInformation("Text extraction triggered for file {FileId}", file.Id);
-                    else
-                        _logger.LogWarning("Text extraction returned {StatusCode} for file {FileId}", response.StatusCode, file.Id);
+                    await _sqsMessagingService.SendExtractionJobAsync(file.Id, request.ModuleId);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background text extraction failed for file {FileId}", file.Id);
+                    _logger.LogError(ex, "Failed to enqueue extraction job for file {FileId}", file.Id);
                 }
             });
 
-            // Trigger quiz regeneration in background (new file uploaded = new content)
+            // Enqueue quiz regeneration job — tutoria-worker picks it up via SQS
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _quizGenerationService.TriggerQuizGenerationAsync(request.ModuleId, count: 50, upsert: true);
+                    await _sqsMessagingService.SendQuizGenerationJobAsync(request.ModuleId, count: 50, upsert: true);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Background quiz regeneration failed after file upload for module {ModuleId}", request.ModuleId);
+                    _logger.LogError(ex, "Failed to enqueue quiz generation job for module {ModuleId}", request.ModuleId);
                 }
             });
 
