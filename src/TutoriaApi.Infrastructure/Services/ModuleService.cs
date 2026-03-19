@@ -256,7 +256,7 @@ public class ModuleService : IModuleService
     public async Task DeleteAsync(int id, User currentUser)
     {
         var module = await _moduleRepository.GetByIdAsync(id);
-        if (module == null)
+        if (module == null || !module.IsActive)
         {
             throw new KeyNotFoundException("Module not found");
         }
@@ -264,9 +264,11 @@ public class ModuleService : IModuleService
         // Get course to retrieve university ID for audit log
         var course = await _courseRepository.GetByIdAsync(module.CourseId);
 
-        await _moduleRepository.DeleteAsync(module);
+        // Soft delete — keeps data intact for future cleanup job
+        module.IsActive = false;
+        await _moduleRepository.UpdateAsync(module);
 
-        // Audit log: Module deleted
+        // Audit log: Module soft-deleted
         await _auditLogService.LogAsync(
             userId: currentUser.UserId,
             username: currentUser.Username,

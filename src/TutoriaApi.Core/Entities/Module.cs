@@ -18,6 +18,7 @@ public class Module : BaseEntity
     public string TutorLanguage { get; set; } = "pt-br";
     public int? AIModelId { get; set; }
     public CourseType? CourseType { get; set; }
+    public bool IsActive { get; set; } = true;
 
     // Navigation properties
     public Course Course { get; set; } = null!;

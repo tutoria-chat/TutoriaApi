@@ -194,7 +194,7 @@ public class FilesController : ControllerBase
             {
                 try
                 {
-                    await _sqsMessagingService.SendQuizGenerationJobAsync(request.ModuleId, count: 50, upsert: true);
+                    await _sqsMessagingService.SendQuizGenerationJobAsync(request.ModuleId, count: 50, upsert: false);
                 }
                 catch (Exception ex)
                 {

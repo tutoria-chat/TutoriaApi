@@ -18,14 +18,14 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
                 .ThenInclude(c => c.University)
             .Include(m => m.AIModel)
             .Include(m => m.Files)
-            .FirstOrDefaultAsync(m => m.Id == id);
+            .FirstOrDefaultAsync(m => m.Id == id && m.IsActive);
     }
 
     public async Task<IEnumerable<Module>> GetByCourseIdAsync(int courseId)
     {
         return await _dbSet
-            .Where(m => m.CourseId == courseId)
-            .OrderBy(m => m.CreatedAt) // Order by creation date
+            .Where(m => m.CourseId == courseId && m.IsActive)
+            .OrderBy(m => m.CreatedAt)
             .ToListAsync();
     }
 
@@ -33,7 +33,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
     {
         return await _dbSet
             .Include(m => m.Course)
-            .Where(m => m.Course.UniversityId == universityId)
+            .Where(m => m.Course.UniversityId == universityId && m.IsActive)
             .ToListAsync();
     }
 
@@ -48,6 +48,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
         var query = _dbSet
             .Include(m => m.Course)
             .Include(m => m.AIModel)
+            .Where(m => m.IsActive)
             .AsQueryable();
 
         if (courseId.HasValue)
@@ -72,7 +73,7 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
 
         var total = await query.CountAsync();
         var items = await query
-            .OrderBy(m => m.CreatedAt) // Order by creation date to show modules in sequence
+            .OrderBy(m => m.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -82,7 +83,8 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
 
     public async Task<bool> ExistsByCodeAndCourseAsync(string code, int courseId)
     {
-        return await _dbSet.AnyAsync(m => m.Code == code && m.CourseId == courseId);
+        // Only active modules block code reuse — soft-deleted module codes can be recycled
+        return await _dbSet.AnyAsync(m => m.Code == code && m.CourseId == courseId && m.IsActive);
     }
 
     public async Task<Dictionary<int, int>> GetFileCountsAsync(IEnumerable<int> moduleIds)

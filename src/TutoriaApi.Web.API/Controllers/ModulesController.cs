@@ -260,13 +260,12 @@ public class ModulesController : ControllerBase
 
             _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
 
-            // Trigger quiz generation in background (fire and forget)
+            // Trigger quiz generation in background — only generates if none exist yet
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    // Use upsert: true to ensure quizzes are generated even on retry
-                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: true);
+                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: false);
                 }
                 catch (Exception ex)
                 {
@@ -363,12 +362,12 @@ public class ModulesController : ControllerBase
 
             _logger.LogInformation("Updated module {Name} with ID {Id}", updated.Name, updated.Id);
 
-            // Trigger quiz regeneration in background (fire and forget) - upsert mode
+            // Trigger quiz generation in background — only generates if none exist yet
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await _quizGenerationService.TriggerQuizGenerationAsync(updated.Id, count: 50, upsert: true);
+                    await _quizGenerationService.TriggerQuizGenerationAsync(updated.Id, count: 50, upsert: false);
                 }
                 catch (Exception ex)
                 {
