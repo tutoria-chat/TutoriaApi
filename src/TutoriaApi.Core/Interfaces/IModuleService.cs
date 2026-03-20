@@ -43,4 +43,5 @@ public interface IModuleService
     Task<Module> CreateAsync(Module module, User currentUser);
     Task<Module> UpdateAsync(int id, Module module, User currentUser);
     Task DeleteAsync(int id, User currentUser);
+    Task<(int QueuedCount, int TotalFiles)> QueueExtractionForAllFilesAsync(int moduleId, bool force);
 }

@@ -11,6 +11,7 @@ public class ModuleService : IModuleService
     private readonly IModuleRepository _moduleRepository;
     private readonly IFileRepository _fileRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly ISqsMessagingService _sqsMessagingService;
     private readonly AccessControlHelper _accessControl;
     private readonly IAuditLogService _auditLogService;
 
@@ -18,12 +19,14 @@ public class ModuleService : IModuleService
         IModuleRepository moduleRepository,
         IFileRepository fileRepository,
         ICourseRepository courseRepository,
+        ISqsMessagingService sqsMessagingService,
         AccessControlHelper accessControl,
         IAuditLogService auditLogService)
     {
         _moduleRepository = moduleRepository;
         _fileRepository = fileRepository;
         _courseRepository = courseRepository;
+        _sqsMessagingService = sqsMessagingService;
         _accessControl = accessControl;
         _auditLogService = auditLogService;
     }
@@ -278,6 +281,28 @@ public class ModuleService : IModuleService
             entityId: module.Id,
             entityName: module.Name,
             changes: null);
+    }
+
+    public async Task<(int QueuedCount, int TotalFiles)> QueueExtractionForAllFilesAsync(int moduleId, bool force)
+    {
+        var module = await _moduleRepository.GetByIdAsync(moduleId);
+        if (module == null || !module.IsActive)
+            throw new KeyNotFoundException($"Module {moduleId} not found");
+
+        var files = await _fileRepository.GetByModuleIdAsync(moduleId);
+        var activeFiles = files.Where(f => f.IsActive).ToList();
+
+        int queued = 0;
+        foreach (var file in activeFiles)
+        {
+            if (!force && file.ProcessingStatus == "ready")
+                continue;
+
+            var sent = await _sqsMessagingService.SendExtractionJobAsync(file.Id, moduleId);
+            if (sent) queued++;
+        }
+
+        return (queued, activeFiles.Count);
     }
 
     /// <summary>

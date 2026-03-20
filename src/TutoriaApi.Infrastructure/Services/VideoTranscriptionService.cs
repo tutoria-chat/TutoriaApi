@@ -1,7 +1,3 @@
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
@@ -12,23 +8,20 @@ namespace TutoriaApi.Infrastructure.Services;
 
 public class VideoTranscriptionService : IVideoTranscriptionService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
+    private readonly ISqsMessagingService _sqsMessagingService;
     private readonly IFileRepository _fileRepository;
     private readonly IModuleRepository _moduleRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly ILogger<VideoTranscriptionService> _logger;
 
     public VideoTranscriptionService(
-        IHttpClientFactory httpClientFactory,
-        IConfiguration configuration,
+        ISqsMessagingService sqsMessagingService,
         IFileRepository fileRepository,
         IModuleRepository moduleRepository,
         ICourseRepository courseRepository,
         ILogger<VideoTranscriptionService> logger)
     {
-        _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
+        _sqsMessagingService = sqsMessagingService;
         _fileRepository = fileRepository;
         _moduleRepository = moduleRepository;
         _courseRepository = courseRepository;
@@ -61,70 +54,28 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             youtubeUrl,
             moduleId);
 
-        // Call AI API
-        var aiApiUrl = _configuration["AiApi:BaseUrl"] ?? "http://localhost:8000";
-        var internalKey = _configuration["AiApi:InternalApiKey"] ?? "";
-        var httpClient = _httpClientFactory.CreateClient();
-        if (!string.IsNullOrEmpty(internalKey))
-            httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", internalKey);
-
-        var payload = new
+        // Create a pending File record — the worker will fill in the transcript
+        var pendingFile = new FileEntity
         {
-            youtube_url = youtubeUrl,
-            module_id = moduleId,
-            language = language,
-            custom_name = customName
+            Name = customName ?? $"YouTube Video",
+            FileName = customName ?? $"YouTube Video",
+            FileType = "video/youtube",
+            ModuleId = moduleId,
+            SourceType = "youtube",
+            SourceUrl = youtubeUrl,
+            TranscriptionStatus = "pending",
+            TranscriptLanguage = language,
+            ProcessingStatus = "pending",
+            IsActive = true,
         };
 
-        var jsonContent = new StringContent(
-            JsonSerializer.Serialize(payload),
-            Encoding.UTF8,
-            "application/json");
+        var file = await _fileRepository.AddAsync(pendingFile);
 
-        var response = await httpClient.PostAsync(
-            $"{aiApiUrl}/api/v2/transcription/youtube",
-            jsonContent);
+        _logger.LogInformation(
+            "Created pending file record {FileId} for YouTube video, queuing transcription job",
+            file.Id);
 
-        // Handle both 201 (sync completion - legacy) and 202 (async processing)
-        if (response.StatusCode != System.Net.HttpStatusCode.Created &&
-            response.StatusCode != System.Net.HttpStatusCode.Accepted)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            _logger.LogError(
-                "AI API returned error {StatusCode}: {Error}",
-                response.StatusCode,
-                errorContent);
-
-            throw new InvalidOperationException($"Transcription service returned error: {errorContent}");
-        }
-
-        var resultJson = await response.Content.ReadAsStringAsync();
-        var result = JsonSerializer.Deserialize<JsonElement>(resultJson);
-
-        var fileId = result.GetProperty("file_id").GetInt32();
-        var status = result.GetProperty("status").GetString();
-
-        if (response.StatusCode == System.Net.HttpStatusCode.Accepted)
-        {
-            _logger.LogInformation(
-                "YouTube transcription queued for processing: File {FileId}, Status: {Status}",
-                fileId,
-                status);
-        }
-        else
-        {
-            _logger.LogInformation(
-                "YouTube transcription completed: File {FileId}, Source: {Source}",
-                fileId,
-                result.GetProperty("source").GetString());
-        }
-
-        // Get the created file from database
-        var file = await _fileRepository.GetByIdAsync(fileId);
-        if (file == null)
-        {
-            throw new InvalidOperationException("File was created but not found in database");
-        }
+        await _sqsMessagingService.SendTranscriptionJobAsync(file.Id, youtubeUrl, language);
 
         return file;
     }
@@ -195,33 +146,13 @@ public class VideoTranscriptionService : IVideoTranscriptionService
             currentUser.UserId,
             fileId);
 
-        // Call AI API retry endpoint
-        var aiApiUrl = _configuration["AiApi:BaseUrl"] ?? "http://localhost:8000";
-        var httpClient = _httpClientFactory.CreateClient();
+        // Reset status and re-queue via SQS
+        file.TranscriptionStatus = "pending";
+        await _fileRepository.UpdateAsync(file);
 
-        var response = await httpClient.PostAsync(
-            $"{aiApiUrl}/api/v2/transcription/retry/{fileId}",
-            null);
+        await _sqsMessagingService.SendTranscriptionJobAsync(file.Id, file.SourceUrl!, file.TranscriptLanguage ?? "pt-br");
 
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorContent = await response.Content.ReadAsStringAsync();
-            _logger.LogError(
-                "AI API returned error {StatusCode}: {Error}",
-                response.StatusCode,
-                errorContent);
-
-            throw new InvalidOperationException($"Failed to retry transcription: {errorContent}");
-        }
-
-        // Refresh file from database
-        var updatedFile = await _fileRepository.GetByIdAsync(fileId);
-        if (updatedFile == null)
-        {
-            throw new InvalidOperationException("File disappeared during retry");
-        }
-
-        return updatedFile;
+        return file;
     }
 
     public async Task<bool> DeleteTranscriptionAsync(int fileId, User currentUser)

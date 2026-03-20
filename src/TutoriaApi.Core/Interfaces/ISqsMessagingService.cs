@@ -16,4 +16,10 @@ public interface ISqsMessagingService
     /// tutoria-worker picks it up and stores generated questions in the Quiz table.
     /// </summary>
     Task<bool> SendQuizGenerationJobAsync(int moduleId, int count = 50, bool upsert = true);
+
+    /// <summary>
+    /// Enqueue a YouTube transcription job for an existing pending File record.
+    /// tutoria-worker picks it up, downloads/transcribes the video, and writes transcript back to File.
+    /// </summary>
+    Task<bool> SendTranscriptionJobAsync(int fileId, string youtubeUrl, string language);
 }

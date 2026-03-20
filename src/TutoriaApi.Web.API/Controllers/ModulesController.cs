@@ -20,7 +20,7 @@ public class ModulesController : ControllerBase
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IAIModelService _aiModelService;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IQuizGenerationService _quizGenerationService;
+    private readonly ISqsMessagingService _sqsMessagingService;
     private readonly ILogger<ModulesController> _logger;
 
     public ModulesController(
@@ -30,7 +30,7 @@ public class ModulesController : ControllerBase
         ISubscriptionRepository subscriptionRepository,
         IAIModelService aiModelService,
         ICurrentUserService currentUserService,
-        IQuizGenerationService quizGenerationService,
+        ISqsMessagingService sqsMessagingService,
         ILogger<ModulesController> logger)
     {
         _moduleService = moduleService;
@@ -39,7 +39,7 @@ public class ModulesController : ControllerBase
         _subscriptionRepository = subscriptionRepository;
         _aiModelService = aiModelService;
         _currentUserService = currentUserService;
-        _quizGenerationService = quizGenerationService;
+        _sqsMessagingService = sqsMessagingService;
         _logger = logger;
     }
 
@@ -260,19 +260,6 @@ public class ModulesController : ControllerBase
 
             _logger.LogInformation("Created module {Name} with ID {Id}", created.Name, created.Id);
 
-            // Trigger quiz generation in background — only generates if none exist yet
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _quizGenerationService.TriggerQuizGenerationAsync(created.Id, count: 50, upsert: false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Background quiz generation failed for module {ModuleId}", created.Id);
-                }
-            });
-
             return CreatedAtAction(nameof(GetModule), new { id = created.Id }, new ModuleDetailDto
             {
                 Id = created.Id,
@@ -361,19 +348,6 @@ public class ModulesController : ControllerBase
             var updated = await _moduleService.UpdateAsync(id, existing, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Updated module {Name} with ID {Id}", updated.Name, updated.Id);
-
-            // Trigger quiz generation in background — only generates if none exist yet
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _quizGenerationService.TriggerQuizGenerationAsync(updated.Id, count: 50, upsert: false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Background quiz regeneration failed for module {ModuleId}", updated.Id);
-                }
-            });
 
             var viewModel = await _moduleService.GetWithDetailsAsync(id);
 
@@ -484,6 +458,75 @@ public class ModulesController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting module {ModuleId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Queue text extraction for all files in a module. tutoria-worker picks them
+    /// up via SQS and writes extracted text back to each File record.
+    /// </summary>
+    [HttpPost("{id}/extract-text")]
+    [Authorize(Policy = "ProfessorOrAbove")]
+    public async Task<ActionResult> ExtractModuleTexts(
+        int id,
+        [FromQuery] bool force = true)
+    {
+        try
+        {
+            var (queued, total) = await _moduleService.QueueExtractionForAllFilesAsync(id, force);
+
+            _logger.LogInformation("Queued {Count}/{Total} extraction jobs for module {ModuleId}", queued, total, id);
+
+            return Accepted(new
+            {
+                queued_count = queued,
+                total_files = total,
+                message = queued > 0
+                    ? $"Queued {queued} file(s) for extraction."
+                    : "All files already extracted. Use force=true to re-extract."
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error queuing extraction for module {ModuleId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Manually trigger quiz generation for a module. Always uses upsert=true so
+    /// existing quizzes are regenerated even if they already exist.
+    /// </summary>
+    [HttpPost("{id}/generate-quizzes")]
+    [Authorize(Policy = "ProfessorOrAbove")]
+    public async Task<ActionResult> GenerateQuizzes(
+        int id,
+        [FromQuery] int count = 50)
+    {
+        try
+        {
+            var module = await _moduleRepository.GetByIdAsync(id);
+            if (module == null || !module.IsActive)
+                return NotFound(new { message = "Module not found" });
+
+            // Manual professor request — always upsert (regenerate even if quizzes exist)
+            var queued = await _sqsMessagingService.SendQuizGenerationJobAsync(id, count, upsert: true);
+
+            if (!queued)
+                return StatusCode(503, new { message = "Quiz generation service is currently unavailable. Please try again later." });
+
+            _logger.LogInformation("Quiz generation queued for module {ModuleId} by user {UserId}", id, _currentUserService.GetCurrentUser().UserId);
+
+            return Accepted(new { status = "queued", message = "Quiz generation has been queued. Check back in a few minutes." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error queuing quiz generation for module {ModuleId}", id);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }

@@ -11,6 +11,12 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
     {
     }
 
+    // Override base GetByIdAsync so soft-deleted modules are never returned by any caller
+    public override async Task<Module?> GetByIdAsync(int id)
+    {
+        return await _dbSet.FirstOrDefaultAsync(m => m.Id == id && m.IsActive);
+    }
+
     public async Task<Module?> GetWithDetailsAsync(int id)
     {
         return await _dbSet

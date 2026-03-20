@@ -16,6 +16,7 @@ public class SqsMessagingService : ISqsMessagingService
     private readonly ILogger<SqsMessagingService> _logger;
     private readonly string? _extractionQueueUrl;
     private readonly string? _quizGenQueueUrl;
+    private readonly string? _transcriptionQueueUrl;
     private readonly IAmazonSQS _sqsClient;
 
     public SqsMessagingService(IConfiguration configuration, ILogger<SqsMessagingService> logger)
@@ -23,6 +24,7 @@ public class SqsMessagingService : ISqsMessagingService
         _logger = logger;
         _extractionQueueUrl = configuration["Sqs:ExtractionQueueUrl"];
         _quizGenQueueUrl = configuration["Sqs:QuizGenQueueUrl"];
+        _transcriptionQueueUrl = configuration["Sqs:TranscriptionQueueUrl"];
 
         var region = configuration["AWS:Region"] ?? "us-east-2";
         var accessKey = configuration["AWS:AccessKeyId"];
@@ -70,6 +72,21 @@ public class SqsMessagingService : ISqsMessagingService
 
         var body = JsonSerializer.Serialize(new { module_id = moduleId, count, upsert });
         return await SendMessageAsync(_quizGenQueueUrl, body, $"quiz-gen:module:{moduleId}");
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SendTranscriptionJobAsync(int fileId, string youtubeUrl, string language)
+    {
+        if (string.IsNullOrEmpty(_transcriptionQueueUrl))
+        {
+            _logger.LogWarning(
+                "Sqs:TranscriptionQueueUrl is not configured — skipping transcription job for file {FileId}",
+                fileId);
+            return false;
+        }
+
+        var body = JsonSerializer.Serialize(new { file_id = fileId, youtube_url = youtubeUrl, language });
+        return await SendMessageAsync(_transcriptionQueueUrl, body, $"transcription:file:{fileId}");
     }
 
     private async Task<bool> SendMessageAsync(string queueUrl, string messageBody, string logLabel)

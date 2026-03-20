@@ -189,19 +189,6 @@ public class FilesController : ControllerBase
                 }
             });
 
-            // Enqueue quiz regeneration job — tutoria-worker picks it up via SQS
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _sqsMessagingService.SendQuizGenerationJobAsync(request.ModuleId, count: 50, upsert: false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to enqueue quiz generation job for module {ModuleId}", request.ModuleId);
-                }
-            });
-
             // Get full details for response
             var viewModel = await _fileService.GetFileWithDetailsAsync(file.Id, _currentUserService.GetCurrentUser());
 

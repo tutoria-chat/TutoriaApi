@@ -10,28 +10,21 @@ namespace TutoriaApi.Infrastructure.Services;
 public class TranscriptionRetryService : ITranscriptionRetryService
 {
     private readonly IFileRepository _fileRepository;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IConfiguration _configuration;
+    private readonly ISqsMessagingService _sqsMessagingService;
     private readonly ILogger<TranscriptionRetryService> _logger;
-    private readonly string _aiApiBaseUrl;
-    private readonly string _internalApiKey;
     private readonly int _delayBetweenRetriesMs;
     private readonly int _maxRetryAgeHours;
 
     public TranscriptionRetryService(
         IFileRepository fileRepository,
-        IHttpClientFactory httpClientFactory,
+        ISqsMessagingService sqsMessagingService,
         IConfiguration configuration,
         ILogger<TranscriptionRetryService> logger)
     {
         _fileRepository = fileRepository;
-        _httpClientFactory = httpClientFactory;
-        _configuration = configuration;
+        _sqsMessagingService = sqsMessagingService;
         _logger = logger;
-        _aiApiBaseUrl = configuration["AiApi:BaseUrl"] ?? throw new InvalidOperationException("AiApi:BaseUrl not configured");
-        _internalApiKey = configuration["AiApi:InternalApiKey"] ?? "";
 
-        // Load retry configuration with defaults
         _delayBetweenRetriesMs = configuration.GetValue("TranscriptionRetry:DelayBetweenRetriesMs", 2000);
         _maxRetryAgeHours = configuration.GetValue("TranscriptionRetry:MaxRetryAgeHours", 72);
 
@@ -63,20 +56,30 @@ public class TranscriptionRetryService : ITranscriptionRetryService
             {
                 try
                 {
-                    _logger.LogInformation($"🔄 [TranscriptionRetry] Retrying file_id={file.Id}, module_id={file.ModuleId}, video_url={file.SourceUrl}");
+                    _logger.LogInformation($"🔄 [TranscriptionRetry] Re-queuing file_id={file.Id}, module_id={file.ModuleId}, video_url={file.SourceUrl}");
 
-                    // Call Python API retry endpoint
-                    var result = await CallPythonRetryEndpointAsync(file.Id);
+                    if (string.IsNullOrEmpty(file.SourceUrl))
+                    {
+                        _logger.LogWarning($"⚠️ [TranscriptionRetry] Skipping file_id={file.Id} — no SourceUrl");
+                        failureCount++;
+                        continue;
+                    }
 
-                    if (result)
+                    file.TranscriptionStatus = "pending";
+                    await _fileRepository.UpdateAsync(file);
+
+                    var sent = await _sqsMessagingService.SendTranscriptionJobAsync(
+                        file.Id, file.SourceUrl, file.TranscriptLanguage ?? "pt-br");
+
+                    if (sent)
                     {
                         successCount++;
-                        _logger.LogInformation($"✅ [TranscriptionRetry] Successfully retried file_id={file.Id}");
+                        _logger.LogInformation($"✅ [TranscriptionRetry] Re-queued file_id={file.Id}");
                     }
                     else
                     {
                         failureCount++;
-                        _logger.LogWarning($"⚠️ [TranscriptionRetry] Failed to retry file_id={file.Id}");
+                        _logger.LogWarning($"⚠️ [TranscriptionRetry] SQS send failed for file_id={file.Id}");
                     }
                 }
                 catch (Exception ex)
@@ -85,7 +88,6 @@ public class TranscriptionRetryService : ITranscriptionRetryService
                     _logger.LogError(ex, $"❌ [TranscriptionRetry] Exception while retrying file_id={file.Id}");
                 }
 
-                // Small delay between retries to avoid overwhelming the Python API
                 await Task.Delay(_delayBetweenRetriesMs);
             }
 
@@ -100,40 +102,4 @@ public class TranscriptionRetryService : ITranscriptionRetryService
         }
     }
 
-    private async Task<bool> CallPythonRetryEndpointAsync(int fileId)
-    {
-        try
-        {
-            var httpClient = _httpClientFactory.CreateClient();
-            httpClient.BaseAddress = new Uri(_aiApiBaseUrl);
-            httpClient.Timeout = TimeSpan.FromMinutes(10); // Long timeout for transcription processing
-            if (!string.IsNullOrEmpty(_internalApiKey))
-                httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", _internalApiKey);
-
-            var response = await httpClient.PostAsync($"/api/v2/transcription/retry/{fileId}", null);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var responseContent = await response.Content.ReadAsStringAsync();
-                _logger.LogDebug($"[TranscriptionRetry] Retry response for file_id={fileId}: {responseContent}");
-                return true;
-            }
-            else
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogWarning($"[TranscriptionRetry] Retry failed for file_id={fileId}, status={response.StatusCode}, error={errorContent}");
-                return false;
-            }
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, $"[TranscriptionRetry] HTTP request error for file_id={fileId}");
-            return false;
-        }
-        catch (TaskCanceledException ex)
-        {
-            _logger.LogError(ex, $"[TranscriptionRetry] Timeout error for file_id={fileId}");
-            return false;
-        }
-    }
 }
