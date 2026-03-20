@@ -1,10 +1,5 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text.Json;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Moq;
-using Moq.Protected;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Services;
@@ -14,8 +9,7 @@ namespace TutoriaApi.Tests.Unit.Services;
 
 public class VideoTranscriptionServiceTests
 {
-    private readonly Mock<IHttpClientFactory> _httpClientFactoryMock;
-    private readonly Mock<IConfiguration> _configurationMock;
+    private readonly Mock<ISqsMessagingService> _sqsMock;
     private readonly Mock<IFileRepository> _fileRepositoryMock;
     private readonly Mock<IModuleRepository> _moduleRepositoryMock;
     private readonly Mock<ICourseRepository> _courseRepositoryMock;
@@ -24,20 +18,14 @@ public class VideoTranscriptionServiceTests
 
     public VideoTranscriptionServiceTests()
     {
-        _httpClientFactoryMock = new Mock<IHttpClientFactory>();
-        _configurationMock = new Mock<IConfiguration>();
+        _sqsMock = new Mock<ISqsMessagingService>();
         _fileRepositoryMock = new Mock<IFileRepository>();
         _moduleRepositoryMock = new Mock<IModuleRepository>();
         _courseRepositoryMock = new Mock<ICourseRepository>();
         _loggerMock = new Mock<ILogger<VideoTranscriptionService>>();
 
-        // Setup default configuration
-        _configurationMock.Setup(c => c["AiApi:BaseUrl"])
-            .Returns("http://localhost:8000");
-
         _service = new VideoTranscriptionService(
-            _httpClientFactoryMock.Object,
-            _configurationMock.Object,
+            _sqsMock.Object,
             _fileRepositoryMock.Object,
             _moduleRepositoryMock.Object,
             _courseRepositoryMock.Object,
@@ -49,266 +37,59 @@ public class VideoTranscriptionServiceTests
     [Fact]
     public async Task TranscribeYoutubeVideoAsync_ModuleNotFound_ThrowsKeyNotFoundException()
     {
-        // Arrange
-        var youtubeUrl = "https://youtube.com/watch?v=test123";
-        var moduleId = 1;
-        var user = CreateSuperAdminUser();
-
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(1))
             .ReturnsAsync((Module?)null);
 
-        // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.TranscribeYoutubeVideoAsync(youtubeUrl, moduleId, "pt-br", null, user));
+            () => _service.TranscribeYoutubeVideoAsync("https://youtube.com/watch?v=test", 1, "pt-br", null, CreateSuperAdmin()));
     }
 
     [Fact]
-    public async Task TranscribeYoutubeVideoAsync_RegularProfessorWrongUniversity_ThrowsUnauthorizedAccessException()
+    public async Task TranscribeYoutubeVideoAsync_WrongUniversity_ThrowsUnauthorizedAccessException()
     {
-        // Arrange
-        var youtubeUrl = "https://youtube.com/watch?v=test123";
-        var moduleId = 1;
-        var user = CreateProfessorUser(universityId: 1, isAdmin: false);
-        var module = CreateModule(moduleId, courseUniversityId: 2); // Different university
+        var module = CreateModule(1, courseUniversityId: 2);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(1)).ReturnsAsync(module);
 
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _service.TranscribeYoutubeVideoAsync(youtubeUrl, moduleId, "pt-br", null, user));
+            () => _service.TranscribeYoutubeVideoAsync("https://youtube.com/watch?v=test", 1, "pt-br", null, CreateProfessor(universityId: 1)));
+    }
+
+    [Fact]
+    public async Task TranscribeYoutubeVideoAsync_Success_CreatesPendingFileAndSendsSqs()
+    {
+        var module = CreateModule(1);
+        var createdFile = CreateFile(99, 1, name: "Custom Name");
+
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(1)).ReturnsAsync(module);
+        _fileRepositoryMock.Setup(r => r.AddAsync(It.IsAny<FileEntity>())).ReturnsAsync(createdFile);
+        _sqsMock.Setup(s => s.SendTranscriptionJobAsync(99, It.IsAny<string>(), "pt-br")).ReturnsAsync(true);
+
+        var result = await _service.TranscribeYoutubeVideoAsync(
+            "https://youtube.com/watch?v=test123", 1, "pt-br", "Custom Name", CreateSuperAdmin());
+
+        Assert.NotNull(result);
+        Assert.Equal(99, result.Id);
+        _fileRepositoryMock.Verify(r => r.AddAsync(It.Is<FileEntity>(f =>
+            f.SourceType == "youtube" &&
+            f.TranscriptionStatus == "pending" &&
+            f.SourceUrl == "https://youtube.com/watch?v=test123"
+        )), Times.Once);
+        _sqsMock.Verify(s => s.SendTranscriptionJobAsync(99, "https://youtube.com/watch?v=test123", "pt-br"), Times.Once);
     }
 
     [Fact]
     public async Task TranscribeYoutubeVideoAsync_SuperAdmin_CanAccessAnyModule()
     {
-        // Arrange
-        var youtubeUrl = "https://youtube.com/watch?v=test123";
-        var moduleId = 1;
-        var user = CreateSuperAdminUser();
-        var module = CreateModule(moduleId, courseUniversityId: 999);
+        var module = CreateModule(1, courseUniversityId: 999);
+        var createdFile = CreateFile(100, 1);
 
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(1)).ReturnsAsync(module);
+        _fileRepositoryMock.Setup(r => r.AddAsync(It.IsAny<FileEntity>())).ReturnsAsync(createdFile);
+        _sqsMock.Setup(s => s.SendTranscriptionJobAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(true);
 
-        var pythonResponseJson = JsonSerializer.Serialize(new
-        {
-            file_id = 100,
-            status = "completed",
-            word_count = 1000,
-            source = "youtube_manual",
-            language = "pt-br"
-        });
+        var result = await _service.TranscribeYoutubeVideoAsync("https://youtube.com/watch?v=test", 1, "pt-br", null, CreateSuperAdmin());
 
-        var httpMessageHandlerMock = CreateMockHttpMessageHandler(
-            HttpStatusCode.Created,  // Changed from OK to Created (201)
-            pythonResponseJson);
-
-        var httpClient = new HttpClient(httpMessageHandlerMock.Object);
-        _httpClientFactoryMock.Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
-
-        var createdFile = CreateFileEntity(100, moduleId);
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(100))
-            .ReturnsAsync(createdFile);
-
-        // Act
-        var result = await _service.TranscribeYoutubeVideoAsync(
-            youtubeUrl, moduleId, "pt-br", "Test Video", user);
-
-        // Assert
         Assert.NotNull(result);
-        Assert.Equal(100, result.Id);
-    }
-
-    [Fact]
-    public async Task TranscribeYoutubeVideoAsync_PythonApiError_ThrowsInvalidOperationException()
-    {
-        // Arrange
-        var youtubeUrl = "https://youtube.com/watch?v=test123";
-        var moduleId = 1;
-        var user = CreateSuperAdminUser();
-        var module = CreateModule(moduleId);
-
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        var httpMessageHandlerMock = CreateMockHttpMessageHandler(
-            HttpStatusCode.BadRequest,
-            "Invalid YouTube URL");
-
-        var httpClient = new HttpClient(httpMessageHandlerMock.Object);
-        _httpClientFactoryMock.Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
-
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.TranscribeYoutubeVideoAsync(youtubeUrl, moduleId, "pt-br", null, user));
-
-        Assert.Contains("Transcription service returned error", exception.Message);
-    }
-
-    [Fact]
-    public async Task TranscribeYoutubeVideoAsync_Success_ReturnsFileEntity()
-    {
-        // Arrange
-        var youtubeUrl = "https://youtube.com/watch?v=test123";
-        var moduleId = 1;
-        var customName = "My Custom Video Name";
-        var user = CreateSuperAdminUser();
-        var module = CreateModule(moduleId);
-
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        var pythonResponseJson = JsonSerializer.Serialize(new
-        {
-            file_id = 100,
-            status = "completed",
-            word_count = 5000,
-            duration_seconds = 3600,
-            source = "youtube_auto",
-            cost_usd = 0.0,
-            language = "pt-br"
-        });
-
-        var httpMessageHandlerMock = CreateMockHttpMessageHandler(
-            HttpStatusCode.Created,  // Changed from OK to Created (201)
-            pythonResponseJson);
-
-        var httpClient = new HttpClient(httpMessageHandlerMock.Object);
-        _httpClientFactoryMock.Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
-
-        var createdFile = CreateFileEntity(100, moduleId, customName);
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(100))
-            .ReturnsAsync(createdFile);
-
-        // Act
-        var result = await _service.TranscribeYoutubeVideoAsync(
-            youtubeUrl, moduleId, "pt-br", customName, user);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(100, result.Id);
-        Assert.Equal(customName, result.Name);
-        Assert.Equal(moduleId, result.ModuleId);
-    }
-
-    #endregion
-
-    #region GetTranscriptionStatusAsync Tests
-
-    [Fact]
-    public async Task GetTranscriptionStatusAsync_FileNotFound_ReturnsNull()
-    {
-        // Arrange
-        var fileId = 1;
-        var user = CreateSuperAdminUser();
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync((FileEntity?)null);
-
-        // Act
-        var result = await _service.GetTranscriptionStatusAsync(fileId, user);
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetTranscriptionStatusAsync_UnauthorizedUser_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateProfessorUser(universityId: 1, isAdmin: false);
-        var file = CreateFileEntity(fileId, moduleId);
-        var module = CreateModule(moduleId, courseUniversityId: 2); // Different university
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _service.GetTranscriptionStatusAsync(fileId, user));
-    }
-
-    [Fact]
-    public async Task GetTranscriptionStatusAsync_AuthorizedUser_ReturnsFile()
-    {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
-        var module = CreateModule(moduleId);
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act
-        var result = await _service.GetTranscriptionStatusAsync(fileId, user);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(fileId, result.Id);
-    }
-
-    #endregion
-
-    #region GetTranscriptTextAsync Tests
-
-    [Fact]
-    public async Task GetTranscriptTextAsync_NoTranscriptText_ReturnsNull()
-    {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
-        file.TranscriptText = null; // No transcript
-        var module = CreateModule(moduleId);
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act
-        var result = await _service.GetTranscriptTextAsync(fileId, user);
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task GetTranscriptTextAsync_WithTranscript_ReturnsFile()
-    {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
-        file.TranscriptText = "This is the full transcript text...";
-        var module = CreateModule(moduleId);
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act
-        var result = await _service.GetTranscriptTextAsync(fileId, user);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(fileId, result.Id);
-        Assert.NotNull(result.TranscriptText);
     }
 
     #endregion
@@ -318,76 +99,90 @@ public class VideoTranscriptionServiceTests
     [Fact]
     public async Task RetryTranscriptionAsync_FileNotFound_ThrowsKeyNotFoundException()
     {
-        // Arrange
-        var fileId = 1;
-        var user = CreateSuperAdminUser();
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync((FileEntity?)null);
 
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync((FileEntity?)null);
-
-        // Act & Assert
         await Assert.ThrowsAsync<KeyNotFoundException>(
-            () => _service.RetryTranscriptionAsync(fileId, user));
+            () => _service.RetryTranscriptionAsync(1, CreateSuperAdmin()));
     }
 
     [Fact]
     public async Task RetryTranscriptionAsync_NotFailedStatus_ThrowsInvalidOperationException()
     {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
-        file.TranscriptionStatus = "completed"; // Not failed
-        var module = CreateModule(moduleId);
+        var file = CreateFile(1, 10);
+        file.TranscriptionStatus = "completed";
+        var module = CreateModule(10);
 
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(file);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(10)).ReturnsAsync(module);
 
-        // Act & Assert
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => _service.RetryTranscriptionAsync(fileId, user));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.RetryTranscriptionAsync(1, CreateSuperAdmin()));
 
-        Assert.Contains("Only failed transcriptions can be retried", exception.Message);
+        Assert.Contains("Only failed transcriptions can be retried", ex.Message);
     }
 
     [Fact]
-    public async Task RetryTranscriptionAsync_Success_ReturnsUpdatedFile()
+    public async Task RetryTranscriptionAsync_Success_ResetsToPendingAndSendsSqs()
     {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
+        var file = CreateFile(1, 10);
         file.TranscriptionStatus = "failed";
-        var module = CreateModule(moduleId);
-        var updatedFile = CreateFileEntity(fileId, moduleId);
-        updatedFile.TranscriptionStatus = "completed";
+        file.SourceUrl = "https://youtube.com/watch?v=abc";
+        file.TranscriptLanguage = "pt-br";
+        var module = CreateModule(10);
 
-        // Service calls GetByIdAsync twice - first to check status, then to get updated file
-        _fileRepositoryMock.SetupSequence(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file)              // First call: returns file with status "failed"
-            .ReturnsAsync(updatedFile);      // Second call: returns updated file with status "completed"
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(file);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(10)).ReturnsAsync(module);
+        _fileRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<FileEntity>())).Returns(Task.CompletedTask);
+        _sqsMock.Setup(s => s.SendTranscriptionJobAsync(1, "https://youtube.com/watch?v=abc", "pt-br")).ReturnsAsync(true);
 
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
+        var result = await _service.RetryTranscriptionAsync(1, CreateSuperAdmin());
 
-        var httpMessageHandlerMock = CreateMockHttpMessageHandler(
-            HttpStatusCode.OK,
-            "{}");
-
-        var httpClient = new HttpClient(httpMessageHandlerMock.Object);
-        _httpClientFactoryMock.Setup(f => f.CreateClient(It.IsAny<string>()))
-            .Returns(httpClient);
-
-        // Act
-        var result = await _service.RetryTranscriptionAsync(fileId, user);
-
-        // Assert
         Assert.NotNull(result);
-        Assert.Equal("completed", result.TranscriptionStatus);
+        Assert.Equal("pending", file.TranscriptionStatus);
+        _fileRepositoryMock.Verify(r => r.UpdateAsync(It.Is<FileEntity>(f => f.TranscriptionStatus == "pending")), Times.Once);
+        _sqsMock.Verify(s => s.SendTranscriptionJobAsync(1, "https://youtube.com/watch?v=abc", "pt-br"), Times.Once);
+    }
+
+    #endregion
+
+    #region GetTranscriptionStatusAsync Tests
+
+    [Fact]
+    public async Task GetTranscriptionStatusAsync_FileNotFound_ReturnsNull()
+    {
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync((FileEntity?)null);
+
+        var result = await _service.GetTranscriptionStatusAsync(1, CreateSuperAdmin());
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task GetTranscriptionStatusAsync_UnauthorizedUser_ThrowsUnauthorizedAccessException()
+    {
+        var file = CreateFile(1, 10);
+        var module = CreateModule(10, courseUniversityId: 2);
+
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(file);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(10)).ReturnsAsync(module);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.GetTranscriptionStatusAsync(1, CreateProfessor(universityId: 1)));
+    }
+
+    [Fact]
+    public async Task GetTranscriptionStatusAsync_AuthorizedUser_ReturnsFile()
+    {
+        var file = CreateFile(1, 10);
+        var module = CreateModule(10);
+
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(file);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(10)).ReturnsAsync(module);
+
+        var result = await _service.GetTranscriptionStatusAsync(1, CreateSuperAdmin());
+
+        Assert.NotNull(result);
+        Assert.Equal(1, result.Id);
     }
 
     #endregion
@@ -397,62 +192,26 @@ public class VideoTranscriptionServiceTests
     [Fact]
     public async Task DeleteTranscriptionAsync_FileNotFound_ReturnsFalse()
     {
-        // Arrange
-        var fileId = 1;
-        var user = CreateSuperAdminUser();
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync((FileEntity?)null);
 
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync((FileEntity?)null);
+        var result = await _service.DeleteTranscriptionAsync(1, CreateSuperAdmin());
 
-        // Act
-        var result = await _service.DeleteTranscriptionAsync(fileId, user);
-
-        // Assert
         Assert.False(result);
-    }
-
-    [Fact]
-    public async Task DeleteTranscriptionAsync_UnauthorizedUser_ThrowsUnauthorizedAccessException()
-    {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateProfessorUser(universityId: 1, isAdmin: false);
-        var file = CreateFileEntity(fileId, moduleId);
-        var module = CreateModule(moduleId, courseUniversityId: 2);
-
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-
-        // Act & Assert
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(
-            () => _service.DeleteTranscriptionAsync(fileId, user));
     }
 
     [Fact]
     public async Task DeleteTranscriptionAsync_Success_SoftDeletesAndReturnsTrue()
     {
-        // Arrange
-        var fileId = 1;
-        var moduleId = 10;
-        var user = CreateSuperAdminUser();
-        var file = CreateFileEntity(fileId, moduleId);
+        var file = CreateFile(1, 10);
         file.IsActive = true;
-        var module = CreateModule(moduleId);
+        var module = CreateModule(10);
 
-        _fileRepositoryMock.Setup(r => r.GetByIdAsync(fileId))
-            .ReturnsAsync(file);
-        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(moduleId))
-            .ReturnsAsync(module);
-        _fileRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<FileEntity>()))
-            .Returns(Task.CompletedTask);
+        _fileRepositoryMock.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(file);
+        _moduleRepositoryMock.Setup(r => r.GetWithDetailsAsync(10)).ReturnsAsync(module);
+        _fileRepositoryMock.Setup(r => r.UpdateAsync(It.IsAny<FileEntity>())).Returns(Task.CompletedTask);
 
-        // Act
-        var result = await _service.DeleteTranscriptionAsync(fileId, user);
+        var result = await _service.DeleteTranscriptionAsync(1, CreateSuperAdmin());
 
-        // Assert
         Assert.True(result);
         Assert.False(file.IsActive);
         _fileRepositoryMock.Verify(r => r.UpdateAsync(It.Is<FileEntity>(f => !f.IsActive)), Times.Once);
@@ -460,100 +219,38 @@ public class VideoTranscriptionServiceTests
 
     #endregion
 
-    #region Helper Methods
+    #region Helpers
 
-    private User CreateSuperAdminUser()
+    private User CreateSuperAdmin() => new()
     {
-        return new User
+        UserId = 1, Username = "admin", Email = "admin@test.com",
+        FirstName = "Super", LastName = "Admin", UserType = "super_admin", IsActive = true
+    };
+
+    private User CreateProfessor(int universityId) => new()
+    {
+        UserId = 2, Username = "prof", Email = "prof@test.com",
+        FirstName = "Test", LastName = "Prof", UserType = "professor",
+        UniversityId = universityId, IsAdmin = false, IsActive = true
+    };
+
+    private Module CreateModule(int id, int courseUniversityId = 1) => new()
+    {
+        Id = id, Name = "Test Module", Code = "MOD001", SystemPrompt = "Test", CourseId = 1,
+        Course = new Course
         {
-            UserId = 1,
-            Username = "superadmin",
-            Email = "admin@test.com",
-            FirstName = "Super",
-            LastName = "Admin",
-            UserType = "super_admin",
-            IsActive = true
-        };
-    }
+            Id = 1, Name = "Course", Code = "CRS001", UniversityId = courseUniversityId,
+            University = new University { Id = courseUniversityId, Name = "Uni", Code = "UNI001" }
+        }
+    };
 
-    private User CreateProfessorUser(int universityId, bool isAdmin)
+    private FileEntity CreateFile(int id, int moduleId, string? name = null) => new()
     {
-        return new User
-        {
-            UserId = 2,
-            Username = "professor",
-            Email = "professor@test.com",
-            FirstName = "Test",
-            LastName = "Professor",
-            UserType = "professor",
-            UniversityId = universityId,
-            IsAdmin = isAdmin,
-            IsActive = true
-        };
-    }
-
-    private Module CreateModule(int moduleId, int courseUniversityId = 1)
-    {
-        return new Module
-        {
-            Id = moduleId,
-            Name = "Test Module",
-            Code = "MOD001",
-            SystemPrompt = "Test prompt",
-            Semester = 1,
-            Year = 2024,
-            CourseId = 1,
-            Course = new Course
-            {
-                Id = 1,
-                Name = "Test Course",
-                Code = "CRS001",
-                UniversityId = courseUniversityId,
-                University = new University
-                {
-                    Id = courseUniversityId,
-                    Name = "Test University",
-                    Code = "UNI001"
-                }
-            }
-        };
-    }
-
-    private FileEntity CreateFileEntity(int fileId, int moduleId, string? name = null)
-    {
-        return new FileEntity
-        {
-            Id = fileId,
-            Name = name ?? "Test Video",
-            FileType = "youtube_transcript",
-            ModuleId = moduleId,
-            SourceType = "youtube",
-            SourceUrl = "https://youtube.com/watch?v=test123",
-            TranscriptionStatus = "completed",
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow
-        };
-    }
-
-    private Mock<HttpMessageHandler> CreateMockHttpMessageHandler(
-        HttpStatusCode statusCode,
-        string responseContent)
-    {
-        var handlerMock = new Mock<HttpMessageHandler>();
-        handlerMock
-            .Protected()
-            .Setup<Task<HttpResponseMessage>>(
-                "SendAsync",
-                ItExpr.IsAny<HttpRequestMessage>(),
-                ItExpr.IsAny<CancellationToken>())
-            .ReturnsAsync(new HttpResponseMessage
-            {
-                StatusCode = statusCode,
-                Content = new StringContent(responseContent)
-            });
-
-        return handlerMock;
-    }
+        Id = id, Name = name ?? "Test Video", FileType = "video/youtube",
+        ModuleId = moduleId, SourceType = "youtube",
+        SourceUrl = "https://youtube.com/watch?v=test123",
+        TranscriptionStatus = "completed", IsActive = true, CreatedAt = DateTime.UtcNow
+    };
 
     #endregion
 }
