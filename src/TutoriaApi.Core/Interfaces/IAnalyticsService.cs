@@ -134,4 +134,26 @@ public interface IAnalyticsService
         string userRole,
         int? userUniversityId,
         AnalyticsFilterDto filters);
+
+    // =====================================
+    // Pre-computed Analytics (from SQL)
+    // =====================================
+
+    /// <summary>
+    /// Get question counts per module from pre-computed daily summaries
+    /// </summary>
+    Task<QuestionsPerModuleDto> GetQuestionsPerModuleAsync(
+        int userId, string userRole, int? userUniversityId, AnalyticsFilterDto filters);
+
+    /// <summary>
+    /// Get most demanded topics from pre-computed topic classifications
+    /// </summary>
+    Task<TopTopicsResponseDto> GetTopTopicsAsync(
+        int userId, string userRole, int? userUniversityId, AnalyticsFilterDto filters);
+
+    /// <summary>
+    /// Get quiz performance metrics from pre-computed quiz analytics
+    /// </summary>
+    Task<QuizPerformanceResponseDto> GetQuizPerformanceAsync(
+        int userId, string userRole, int? userUniversityId, int? moduleId);
 }

@@ -17,6 +17,9 @@ public class AnalyticsServiceTranscriptionTests
     private readonly Mock<IUniversityRepository> _universityRepositoryMock;
     private readonly Mock<IAIModelRepository> _aiModelRepositoryMock;
     private readonly Mock<IFileRepository> _fileRepositoryMock;
+    private readonly Mock<IAnalyticsDailySummaryRepository> _dailySummaryRepositoryMock;
+    private readonly Mock<ITopicClassificationRepository> _topicClassificationRepositoryMock;
+    private readonly Mock<IQuizAnalyticsRepository> _quizAnalyticsRepositoryMock;
     private readonly Mock<ILogger<AnalyticsService>> _loggerMock;
     private readonly AnalyticsService _service;
 
@@ -28,6 +31,9 @@ public class AnalyticsServiceTranscriptionTests
         _universityRepositoryMock = new Mock<IUniversityRepository>();
         _aiModelRepositoryMock = new Mock<IAIModelRepository>();
         _fileRepositoryMock = new Mock<IFileRepository>();
+        _dailySummaryRepositoryMock = new Mock<IAnalyticsDailySummaryRepository>();
+        _topicClassificationRepositoryMock = new Mock<ITopicClassificationRepository>();
+        _quizAnalyticsRepositoryMock = new Mock<IQuizAnalyticsRepository>();
         _loggerMock = new Mock<ILogger<AnalyticsService>>();
 
         _service = new AnalyticsService(
@@ -37,6 +43,9 @@ public class AnalyticsServiceTranscriptionTests
             _universityRepositoryMock.Object,
             _aiModelRepositoryMock.Object,
             _fileRepositoryMock.Object,
+            _dailySummaryRepositoryMock.Object,
+            _topicClassificationRepositoryMock.Object,
+            _quizAnalyticsRepositoryMock.Object,
             _loggerMock.Object
         );
     }

@@ -93,6 +93,9 @@ public class TutoriaDbContext : DbContext
     public DbSet<Consent> Consents { get; set; }
     public DbSet<UserUniversity> UserUniversities { get; set; }
     public DbSet<UserInvitation> UserInvitations { get; set; }
+    public DbSet<AnalyticsDailySummary> AnalyticsDailySummaries { get; set; }
+    public DbSet<TopicClassification> TopicClassifications { get; set; }
+    public DbSet<QuizAnalytic> QuizAnalytics { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -396,6 +399,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.IsDeprecated).HasColumnName("IsDeprecated").HasDefaultValue(false);
             entity.Property(e => e.DeprecationDate).HasColumnName("DeprecationDate");
             entity.Property(e => e.UseForFileExtraction).HasColumnName("UseForFileExtraction").HasDefaultValue(false);
+            entity.Property(e => e.UseForFormatting).HasColumnName("UseForFormatting").HasDefaultValue(false);
+            entity.Property(e => e.UseForTopicClassification).HasColumnName("UseForTopicClassification").HasDefaultValue(false);
             entity.Property(e => e.Description).HasColumnName("Description").HasMaxLength(500);
             entity.Property(e => e.RecommendedFor).HasColumnName("RecommendedFor").HasMaxLength(200);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
@@ -816,6 +821,83 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // AnalyticsDailySummary configuration (composite PK)
+        modelBuilder.Entity<AnalyticsDailySummary>(entity =>
+        {
+            entity.ToTable("AnalyticsDailySummaries");
+            entity.HasKey(e => new { e.ModuleId, e.Date });
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Date).HasColumnName("Date");
+            entity.Property(e => e.QuestionCount).HasColumnName("QuestionCount").HasDefaultValue(0);
+            entity.Property(e => e.UniqueStudents).HasColumnName("UniqueStudents").HasDefaultValue(0);
+            entity.Property(e => e.UniqueConversations).HasColumnName("UniqueConversations").HasDefaultValue(0);
+            entity.Property(e => e.TotalTokens).HasColumnName("TotalTokens").HasDefaultValue(0L);
+            entity.Property(e => e.EstimatedCostUsd).HasColumnName("EstimatedCostUsd").HasColumnType("numeric(10,4)").HasDefaultValue(0m);
+            entity.Property(e => e.AvgResponseTimeMs).HasColumnName("AvgResponseTimeMs");
+            entity.Property(e => e.TopProvider).HasColumnName("TopProvider").HasMaxLength(50);
+            entity.Property(e => e.TopModel).HasColumnName("TopModel").HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Date);
+            entity.HasIndex(e => e.ModuleId);
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // TopicClassification configuration
+        modelBuilder.Entity<TopicClassification>(entity =>
+        {
+            entity.ToTable("TopicClassifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Date).HasColumnName("Date");
+            entity.Property(e => e.TopicName).HasColumnName("TopicName").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.QuestionCount).HasColumnName("QuestionCount").HasDefaultValue(0);
+            entity.Property(e => e.SampleQuestions).HasColumnName("SampleQuestions");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.ModuleId, e.Date });
+            entity.HasIndex(e => e.TopicName);
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // QuizAnalytic configuration
+        modelBuilder.Entity<QuizAnalytic>(entity =>
+        {
+            entity.ToTable("QuizAnalytics");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.QuizId).HasColumnName("QuizId");
+            entity.Property(e => e.ConceptName).HasColumnName("ConceptName").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.TotalAttempts).HasColumnName("TotalAttempts").HasDefaultValue(0);
+            entity.Property(e => e.CorrectCount).HasColumnName("CorrectCount").HasDefaultValue(0);
+            entity.Property(e => e.IncorrectCount).HasColumnName("IncorrectCount").HasDefaultValue(0);
+            entity.Property(e => e.SuccessRate).HasColumnName("SuccessRate").HasColumnType("numeric(5,2)").HasDefaultValue(0m);
+            entity.Property(e => e.Difficulty).HasColumnName("Difficulty").HasMaxLength(20);
+            entity.Property(e => e.LastUpdatedAt).HasColumnName("LastUpdatedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.ModuleId);
+            entity.HasIndex(e => new { e.ModuleId, e.ConceptName });
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

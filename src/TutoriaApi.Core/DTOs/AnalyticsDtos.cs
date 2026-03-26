@@ -594,3 +594,63 @@ public class ModuleComparisonDto
     public List<ModuleComparisonItemDto> Modules { get; set; } = new();
     public Dictionary<string, object> Insights { get; set; } = new();
 }
+
+// =====================================
+// 10. Pre-computed Analytics DTOs
+// =====================================
+
+public class QuestionsPerModuleDto
+{
+    public List<ModuleQuestionCountDto> Modules { get; set; } = new();
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+}
+
+public class ModuleQuestionCountDto
+{
+    public int ModuleId { get; set; }
+    public string ModuleName { get; set; } = string.Empty;
+    public string CourseName { get; set; } = string.Empty;
+    public int TotalQuestions { get; set; }
+    public int UniqueStudents { get; set; }
+    public List<DailyCountDto> DailyBreakdown { get; set; } = new();
+}
+
+public class DailyCountDto
+{
+    public DateOnly Date { get; set; }
+    public int Count { get; set; }
+}
+
+public class TopTopicsResponseDto
+{
+    public List<TopicDto> Topics { get; set; } = new();
+    public DateOnly StartDate { get; set; }
+    public DateOnly EndDate { get; set; }
+}
+
+public class TopicDto
+{
+    public string TopicName { get; set; } = string.Empty;
+    public int TotalQuestions { get; set; }
+    public List<string> SampleQuestions { get; set; } = new();
+    public int ModuleId { get; set; }
+    public string ModuleName { get; set; } = string.Empty;
+}
+
+public class QuizPerformanceResponseDto
+{
+    public List<ConceptPerformanceDto> Concepts { get; set; } = new();
+    public int TotalAttempts { get; set; }
+    public double OverallSuccessRate { get; set; }
+}
+
+public class ConceptPerformanceDto
+{
+    public string ConceptName { get; set; } = string.Empty;
+    public int TotalAttempts { get; set; }
+    public int CorrectCount { get; set; }
+    public int IncorrectCount { get; set; }
+    public double SuccessRate { get; set; }
+    public string? Difficulty { get; set; }
+}

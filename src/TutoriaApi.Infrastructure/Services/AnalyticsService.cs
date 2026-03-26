@@ -15,6 +15,9 @@ public class AnalyticsService : IAnalyticsService
     private readonly IUniversityRepository _universityRepository;
     private readonly IAIModelRepository _aiModelRepository;
     private readonly IFileRepository _fileRepository;
+    private readonly IAnalyticsDailySummaryRepository _dailySummaryRepository;
+    private readonly ITopicClassificationRepository _topicClassificationRepository;
+    private readonly IQuizAnalyticsRepository _quizAnalyticsRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
     // Token distribution constants for cost estimation (based on typical chat usage patterns)
@@ -35,6 +38,9 @@ public class AnalyticsService : IAnalyticsService
         IUniversityRepository universityRepository,
         IAIModelRepository aiModelRepository,
         IFileRepository fileRepository,
+        IAnalyticsDailySummaryRepository dailySummaryRepository,
+        ITopicClassificationRepository topicClassificationRepository,
+        IQuizAnalyticsRepository quizAnalyticsRepository,
         ILogger<AnalyticsService> logger)
     {
         _dynamoDbService = dynamoDbService;
@@ -43,6 +49,9 @@ public class AnalyticsService : IAnalyticsService
         _universityRepository = universityRepository;
         _aiModelRepository = aiModelRepository;
         _fileRepository = fileRepository;
+        _dailySummaryRepository = dailySummaryRepository;
+        _topicClassificationRepository = topicClassificationRepository;
+        _quizAnalyticsRepository = quizAnalyticsRepository;
         _logger = logger;
     }
 
@@ -884,6 +893,204 @@ public class AnalyticsService : IAnalyticsService
         {
             _logger.LogError(ex, "Error getting frequently asked questions for user {UserId}", userId);
             return new FrequentlyAskedQuestionsResponseDto();
+        }
+    }
+
+    #endregion
+
+    #region Pre-computed Analytics (from SQL)
+
+    public async Task<QuestionsPerModuleDto> GetQuestionsPerModuleAsync(
+        int userId, string userRole, int? userUniversityId, AnalyticsFilterDto filters)
+    {
+        try
+        {
+            var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
+
+            if (!moduleIds.Any())
+            {
+                return new QuestionsPerModuleDto();
+            }
+
+            var startDate = DateOnly.FromDateTime(filters.StartDate ?? DateTime.UtcNow.AddDays(-30));
+            var endDate = DateOnly.FromDateTime(filters.EndDate ?? DateTime.UtcNow);
+
+            var summaries = await _dailySummaryRepository.GetByDateRangeAsync(startDate, endDate, moduleIds);
+
+            // Enrich with module/course names
+            var allModules = await _moduleRepository.GetAllAsync();
+            var moduleMap = allModules.ToDictionary(m => m.Id, m => m);
+
+            var allCourses = await _courseRepository.GetAllAsync();
+            var courseMap = allCourses.ToDictionary(c => c.Id, c => c);
+
+            var moduleGroups = summaries
+                .GroupBy(s => s.ModuleId)
+                .Select(g =>
+                {
+                    var module = moduleMap.TryGetValue(g.Key, out var m) ? m : null;
+                    var course = module != null && courseMap.TryGetValue(module.CourseId, out var c) ? c : null;
+
+                    return new ModuleQuestionCountDto
+                    {
+                        ModuleId = g.Key,
+                        ModuleName = module?.Name ?? $"Module {g.Key}",
+                        CourseName = course?.Name ?? string.Empty,
+                        TotalQuestions = g.Sum(s => s.QuestionCount),
+                        UniqueStudents = g.Sum(s => s.UniqueStudents),
+                        DailyBreakdown = g.Select(s => new DailyCountDto
+                        {
+                            Date = s.Date,
+                            Count = s.QuestionCount
+                        }).OrderBy(d => d.Date).ToList()
+                    };
+                })
+                .OrderByDescending(m => m.TotalQuestions)
+                .ToList();
+
+            return new QuestionsPerModuleDto
+            {
+                Modules = moduleGroups,
+                StartDate = startDate,
+                EndDate = endDate
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting questions per module for user {UserId}", userId);
+            return new QuestionsPerModuleDto();
+        }
+    }
+
+    public async Task<TopTopicsResponseDto> GetTopTopicsAsync(
+        int userId, string userRole, int? userUniversityId, AnalyticsFilterDto filters)
+    {
+        try
+        {
+            var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, filters);
+
+            if (!moduleIds.Any())
+            {
+                return new TopTopicsResponseDto();
+            }
+
+            var startDate = DateOnly.FromDateTime(filters.StartDate ?? DateTime.UtcNow.AddDays(-30));
+            var endDate = DateOnly.FromDateTime(filters.EndDate ?? DateTime.UtcNow);
+
+            var topics = await _topicClassificationRepository.GetTopTopicsAsync(moduleIds, startDate, endDate);
+
+            // Enrich with module names
+            var allModules = await _moduleRepository.GetAllAsync();
+            var moduleMap = allModules.ToDictionary(m => m.Id, m => m);
+
+            var topicDtos = topics.Select(t =>
+            {
+                var module = moduleMap.TryGetValue(t.ModuleId, out var m) ? m : null;
+
+                // Parse sample questions from JSON
+                var sampleQuestions = new List<string>();
+                if (!string.IsNullOrWhiteSpace(t.SampleQuestions))
+                {
+                    try
+                    {
+                        sampleQuestions = System.Text.Json.JsonSerializer.Deserialize<List<string>>(t.SampleQuestions) ?? new();
+                    }
+                    catch
+                    {
+                        // Ignore JSON parse errors
+                    }
+                }
+
+                return new TopicDto
+                {
+                    TopicName = t.TopicName,
+                    TotalQuestions = t.QuestionCount,
+                    SampleQuestions = sampleQuestions,
+                    ModuleId = t.ModuleId,
+                    ModuleName = module?.Name ?? $"Module {t.ModuleId}"
+                };
+            }).ToList();
+
+            return new TopTopicsResponseDto
+            {
+                Topics = topicDtos,
+                StartDate = startDate,
+                EndDate = endDate
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting top topics for user {UserId}", userId);
+            return new TopTopicsResponseDto();
+        }
+    }
+
+    public async Task<QuizPerformanceResponseDto> GetQuizPerformanceAsync(
+        int userId, string userRole, int? userUniversityId, int? moduleId)
+    {
+        try
+        {
+            List<Core.Entities.QuizAnalytic> quizData;
+
+            if (moduleId.HasValue)
+            {
+                // Verify access to the specific module
+                var module = await _moduleRepository.GetByIdAsync(moduleId.Value);
+                if (module == null)
+                {
+                    return new QuizPerformanceResponseDto();
+                }
+
+                var hasAccess = await VerifyModuleAccess(userId, userRole, userUniversityId, module);
+                if (!hasAccess)
+                {
+                    return new QuizPerformanceResponseDto();
+                }
+
+                quizData = await _quizAnalyticsRepository.GetByModuleIdAsync(moduleId.Value);
+            }
+            else
+            {
+                var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, new AnalyticsFilterDto());
+
+                if (!moduleIds.Any())
+                {
+                    return new QuizPerformanceResponseDto();
+                }
+
+                quizData = await _quizAnalyticsRepository.GetByModuleIdsAsync(moduleIds);
+            }
+
+            if (!quizData.Any())
+            {
+                return new QuizPerformanceResponseDto();
+            }
+
+            var concepts = quizData.Select(q => new ConceptPerformanceDto
+            {
+                ConceptName = q.ConceptName,
+                TotalAttempts = q.TotalAttempts,
+                CorrectCount = q.CorrectCount,
+                IncorrectCount = q.IncorrectCount,
+                SuccessRate = (double)q.SuccessRate,
+                Difficulty = q.Difficulty
+            }).ToList();
+
+            var totalAttempts = quizData.Sum(q => q.TotalAttempts);
+            var totalCorrect = quizData.Sum(q => q.CorrectCount);
+            var overallSuccessRate = totalAttempts > 0 ? (double)totalCorrect / totalAttempts * 100 : 0;
+
+            return new QuizPerformanceResponseDto
+            {
+                Concepts = concepts,
+                TotalAttempts = totalAttempts,
+                OverallSuccessRate = overallSuccessRate
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting quiz performance for user {UserId}", userId);
+            return new QuizPerformanceResponseDto();
         }
     }
 

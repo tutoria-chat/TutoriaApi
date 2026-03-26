@@ -686,6 +686,129 @@ public class AnalyticsController : ControllerBase
 
     #endregion
 
+    #region Pre-computed Analytics Endpoints
+
+    /// <summary>
+    /// Get question counts per module from pre-computed daily summaries
+    /// </summary>
+    /// <remarks>
+    /// Returns aggregated question counts, unique students, and daily breakdowns per module.
+    /// Data is sourced from nightly pre-computed summaries (AnalyticsDailySummaries table).
+    /// </remarks>
+    [HttpGet("modules/questions-per-module")]
+    [ProducesResponseType(typeof(QuestionsPerModuleDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<QuestionsPerModuleDto>> GetQuestionsPerModule(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? universityId = null,
+        [FromQuery] int? courseId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                UniversityId = universityId,
+                CourseId = courseId
+            };
+
+            var result = await _analyticsService.GetQuestionsPerModuleAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to questions per module by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting questions per module");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get most demanded topics from pre-computed topic classifications
+    /// </summary>
+    /// <remarks>
+    /// Returns top topics with question counts and sample questions.
+    /// Data is sourced from nightly AI-classified topic data (TopicClassifications table).
+    /// </remarks>
+    [HttpGet("topics/most-demanded")]
+    [ProducesResponseType(typeof(TopTopicsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<TopTopicsResponseDto>> GetMostDemandedTopics(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var filters = new AnalyticsFilterDto
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                ModuleId = moduleId
+            };
+
+            var result = await _analyticsService.GetTopTopicsAsync(userId, userRole, userUniversityId, filters);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to most demanded topics by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting most demanded topics");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Get quiz performance metrics from pre-computed quiz analytics
+    /// </summary>
+    /// <remarks>
+    /// Returns concept-level performance data including success rates and difficulty levels.
+    /// Data is sourced from nightly pre-computed quiz analytics (QuizAnalytics table).
+    /// </remarks>
+    [HttpGet("quiz/performance")]
+    [ProducesResponseType(typeof(QuizPerformanceResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<QuizPerformanceResponseDto>> GetQuizPerformance(
+        [FromQuery] int? moduleId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var result = await _analyticsService.GetQuizPerformanceAsync(userId, userRole, userUniversityId, moduleId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to quiz performance by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting quiz performance");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    #endregion
+
     #region Helper Methods
 
     /// <summary>

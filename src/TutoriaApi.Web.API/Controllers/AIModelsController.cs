@@ -86,6 +86,7 @@ public class AIModelsController : ControllerBase
                 IsDeprecated = vm.AIModel.IsDeprecated,
                 UseForFileExtraction = vm.AIModel.UseForFileExtraction,
                 UseForFormatting = vm.AIModel.UseForFormatting,
+                UseForTopicClassification = vm.AIModel.UseForTopicClassification,
                 RecommendedFor = vm.AIModel.RecommendedFor,
                 ModulesCount = vm.ModulesCount
             }).ToList();
@@ -136,6 +137,7 @@ public class AIModelsController : ControllerBase
                 IsDeprecated = viewModel.AIModel.IsDeprecated,
                 UseForFileExtraction = viewModel.AIModel.UseForFileExtraction,
                 UseForFormatting = viewModel.AIModel.UseForFormatting,
+                UseForTopicClassification = viewModel.AIModel.UseForTopicClassification,
                 DeprecationDate = viewModel.AIModel.DeprecationDate,
                 Description = viewModel.AIModel.Description,
                 RecommendedFor = viewModel.AIModel.RecommendedFor,
@@ -194,6 +196,7 @@ public class AIModelsController : ControllerBase
                 SupportsFunctionCalling = request.SupportsFunctionCalling,
                 UseForFileExtraction = request.UseForFileExtraction,
                 UseForFormatting = request.UseForFormatting,
+                UseForTopicClassification = request.UseForTopicClassification,
                 InputCostPer1M = request.InputCostPer1M,
                 OutputCostPer1M = request.OutputCostPer1M,
                 RequiredTier = request.RequiredTier,
@@ -224,6 +227,7 @@ public class AIModelsController : ControllerBase
                 IsDeprecated = created.IsDeprecated,
                 UseForFileExtraction = created.UseForFileExtraction,
                 UseForFormatting = created.UseForFormatting,
+                UseForTopicClassification = created.UseForTopicClassification,
                 DeprecationDate = created.DeprecationDate,
                 Description = created.Description,
                 RecommendedFor = created.RecommendedFor,
@@ -299,6 +303,7 @@ public class AIModelsController : ControllerBase
             aiModel.SupportsFunctionCalling = request.SupportsFunctionCalling ?? aiModel.SupportsFunctionCalling;
             aiModel.UseForFileExtraction = request.UseForFileExtraction ?? aiModel.UseForFileExtraction;
             aiModel.UseForFormatting = request.UseForFormatting ?? aiModel.UseForFormatting;
+            aiModel.UseForTopicClassification = request.UseForTopicClassification ?? aiModel.UseForTopicClassification;
             aiModel.InputCostPer1M = request.InputCostPer1M ?? aiModel.InputCostPer1M;
             aiModel.OutputCostPer1M = request.OutputCostPer1M ?? aiModel.OutputCostPer1M;
             aiModel.RequiredTier = request.RequiredTier ?? aiModel.RequiredTier;
@@ -331,6 +336,7 @@ public class AIModelsController : ControllerBase
                 IsDeprecated = viewModel.AIModel.IsDeprecated,
                 UseForFileExtraction = viewModel.AIModel.UseForFileExtraction,
                 UseForFormatting = viewModel.AIModel.UseForFormatting,
+                UseForTopicClassification = viewModel.AIModel.UseForTopicClassification,
                 DeprecationDate = viewModel.AIModel.DeprecationDate,
                 Description = viewModel.AIModel.Description,
                 RecommendedFor = viewModel.AIModel.RecommendedFor,

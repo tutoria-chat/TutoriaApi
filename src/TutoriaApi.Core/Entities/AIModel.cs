@@ -30,6 +30,9 @@ public class AIModel : BaseEntity
     // Response formatting
     public bool UseForFormatting { get; set; }
 
+    // Topic classification (analytics)
+    public bool UseForTopicClassification { get; set; }
+
     // Metadata
     public string? Description { get; set; }
     public string? RecommendedFor { get; set; }
