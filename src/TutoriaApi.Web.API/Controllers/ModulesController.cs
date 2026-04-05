@@ -43,6 +43,39 @@ public class ModulesController : ControllerBase
         _logger = logger;
     }
 
+    // ─────────���──────────────────────────────���───────────────────────
+    //  Tenant isolation helpers
+    // ────────────────────────────────────────────────────────────────
+
+    private int? GetCallerUniversityId()
+    {
+        var currentUser = _currentUserService.GetCurrentUser();
+        if (currentUser.UserType == "super_admin")
+            return null;
+        return currentUser.UniversityId;
+    }
+
+    private async Task<bool> CallerOwnsCourseAsync(int courseId)
+    {
+        var callerUniversityId = GetCallerUniversityId();
+        if (callerUniversityId == null) return true;
+
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        return course != null && course.UniversityId == callerUniversityId.Value;
+    }
+
+    private async Task<bool> CallerOwnsModuleAsync(int moduleId)
+    {
+        var callerUniversityId = GetCallerUniversityId();
+        if (callerUniversityId == null) return true;
+
+        var module = await _moduleRepository.GetByIdAsync(moduleId);
+        if (module == null) return false;
+
+        var course = await _courseRepository.GetByIdAsync(module.CourseId);
+        return course != null && course.UniversityId == callerUniversityId.Value;
+    }
+
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<ModuleListDto>>> GetModules(
         [FromQuery] int page = 1,
@@ -107,6 +140,12 @@ public class ModulesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller has access to this module
+            if (!await CallerOwnsModuleAsync(id))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             var viewModel = await _moduleService.GetWithDetailsAsync(id);
 
             if (viewModel == null)
@@ -210,6 +249,12 @@ public class ModulesController : ControllerBase
 
         try
         {
+            // Tenant isolation: verify caller owns the course
+            if (!await CallerOwnsCourseAsync(request.CourseId))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             // Plan enforcement: check module limit
             var courseForLimits = await _courseRepository.GetWithDetailsAsync(request.CourseId);
             if (courseForLimits?.University != null)
@@ -305,6 +350,12 @@ public class ModulesController : ControllerBase
 
         try
         {
+            // Tenant isolation: verify caller owns this module
+            if (!await CallerOwnsModuleAsync(id))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             var existing = await _moduleService.GetByIdAsync(id);
             if (existing == null)
             {
@@ -445,6 +496,12 @@ public class ModulesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller owns this module
+            if (!await CallerOwnsModuleAsync(id))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             await _moduleService.DeleteAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted module with ID {Id}", id);
@@ -474,6 +531,11 @@ public class ModulesController : ControllerBase
     {
         try
         {
+            if (!await CallerOwnsModuleAsync(id))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             var (queued, total) = await _moduleService.QueueExtractionForAllFilesAsync(id, force);
 
             _logger.LogInformation("Queued {Count}/{Total} extraction jobs for module {ModuleId}", queued, total, id);
@@ -510,6 +572,11 @@ public class ModulesController : ControllerBase
     {
         try
         {
+            if (!await CallerOwnsModuleAsync(id))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             var module = await _moduleRepository.GetByIdAsync(id);
             if (module == null || !module.IsActive)
                 return NotFound(new { message = "Module not found" });

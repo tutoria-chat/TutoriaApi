@@ -41,6 +41,12 @@ public class ProfessorsController : ControllerBase
         {
             var currentUser = _currentUserService.GetCurrentUser();
 
+            // Tenant isolation: auto-scope non-super-admin users to their university
+            if (currentUser.UserType != "super_admin" && currentUser.UniversityId.HasValue)
+            {
+                universityId = currentUser.UniversityId.Value;
+            }
+
             var (viewModels, total) = await _professorService.GetPagedAsync(
                 universityId,
                 courseId,

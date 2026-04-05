@@ -38,6 +38,48 @@ public class UniversitiesController : ControllerBase
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
+        // Tenant isolation: non-super-admin users only see their own university
+        var currentUser = _currentUserService.GetCurrentUser();
+        if (currentUser.UserType != "super_admin" && currentUser.UniversityId.HasValue)
+        {
+            var university = await _universityService.GetByIdAsync(currentUser.UniversityId.Value);
+            if (university == null)
+            {
+                return Ok(new PaginatedResponse<UniversityDto>
+                {
+                    Items = new List<UniversityDto>(),
+                    Total = 0, Page = page, Size = size, Pages = 0
+                });
+            }
+
+            var dto = new UniversityDto
+            {
+                Id = university.Id,
+                Name = university.Name,
+                Code = university.Code,
+                Description = university.Description,
+                Address = university.Address,
+                TaxId = university.TaxId,
+                ContactEmail = university.ContactEmail,
+                ContactPhone = university.ContactPhone,
+                ContactPerson = university.ContactPerson,
+                Website = university.Website,
+                SubscriptionTier = university.SubscriptionTier,
+                IsEnterprise = university.IsEnterprise,
+                MaxCourses = university.MaxCourses,
+                MaxModules = university.MaxModules,
+                MaxStudents = university.MaxStudents,
+                CreatedAt = university.CreatedAt,
+                UpdatedAt = university.UpdatedAt
+            };
+
+            return Ok(new PaginatedResponse<UniversityDto>
+            {
+                Items = new List<UniversityDto> { dto },
+                Total = 1, Page = 1, Size = size, Pages = 1
+            });
+        }
+
         var (items, total) = await _universityService.GetPagedAsync(search, page, size);
 
         var dtos = items.Select(u => new UniversityDto
@@ -74,6 +116,13 @@ public class UniversitiesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<UniversityWithCoursesDto>> GetUniversity(int id)
     {
+        // Tenant isolation: non-super-admin users can only view their own university
+        var currentUser = _currentUserService.GetCurrentUser();
+        if (currentUser.UserType != "super_admin" && currentUser.UniversityId.HasValue && currentUser.UniversityId.Value != id)
+        {
+            return NotFound(new { message = "University not found" });
+        }
+
         var viewModel = await _universityService.GetUniversityWithDetailsAsync(id);
 
         if (viewModel == null)

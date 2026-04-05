@@ -49,6 +49,27 @@ public class CoursesController : ControllerBase
         _logger = logger;
     }
 
+    // ────────────────────────────────────────────────────────────────
+    //  Tenant isolation helpers
+    // ────────────────────────────────────────────────────────────────
+
+    private int? GetCallerUniversityId()
+    {
+        var currentUser = _currentUserService.GetCurrentUser();
+        if (currentUser.UserType == "super_admin")
+            return null;
+        return currentUser.UniversityId;
+    }
+
+    private async Task<bool> CallerOwnsCourseAsync(int courseId)
+    {
+        var callerUniversityId = GetCallerUniversityId();
+        if (callerUniversityId == null) return true;
+
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        return course != null && course.UniversityId == callerUniversityId.Value;
+    }
+
     /// <summary>
     /// Get paginated list of courses with filtering.
     /// </summary>
@@ -81,6 +102,13 @@ public class CoursesController : ControllerBase
         if (page < 1) page = 1;
         if (size < 1) size = 10;
         if (size > 100) size = 100;
+
+        // Tenant isolation: auto-scope non-super-admin users to their university
+        var currentUser = _currentUserService.GetCurrentUser();
+        if (currentUser.UserType != "super_admin" && currentUser.UniversityId.HasValue)
+        {
+            universityId = currentUser.UniversityId.Value;
+        }
 
         try
         {
@@ -122,6 +150,12 @@ public class CoursesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller has access to this course
+            if (!await CallerOwnsCourseAsync(id))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             var viewModel = await _courseService.GetCourseWithFullDetailsAsync(id);
 
             if (viewModel == null)
@@ -190,6 +224,13 @@ public class CoursesController : ControllerBase
 
         try
         {
+            // Tenant isolation: verify caller can create courses in this university
+            var callerUniversityId = GetCallerUniversityId();
+            if (callerUniversityId != null && callerUniversityId.Value != request.UniversityId)
+            {
+                return NotFound(new { message = "University not found" });
+            }
+
             // Plan enforcement: check course limit
             var university = await _universityRepository.GetByIdAsync(request.UniversityId);
             if (university != null)
@@ -275,6 +316,12 @@ public class CoursesController : ControllerBase
 
         try
         {
+            // Tenant isolation: verify caller owns this course
+            if (!await CallerOwnsCourseAsync(id))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             var course = new Course
             {
                 Name = request.Name ?? string.Empty,
@@ -324,6 +371,12 @@ public class CoursesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller owns this course
+            if (!await CallerOwnsCourseAsync(id))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             await _courseService.DeleteAsync(id, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Deleted course with ID {Id}", id);
@@ -347,6 +400,12 @@ public class CoursesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller owns this course
+            if (!await CallerOwnsCourseAsync(courseId))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             await _courseService.AssignProfessorAsync(courseId, professorId, _currentUserService.GetCurrentUser());
 
             _logger.LogInformation("Assigned professor {ProfessorId} to course {CourseId}", professorId, courseId);
@@ -374,6 +433,12 @@ public class CoursesController : ControllerBase
     {
         try
         {
+            // Tenant isolation: verify caller owns this course
+            if (!await CallerOwnsCourseAsync(courseId))
+            {
+                return NotFound(new { message = "Course not found" });
+            }
+
             await _courseService.UnassignProfessorAsync(courseId, professorId);
 
             _logger.LogInformation("Unassigned professor {ProfessorId} from course {CourseId}", professorId, courseId);
