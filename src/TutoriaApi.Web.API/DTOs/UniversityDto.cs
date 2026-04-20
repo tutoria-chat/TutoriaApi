@@ -29,6 +29,7 @@ public class UniversityDto
 
     // Plan limits & enterprise config
     public bool IsEnterprise { get; set; }
+    public bool HasAssignments { get; set; }
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
@@ -162,6 +163,7 @@ public class UniversityUpdateRequest
 
     // Plan limits & enterprise config (Super Admin only)
     public bool? IsEnterprise { get; set; }
+    public bool? HasAssignments { get; set; }
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
@@ -194,6 +196,7 @@ public class UniversityWithCoursesDto
 
     // Plan limits & enterprise config
     public bool IsEnterprise { get; set; }
+    public bool HasAssignments { get; set; }
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }

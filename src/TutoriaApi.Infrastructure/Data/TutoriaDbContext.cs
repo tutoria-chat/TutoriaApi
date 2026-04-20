@@ -96,6 +96,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<AnalyticsDailySummary> AnalyticsDailySummaries { get; set; }
     public DbSet<TopicClassification> TopicClassifications { get; set; }
     public DbSet<QuizAnalytic> QuizAnalytics { get; set; }
+    public DbSet<Assignment> Assignments { get; set; }
+    public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -118,6 +120,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Website).HasColumnName("Website").HasMaxLength(255);
             entity.Property(e => e.StripeCustomerId).HasColumnName("StripeCustomerId").HasMaxLength(255);
             entity.Property(e => e.IsEnterprise).HasColumnName("IsEnterprise").HasDefaultValue(false);
+            entity.Property(e => e.HasAssignments).HasColumnName("HasAssignments").HasDefaultValue(false);
             entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
             entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
             entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
@@ -871,6 +874,71 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Module)
                 .WithMany()
                 .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Assignment configuration
+        modelBuilder.Entity<Assignment>(entity =>
+        {
+            entity.ToTable("Assignments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Title).HasColumnName("Title").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description");
+            entity.Property(e => e.DueDate).HasColumnName("DueDate").IsRequired();
+            entity.Property(e => e.IsPublished).HasColumnName("IsPublished").HasDefaultValue(false);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.S3Key).HasColumnName("S3Key").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.OriginalFileName).HasColumnName("OriginalFileName").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FileSizeBytes).HasColumnName("FileSizeBytes");
+            entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.ModuleId);
+            entity.HasIndex(e => new { e.ModuleId, e.IsPublished, e.IsActive });
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // AssignmentSubmission configuration
+        modelBuilder.Entity<AssignmentSubmission>(entity =>
+        {
+            entity.ToTable("AssignmentSubmissions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.AssignmentId).HasColumnName("AssignmentId");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.S3Key).HasColumnName("S3Key").HasMaxLength(500).IsRequired();
+            entity.Property(e => e.OriginalFileName).HasColumnName("OriginalFileName").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.FileSizeBytes).HasColumnName("FileSizeBytes");
+            entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.SubmittedAt).HasColumnName("SubmittedAt");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("submitted");
+            entity.Property(e => e.Grade).HasColumnName("Grade").HasColumnType("numeric(5,2)");
+            entity.Property(e => e.GradingNotes).HasColumnName("GradingNotes");
+            entity.Property(e => e.GradedAt).HasColumnName("GradedAt");
+            entity.Property(e => e.GradedByUserId).HasColumnName("GradedByUserId");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.AssignmentId);
+            entity.HasIndex(e => new { e.AssignmentId, e.StudentId });
+
+            entity.HasOne(e => e.Assignment)
+                .WithMany(a => a.Submissions)
+                .HasForeignKey(e => e.AssignmentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
