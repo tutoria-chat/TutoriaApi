@@ -64,9 +64,9 @@ public class AssignmentService : IAssignmentService
         var university = module.Course?.University
             ?? throw new InvalidOperationException("Module is not linked to a university");
 
-        if (!university.IsEnterprise || !university.HasAssignments)
+        if (!university.HasAssignments)
             throw new InvalidOperationException(
-                "Assignments feature requires an enterprise university with HasAssignments enabled");
+                "Assignments feature is not enabled for this university");
 
         await EnsureModuleAccessAsync(moduleId, currentUser, module);
 
