@@ -39,12 +39,23 @@ public class AssignmentService : IAssignmentService
         await EnsureModuleAccessAsync(assignment.ModuleId, currentUser);
 
         var downloadUrl = _blobStorageService.GetDownloadUrl(assignment.S3Key, expiresInHours: 1);
-        return new AssignmentWithDownloadUrl { Assignment = assignment, DownloadUrl = downloadUrl };
+        var rubricDownloadUrl = assignment.RubricS3Key != null
+            ? _blobStorageService.GetDownloadUrl(assignment.RubricS3Key, expiresInHours: 1)
+            : null;
+
+        return new AssignmentWithDownloadUrl
+        {
+            Assignment = assignment,
+            DownloadUrl = downloadUrl,
+            RubricDownloadUrl = rubricDownloadUrl,
+        };
     }
 
     public async Task<Assignment> CreateAsync(
         int moduleId, string title, string? description, DateTime dueDate,
+        string? keywords,
         Stream fileStream, string originalFileName, string contentType, long fileSize,
+        Stream? rubricStream, string? rubricFileName, string? rubricContentType, long? rubricSize,
         User currentUser)
     {
         var module = await _moduleRepository.GetWithDetailsAsync(moduleId)
@@ -61,8 +72,15 @@ public class AssignmentService : IAssignmentService
 
         var extension = Path.GetExtension(originalFileName);
         var s3Key = $"assignments/{moduleId}/{Guid.NewGuid()}{extension}";
-
         await _blobStorageService.UploadFileAsync(fileStream, s3Key, contentType);
+
+        string? rubricS3Key = null;
+        if (rubricStream != null && rubricFileName != null && rubricContentType != null)
+        {
+            var rubricExtension = Path.GetExtension(rubricFileName);
+            rubricS3Key = $"assignments/{moduleId}/rubric_{Guid.NewGuid()}{rubricExtension}";
+            await _blobStorageService.UploadFileAsync(rubricStream, rubricS3Key, rubricContentType);
+        }
 
         var assignment = new Assignment
         {
@@ -70,10 +88,15 @@ public class AssignmentService : IAssignmentService
             Title = title,
             Description = description,
             DueDate = dueDate,
+            Keywords = keywords,
             S3Key = s3Key,
             OriginalFileName = originalFileName,
             ContentType = contentType,
             FileSizeBytes = fileSize,
+            RubricS3Key = rubricS3Key,
+            RubricOriginalFileName = rubricFileName,
+            RubricContentType = rubricContentType,
+            RubricFileSizeBytes = rubricSize,
             CreatedByUserId = currentUser.UserId,
         };
 
@@ -83,7 +106,8 @@ public class AssignmentService : IAssignmentService
     }
 
     public async Task<Assignment> UpdateAsync(
-        int id, string title, string? description, DateTime dueDate, User currentUser)
+        int id, string title, string? description, DateTime dueDate,
+        string? keywords, User currentUser)
     {
         var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id)
             ?? throw new KeyNotFoundException($"Assignment {id} not found");
@@ -93,6 +117,7 @@ public class AssignmentService : IAssignmentService
         assignment.Title = title;
         assignment.Description = description;
         assignment.DueDate = dueDate;
+        assignment.Keywords = keywords;
 
         await _assignmentRepository.UpdateAsync(assignment);
         return assignment;

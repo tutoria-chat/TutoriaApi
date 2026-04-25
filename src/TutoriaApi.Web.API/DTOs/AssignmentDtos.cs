@@ -14,6 +14,8 @@ public class AssignmentListDto
     public string OriginalFileName { get; set; } = string.Empty;
     public long FileSizeBytes { get; set; }
     public string ContentType { get; set; } = string.Empty;
+    public string[] Keywords { get; set; } = [];
+    public string? RubricOriginalFileName { get; set; }
     public int CreatedByUserId { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -22,6 +24,7 @@ public class AssignmentListDto
 public class AssignmentDetailDto : AssignmentListDto
 {
     public string? DownloadUrl { get; set; }
+    public string? RubricDownloadUrl { get; set; }
 }
 
 public class AssignmentCreateRequest
@@ -37,8 +40,14 @@ public class AssignmentCreateRequest
     [Required(ErrorMessage = "Due date is required")]
     public DateTime DueDate { get; set; }
 
-    [Required(ErrorMessage = "File is required")]
+    /// Comma-separated keywords (e.g. "argumentação,estrutura,referências")
+    public string? Keywords { get; set; }
+
+    [Required(ErrorMessage = "Assignment file is required")]
     public IFormFile File { get; set; } = null!;
+
+    /// Optional rubric / evaluation criteria file
+    public IFormFile? RubricFile { get; set; }
 }
 
 public class AssignmentUpdateRequest
@@ -51,4 +60,7 @@ public class AssignmentUpdateRequest
 
     [Required(ErrorMessage = "Due date is required")]
     public DateTime DueDate { get; set; }
+
+    /// Comma-separated keywords
+    public string? Keywords { get; set; }
 }

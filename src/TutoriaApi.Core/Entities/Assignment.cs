@@ -18,6 +18,15 @@ public class Assignment : BaseEntity
     public long FileSizeBytes { get; set; }
     public required string ContentType { get; set; }
 
+    // Comma-separated keywords the AI should focus on when giving feedback
+    public string? Keywords { get; set; }
+
+    // Optional rubric file (evaluation criteria uploaded by professor)
+    public string? RubricS3Key { get; set; }
+    public string? RubricOriginalFileName { get; set; }
+    public long? RubricFileSizeBytes { get; set; }
+    public string? RubricContentType { get; set; }
+
     public int CreatedByUserId { get; set; }
     public User CreatedBy { get; set; } = null!;
 

@@ -52,6 +52,8 @@ public class AssignmentsController : ControllerBase
                 OriginalFileName = a.OriginalFileName,
                 FileSizeBytes = a.FileSizeBytes,
                 ContentType = a.ContentType,
+                Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                RubricOriginalFileName = a.RubricOriginalFileName,
                 CreatedByUserId = a.CreatedByUserId,
                 CreatedAt = a.CreatedAt,
                 UpdatedAt = a.UpdatedAt,
@@ -98,8 +100,11 @@ public class AssignmentsController : ControllerBase
                 OriginalFileName = a.OriginalFileName,
                 FileSizeBytes = a.FileSizeBytes,
                 ContentType = a.ContentType,
+                Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                RubricOriginalFileName = a.RubricOriginalFileName,
                 CreatedByUserId = a.CreatedByUserId,
                 DownloadUrl = result.DownloadUrl,
+                RubricDownloadUrl = result.RubricDownloadUrl,
                 CreatedAt = a.CreatedAt,
                 UpdatedAt = a.UpdatedAt,
             });
@@ -120,8 +125,8 @@ public class AssignmentsController : ControllerBase
     }
 
     [HttpPost]
-    [RequestSizeLimit(31457280)]
-    [RequestFormLimits(MultipartBodyLengthLimit = 31457280)]
+    [RequestSizeLimit(62914560)] // 60 MB to accommodate two files
+    [RequestFormLimits(MultipartBodyLengthLimit = 62914560)]
     public async Task<ActionResult<AssignmentDetailDto>> CreateAssignment([FromForm] AssignmentCreateRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -130,19 +135,31 @@ public class AssignmentsController : ControllerBase
         if (!allowedTypes.Contains(request.File.ContentType))
             return BadRequest(new { message = "Only PDF and DOCX files are allowed for assignments" });
 
+        if (request.RubricFile != null && !allowedTypes.Contains(request.RubricFile.ContentType))
+            return BadRequest(new { message = "Only PDF and DOCX files are allowed for the rubric" });
+
         try
         {
             using var stream = request.File.OpenReadStream();
+            Stream? rubricStream = request.RubricFile != null ? request.RubricFile.OpenReadStream() : null;
+
             var assignment = await _assignmentService.CreateAsync(
                 request.ModuleId,
                 request.Title,
                 request.Description,
                 request.DueDate,
+                request.Keywords,
                 stream,
                 request.File.FileName,
                 request.File.ContentType,
                 request.File.Length,
+                rubricStream,
+                request.RubricFile?.FileName,
+                request.RubricFile?.ContentType,
+                request.RubricFile?.Length,
                 _currentUserService.GetCurrentUser());
+
+            rubricStream?.Dispose();
 
             return CreatedAtAction(nameof(GetAssignment), new { id = assignment.Id }, new AssignmentDetailDto
             {
@@ -156,6 +173,8 @@ public class AssignmentsController : ControllerBase
                 OriginalFileName = assignment.OriginalFileName,
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
+                Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 CreatedAt = assignment.CreatedAt,
                 UpdatedAt = assignment.UpdatedAt,
@@ -189,7 +208,7 @@ public class AssignmentsController : ControllerBase
         {
             var assignment = await _assignmentService.UpdateAsync(
                 id, request.Title, request.Description, request.DueDate,
-                _currentUserService.GetCurrentUser());
+                request.Keywords, _currentUserService.GetCurrentUser());
 
             return Ok(new AssignmentDetailDto
             {
@@ -203,6 +222,8 @@ public class AssignmentsController : ControllerBase
                 OriginalFileName = assignment.OriginalFileName,
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
+                Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 CreatedAt = assignment.CreatedAt,
                 UpdatedAt = assignment.UpdatedAt,
@@ -264,6 +285,8 @@ public class AssignmentsController : ControllerBase
                 OriginalFileName = assignment.OriginalFileName,
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
+                Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 CreatedAt = assignment.CreatedAt,
                 UpdatedAt = assignment.UpdatedAt,
