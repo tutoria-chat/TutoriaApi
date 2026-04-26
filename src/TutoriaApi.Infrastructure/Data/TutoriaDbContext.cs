@@ -893,11 +893,11 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.OriginalFileName).HasColumnName("OriginalFileName").HasMaxLength(255).IsRequired();
             entity.Property(e => e.FileSizeBytes).HasColumnName("FileSizeBytes");
             entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Keywords).HasColumnName("Keywords").HasMaxLength(500);
-            entity.Property(e => e.RubricS3Key).HasColumnName("RubricS3Key").HasMaxLength(500);
-            entity.Property(e => e.RubricOriginalFileName).HasColumnName("RubricOriginalFileName").HasMaxLength(255);
-            entity.Property(e => e.RubricFileSizeBytes).HasColumnName("RubricFileSizeBytes");
-            entity.Property(e => e.RubricContentType).HasColumnName("RubricContentType").HasMaxLength(100);
+            // Keywords and Rubric properties use EF Core convention (property name = column name)
+            entity.Property(e => e.Keywords).HasMaxLength(500);
+            entity.Property(e => e.RubricS3Key).HasMaxLength(500);
+            entity.Property(e => e.RubricOriginalFileName).HasMaxLength(255);
+            entity.Property(e => e.RubricContentType).HasMaxLength(100);
             entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
