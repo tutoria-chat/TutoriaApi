@@ -104,6 +104,7 @@ public class UniversityService : IUniversityService
         existing.Website = university.Website;
         existing.SubscriptionTier = university.SubscriptionTier;
         existing.IsEnterprise = university.IsEnterprise;
+        existing.HasAssignments = university.HasAssignments;
         existing.MaxCourses = university.MaxCourses;
         existing.MaxModules = university.MaxModules;
         existing.MaxStudents = university.MaxStudents;
