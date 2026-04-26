@@ -87,7 +87,7 @@ public class AssignmentService : IAssignmentService
             ModuleId = moduleId,
             Title = title,
             Description = description,
-            DueDate = dueDate,
+            DueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc),
             Keywords = keywords,
             S3Key = s3Key,
             OriginalFileName = originalFileName,
@@ -116,7 +116,7 @@ public class AssignmentService : IAssignmentService
 
         assignment.Title = title;
         assignment.Description = description;
-        assignment.DueDate = dueDate;
+        assignment.DueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc);
         assignment.Keywords = keywords;
 
         await _assignmentRepository.UpdateAsync(assignment);
