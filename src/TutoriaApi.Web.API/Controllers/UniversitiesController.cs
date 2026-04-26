@@ -192,11 +192,8 @@ public class UniversitiesController : ControllerBase
     public async Task<ActionResult<UniversityDto>> CreateUniversity([FromBody] UniversityCreateRequest request)
     {
         if (!ModelState.IsValid)
-        {
             return BadRequest(ModelState);
-        }
 
-        // TODO: Refactor - validation logic should be in service
         try
         {
             var university = new University
@@ -205,7 +202,6 @@ public class UniversitiesController : ControllerBase
                 Code = request.Code,
                 Description = request.Description,
                 Address = request.Address,
-                // Individual address fields
                 PostalCode = request.PostalCode,
                 Street = request.Street,
                 StreetNumber = request.StreetNumber,
@@ -220,7 +216,6 @@ public class UniversitiesController : ControllerBase
                 ContactPerson = request.ContactPerson,
                 Website = request.Website,
                 SubscriptionTier = request.SubscriptionTier,
-                // Plan limits & enterprise config
                 IsEnterprise = request.IsEnterprise,
                 MaxCourses = request.MaxCourses,
                 MaxModules = request.MaxModules,
@@ -228,41 +223,9 @@ public class UniversitiesController : ControllerBase
             };
 
             var created = await _universityService.CreateAsync(university, _currentUserService.GetCurrentUser());
-
             _logger.LogInformation("Created university {Name} with ID {Id}", created.Name, created.Id);
 
-            var dto = new UniversityDto
-            {
-                Id = created.Id,
-                Name = created.Name,
-                Code = created.Code,
-                Description = created.Description,
-                Address = created.Address,
-                // Individual address fields
-                PostalCode = created.PostalCode,
-                Street = created.Street,
-                StreetNumber = created.StreetNumber,
-                Complement = created.Complement,
-                Neighborhood = created.Neighborhood,
-                City = created.City,
-                State = created.State,
-                Country = created.Country,
-                TaxId = created.TaxId,
-                ContactEmail = created.ContactEmail,
-                ContactPhone = created.ContactPhone,
-                ContactPerson = created.ContactPerson,
-                Website = created.Website,
-                SubscriptionTier = created.SubscriptionTier,
-                IsEnterprise = created.IsEnterprise,
-                HasAssignments = created.HasAssignments,
-                MaxCourses = created.MaxCourses,
-                MaxModules = created.MaxModules,
-                MaxStudents = created.MaxStudents,
-                CreatedAt = created.CreatedAt,
-                UpdatedAt = created.UpdatedAt
-            };
-
-            return CreatedAtAction(nameof(GetUniversity), new { id = created.Id }, dto);
+            return CreatedAtAction(nameof(GetUniversity), new { id = created.Id }, MapToDto(created));
         }
         catch (InvalidOperationException ex)
         {
@@ -280,11 +243,8 @@ public class UniversitiesController : ControllerBase
     public async Task<ActionResult<UniversityDto>> UpdateUniversity(int id, [FromBody] UniversityUpdateRequest request)
     {
         if (!ModelState.IsValid)
-        {
             return BadRequest(ModelState);
-        }
 
-        // TODO: Refactor to use service layer
         try
         {
             var updated = await _universityService.UpdateAsync(id, new University
@@ -293,7 +253,6 @@ public class UniversitiesController : ControllerBase
                 Code = request.Code!,
                 Description = request.Description,
                 Address = request.Address,
-                // Individual address fields
                 PostalCode = request.PostalCode,
                 Street = request.Street,
                 StreetNumber = request.StreetNumber,
@@ -308,7 +267,6 @@ public class UniversitiesController : ControllerBase
                 ContactPerson = request.ContactPerson,
                 Website = request.Website,
                 SubscriptionTier = request.SubscriptionTier ?? 3,
-                // Plan limits & enterprise config
                 IsEnterprise = request.IsEnterprise ?? false,
                 HasAssignments = request.HasAssignments ?? false,
                 MaxCourses = request.MaxCourses,
@@ -318,36 +276,7 @@ public class UniversitiesController : ControllerBase
 
             _logger.LogInformation("Updated university {Name} with ID {Id}", updated.Name, updated.Id);
 
-            return Ok(new UniversityDto
-            {
-                Id = updated.Id,
-                Name = updated.Name,
-                Code = updated.Code,
-                Description = updated.Description,
-                Address = updated.Address,
-                // Individual address fields
-                PostalCode = updated.PostalCode,
-                Street = updated.Street,
-                StreetNumber = updated.StreetNumber,
-                Complement = updated.Complement,
-                Neighborhood = updated.Neighborhood,
-                City = updated.City,
-                State = updated.State,
-                Country = updated.Country,
-                TaxId = updated.TaxId,
-                ContactEmail = updated.ContactEmail,
-                ContactPhone = updated.ContactPhone,
-                ContactPerson = updated.ContactPerson,
-                Website = updated.Website,
-                SubscriptionTier = updated.SubscriptionTier,
-                IsEnterprise = updated.IsEnterprise,
-                HasAssignments = updated.HasAssignments,
-                MaxCourses = updated.MaxCourses,
-                MaxModules = updated.MaxModules,
-                MaxStudents = updated.MaxStudents,
-                CreatedAt = updated.CreatedAt,
-                UpdatedAt = updated.UpdatedAt
-            });
+            return Ok(MapToDto(updated));
         }
         catch (KeyNotFoundException)
         {
@@ -357,13 +286,17 @@ public class UniversitiesController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
 
     [HttpDelete("{id}")]
     [Authorize(Policy = "SuperAdminOnly")]
     public async Task<ActionResult> DeleteUniversity(int id)
     {
-        // TODO: Refactor to use service layer
         try
         {
             await _universityService.DeleteAsync(id, _currentUserService.GetCurrentUser());
@@ -374,5 +307,42 @@ public class UniversitiesController : ControllerBase
         {
             return NotFound(new { message = "University not found" });
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
     }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    private static UniversityDto MapToDto(University u) => new()
+    {
+        Id = u.Id,
+        Name = u.Name,
+        Code = u.Code,
+        Description = u.Description,
+        Address = u.Address,
+        PostalCode = u.PostalCode,
+        Street = u.Street,
+        StreetNumber = u.StreetNumber,
+        Complement = u.Complement,
+        Neighborhood = u.Neighborhood,
+        City = u.City,
+        State = u.State,
+        Country = u.Country,
+        TaxId = u.TaxId,
+        ContactEmail = u.ContactEmail,
+        ContactPhone = u.ContactPhone,
+        ContactPerson = u.ContactPerson,
+        Website = u.Website,
+        SubscriptionTier = u.SubscriptionTier,
+        IsEnterprise = u.IsEnterprise,
+        HasAssignments = u.HasAssignments,
+        MaxCourses = u.MaxCourses,
+        MaxModules = u.MaxModules,
+        MaxStudents = u.MaxStudents,
+        CreatedAt = u.CreatedAt,
+        UpdatedAt = u.UpdatedAt,
+    };
 }
