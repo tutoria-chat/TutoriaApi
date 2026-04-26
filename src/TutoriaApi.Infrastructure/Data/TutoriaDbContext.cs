@@ -119,8 +119,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.ContactPerson).HasColumnName("ContactPerson").HasMaxLength(200);
             entity.Property(e => e.Website).HasColumnName("Website").HasMaxLength(255);
             entity.Property(e => e.StripeCustomerId).HasColumnName("StripeCustomerId").HasMaxLength(255);
-            entity.Property(e => e.IsEnterprise).HasColumnName("IsEnterprise").HasDefaultValue(false);
-            entity.Property(e => e.HasAssignments).HasColumnName("HasAssignments").HasDefaultValue(false);
+            entity.Property(e => e.IsEnterprise).HasColumnName("IsEnterprise");
+            entity.Property(e => e.HasAssignments).HasColumnName("HasAssignments");
             entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
             entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
             entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
