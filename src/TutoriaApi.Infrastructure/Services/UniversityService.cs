@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 
@@ -8,15 +9,18 @@ public class UniversityService : IUniversityService
     private readonly IUniversityRepository _universityRepository;
     private readonly IUserUniversityRepository _userUniversityRepository;
     private readonly IAuditLogService _auditLogService;
+    private readonly ILogger<UniversityService> _logger;
 
     public UniversityService(
         IUniversityRepository universityRepository,
         IUserUniversityRepository userUniversityRepository,
-        IAuditLogService auditLogService)
+        IAuditLogService auditLogService,
+        ILogger<UniversityService> logger)
     {
         _universityRepository = universityRepository;
         _userUniversityRepository = userUniversityRepository;
         _auditLogService = auditLogService;
+        _logger = logger;
     }
 
     public async Task<University?> GetByIdAsync(int id)
@@ -109,7 +113,18 @@ public class UniversityService : IUniversityService
         existing.MaxModules = university.MaxModules;
         existing.MaxStudents = university.MaxStudents;
 
+        _logger.LogInformation(
+            "UpdateAsync university {Id}: HasAssignments incoming={Incoming}, tracked={Tracked}",
+            id, university.HasAssignments, existing.HasAssignments);
+
         await _universityRepository.UpdateAsync(existing);
+
+        // Belt-and-suspenders: also write HasAssignments via direct SQL so EF
+        // change-tracking quirks can never silently drop this column from the UPDATE.
+        var rows = await _universityRepository.SetHasAssignmentsAsync(id, university.HasAssignments);
+        _logger.LogInformation(
+            "SetHasAssignmentsAsync university {Id}: value={Value}, rows affected={Rows}",
+            id, university.HasAssignments, rows);
 
         // Audit log: Only log if there were actual changes
         if (changes.Any())

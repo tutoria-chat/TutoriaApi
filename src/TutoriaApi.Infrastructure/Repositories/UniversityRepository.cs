@@ -91,4 +91,11 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
             .Where(sc => sc.CourseId == courseId)
             .CountAsync();
     }
+
+    public async Task<int> SetHasAssignmentsAsync(int id, bool hasAssignments)
+    {
+        return await _context.Universities
+            .Where(u => u.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.HasAssignments, hasAssignments));
+    }
 }

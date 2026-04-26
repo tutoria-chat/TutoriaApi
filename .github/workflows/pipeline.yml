@@ -183,14 +183,32 @@ jobs:
     - name: Wait for App Runner deployment
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_DEV }}'].ServiceArn" --output text)
-        for i in $(seq 1 30); do
+
+        # Phase 1: wait for App Runner to start the operation (leave RUNNING state)
+        echo "Waiting for operation to start..."
+        for i in $(seq 1 15); do
           STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
-          echo "Status: $STATUS (attempt $i/30)"
+          echo "Status: $STATUS (phase 1, attempt $i/15)"
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "Operation started (status: $STATUS)"
+            break
+          fi
+          sleep 10
+        done
+
+        # Phase 2: wait for RUNNING again (deployment complete)
+        echo "Waiting for deployment to complete..."
+        for i in $(seq 1 40); do
+          STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
+          echo "Status: $STATUS (phase 2, attempt $i/40)"
           if [ "$STATUS" = "RUNNING" ]; then
             URL=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.ServiceUrl" --output text)
             echo "## App Runner DEV Deployment" >> $GITHUB_STEP_SUMMARY
             echo "**URL**: https://$URL" >> $GITHUB_STEP_SUMMARY
             exit 0
+          fi
+          if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+            echo "Deployment FAILED with status: $STATUS" && exit 1
           fi
           sleep 20
         done
@@ -298,14 +316,30 @@ jobs:
     - name: Wait for App Runner deployment
       run: |
         SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='${{ env.APP_RUNNER_SERVICE_PROD }}'].ServiceArn" --output text)
-        for i in $(seq 1 30); do
+
+        echo "Waiting for operation to start..."
+        for i in $(seq 1 15); do
           STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
-          echo "Status: $STATUS (attempt $i/30)"
+          echo "Status: $STATUS (phase 1, attempt $i/15)"
+          if [ "$STATUS" != "RUNNING" ]; then
+            echo "Operation started (status: $STATUS)"
+            break
+          fi
+          sleep 10
+        done
+
+        echo "Waiting for deployment to complete..."
+        for i in $(seq 1 40); do
+          STATUS=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.Status" --output text)
+          echo "Status: $STATUS (phase 2, attempt $i/40)"
           if [ "$STATUS" = "RUNNING" ]; then
             URL=$(aws apprunner describe-service --service-arn "$SERVICE_ARN" --query "Service.ServiceUrl" --output text)
             echo "## App Runner PROD Deployment" >> $GITHUB_STEP_SUMMARY
             echo "**URL**: https://$URL" >> $GITHUB_STEP_SUMMARY
             exit 0
+          fi
+          if [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
+            echo "Deployment FAILED with status: $STATUS" && exit 1
           fi
           sleep 20
         done

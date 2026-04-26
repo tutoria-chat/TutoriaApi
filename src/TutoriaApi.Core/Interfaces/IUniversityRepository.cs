@@ -15,4 +15,6 @@ public interface IUniversityRepository : IRepository<University>
     Task<int> GetModulesCountByCourseAsync(int courseId);
     Task<int> GetAssignedProfessorsCountByCourseAsync(int courseId);
     Task<int> GetStudentsCountByCourseAsync(int courseId);
+    /// <summary>Direct SQL update for HasAssignments — bypasses EF Core change tracking.</summary>
+    Task<int> SetHasAssignmentsAsync(int id, bool hasAssignments);
 }
