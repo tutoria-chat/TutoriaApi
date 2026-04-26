@@ -280,7 +280,8 @@ using (var migrationScope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        migrationLogger.LogError(ex, "[Migrations] Failed to apply migrations. App will continue but database may be out of sync.");
+        migrationLogger.LogCritical(ex, "[Migrations] FATAL: Failed to apply EF Core migrations. Aborting startup to prevent serving traffic against an out-of-sync database.");
+        throw; // Crash the container — health check will fail and traffic won't be routed here
     }
 }
 
