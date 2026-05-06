@@ -283,14 +283,17 @@ using (var migrationScope = app.Services.CreateScope())
         migrationLogger.LogCritical(ex, "[Migrations] FATAL: Failed to apply EF Core migrations. Aborting startup to prevent serving traffic against an out-of-sync database.");
         throw; // Crash the container — health check will fail and traffic won't be routed here
     }
+
+    var seeder = migrationScope.ServiceProvider.GetRequiredService<TutoriaApi.Infrastructure.Services.DbSeederService>();
+    await seeder.SeedEssentialDataAsync();
 }
 
 // Seed database with default API clients in development
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
-    var seeder = scope.ServiceProvider.GetRequiredService<TutoriaApi.Infrastructure.Services.DbSeederService>();
-    await seeder.SeedApiClientsAsync();
+    var devSeeder = scope.ServiceProvider.GetRequiredService<TutoriaApi.Infrastructure.Services.DbSeederService>();
+    await devSeeder.SeedApiClientsAsync();
 }
 
 // Configure the HTTP request pipeline
