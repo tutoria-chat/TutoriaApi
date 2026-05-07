@@ -1,3 +1,4 @@
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 
@@ -83,8 +84,19 @@ public class CourseService : ICourseService
         int? professorId,
         string? search,
         int page,
-        int pageSize)
+        int pageSize,
+        User? currentUser)
     {
+        // Regular professors are restricted to their own assigned courses regardless
+        // of any professorId the caller passed. Other roles fall through to whatever
+        // filter the controller built (already university-scoped upstream).
+        if (currentUser != null
+            && currentUser.UserType == UserTypes.Professor
+            && !(currentUser.IsAdmin ?? false))
+        {
+            professorId = currentUser.UserId;
+        }
+
         var (courses, total) = await _courseRepository.SearchAsync(universityId, professorId, search, page, pageSize);
 
         var viewModels = new List<CourseWithCountsViewModel>();

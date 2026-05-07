@@ -112,7 +112,7 @@ public class CoursesController : ControllerBase
 
         try
         {
-            var (viewModels, total) = await _courseService.GetPagedWithCountsAsync(universityId, professorId, search, page, size);
+            var (viewModels, total) = await _courseService.GetPagedWithCountsAsync(universityId, professorId, search, page, size, currentUser);
 
             var dtos = viewModels.Select(vm => new CourseDetailDto
             {

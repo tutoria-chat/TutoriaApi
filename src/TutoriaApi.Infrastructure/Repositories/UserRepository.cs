@@ -192,8 +192,11 @@ public class UserRepository : IUserRepository
             .Include(u => u.University)
             .AsQueryable();
 
-        // Filter by professor IDs (for course-specific queries)
-        if (filterByProfessorIds != null && filterByProfessorIds.Any())
+        // Filter by professor IDs (for course-specific queries). An empty list MUST
+        // still apply the filter so a course with no assigned professors returns no
+        // rows; otherwise the universityId filter alone leaks every professor in the
+        // university.
+        if (filterByProfessorIds != null)
         {
             query = query.Where(u => filterByProfessorIds.Contains(u.UserId));
         }

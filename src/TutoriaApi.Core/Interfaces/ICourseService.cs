@@ -32,7 +32,8 @@ public interface ICourseService
         int? professorId,
         string? search,
         int page,
-        int pageSize);
+        int pageSize,
+        User? currentUser);
     Task<Course> CreateAsync(Course course, User currentUser);
     Task<CourseWithCountsViewModel> UpdateAsync(int id, Course course, User currentUser);
     Task DeleteAsync(int id, User currentUser);
