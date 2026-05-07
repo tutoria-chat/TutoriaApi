@@ -308,6 +308,7 @@ public class ProfessorsController : ControllerBase
                 request.LastName,
                 request.IsAdmin,
                 request.IsActive,
+                request.CourseIds,
                 currentUser);
 
             var professor = viewModel.Professor;
@@ -329,7 +330,8 @@ public class ProfessorsController : ControllerBase
                 LanguagePreference = professor.LanguagePreference ?? "pt-br",
                 LastLoginAt = professor.LastLoginAt,
                 CreatedAt = professor.CreatedAt,
-                UpdatedAt = professor.UpdatedAt
+                UpdatedAt = professor.UpdatedAt,
+                AssignedCourseIds = viewModel.AssignedCourseIds
             });
         }
         catch (KeyNotFoundException ex)

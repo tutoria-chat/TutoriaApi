@@ -69,4 +69,7 @@ public class ProfessorUpdateRequest
 
     public bool? IsAdmin { get; set; }
     public bool? IsActive { get; set; }
+
+    // Null = leave assignments unchanged. Empty list = remove all. Admin-only.
+    public List<int>? CourseIds { get; set; }
 }
