@@ -11,17 +11,20 @@ public class ProfessorService : IProfessorService
     private readonly IUserRepository _userRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly IProfessorCourseRepository _professorCourseRepository;
+    private readonly ICourseRepository _courseRepository;
     private readonly AccessControlHelper _accessControl;
 
     public ProfessorService(
         IUserRepository userRepository,
         IUniversityRepository universityRepository,
         IProfessorCourseRepository professorCourseRepository,
+        ICourseRepository courseRepository,
         AccessControlHelper accessControl)
     {
         _userRepository = userRepository;
         _universityRepository = universityRepository;
         _professorCourseRepository = professorCourseRepository;
+        _courseRepository = courseRepository;
         _accessControl = accessControl;
     }
 
@@ -221,6 +224,7 @@ public class ProfessorService : IProfessorService
         string? lastName,
         bool? isAdmin,
         bool? isActive,
+        List<int>? courseIds,
         User currentUser)
     {
         // Access control: Only admins can update other professors, or professors can update themselves (limited fields)
@@ -314,6 +318,16 @@ public class ProfessorService : IProfessorService
 
         await _userRepository.UpdateAsync(professor);
 
+        // Reconcile course assignments. Only admins reach this branch; non-admins were
+        // either filtered to limited fields above or rejected. Null means "leave alone";
+        // an empty list means "unassign from everything".
+        if (courseIds != null && isAdminUser)
+        {
+            await ReconcileProfessorCoursesAsync(professor, courseIds, currentUser);
+        }
+
+        var assignedCourseIds = await _professorCourseRepository.GetCourseIdsByProfessorIdAsync(id);
+
         University? university = null;
         if (professor.UniversityId.HasValue)
         {
@@ -323,8 +337,42 @@ public class ProfessorService : IProfessorService
         return new ProfessorDetailViewModel
         {
             Professor = professor,
-            UniversityName = university?.Name
+            UniversityName = university?.Name,
+            AssignedCourseIds = assignedCourseIds
         };
+    }
+
+    private async Task ReconcileProfessorCoursesAsync(User professor, List<int> desiredCourseIds, User currentUser)
+    {
+        var desired = desiredCourseIds.Distinct().ToList();
+        var isSuperAdmin = currentUser.UserType == "super_admin";
+
+        foreach (var courseId in desired)
+        {
+            var course = await _courseRepository.GetByIdAsync(courseId);
+            if (course == null)
+            {
+                throw new KeyNotFoundException($"Course {courseId} not found");
+            }
+            // Tenant isolation: non-super-admins can only assign courses within the
+            // professor's university.
+            if (!isSuperAdmin && professor.UniversityId.HasValue && course.UniversityId != professor.UniversityId.Value)
+            {
+                throw new InvalidOperationException($"Course {courseId} does not belong to the professor's university");
+            }
+        }
+
+        var current = (await _professorCourseRepository.GetCourseIdsByProfessorIdAsync(professor.UserId)).ToHashSet();
+        var desiredSet = desired.ToHashSet();
+
+        foreach (var courseId in current.Except(desiredSet))
+        {
+            await _professorCourseRepository.RemoveProfessorFromCourseAsync(professor.UserId, courseId);
+        }
+        foreach (var courseId in desiredSet.Except(current))
+        {
+            await _professorCourseRepository.AddProfessorToCourseAsync(professor.UserId, courseId);
+        }
     }
 
     public async Task DeleteAsync(int id, User currentUser)

@@ -48,6 +48,7 @@ public interface IProfessorService
         string? lastName,
         bool? isAdmin,
         bool? isActive,
+        List<int>? courseIds,
         User currentUser);
     Task DeleteAsync(int id, User currentUser);
     Task ChangePasswordAsync(int id, string newPassword, User currentUser);
