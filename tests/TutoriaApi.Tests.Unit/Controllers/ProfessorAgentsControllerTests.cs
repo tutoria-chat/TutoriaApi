@@ -14,6 +14,8 @@ namespace TutoriaApi.Tests.Unit.Controllers;
 public class ProfessorAgentsControllerTests
 {
     private readonly Mock<IProfessorAgentService> _serviceMock;
+    private readonly Mock<IFileService> _fileServiceMock;
+    private readonly Mock<ICurrentUserService> _currentUserServiceMock;
     private readonly Mock<ILogger<ProfessorAgentsController>> _loggerMock;
     private readonly ProfessorAgentsController _controller;
     private readonly User _testProfessor;
@@ -21,10 +23,14 @@ public class ProfessorAgentsControllerTests
     public ProfessorAgentsControllerTests()
     {
         _serviceMock = new Mock<IProfessorAgentService>();
+        _fileServiceMock = new Mock<IFileService>();
+        _currentUserServiceMock = new Mock<ICurrentUserService>();
         _loggerMock = new Mock<ILogger<ProfessorAgentsController>>();
 
         _controller = new ProfessorAgentsController(
             _serviceMock.Object,
+            _fileServiceMock.Object,
+            _currentUserServiceMock.Object,
             _loggerMock.Object);
 
         // Setup test professor
