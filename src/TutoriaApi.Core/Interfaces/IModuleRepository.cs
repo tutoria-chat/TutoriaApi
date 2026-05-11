@@ -13,7 +13,9 @@ public interface IModuleRepository : IRepository<Module>
         int? year,
         string? search,
         int page,
-        int pageSize);
+        int pageSize,
+        int? universityId = null,
+        List<int>? allowedCourseIds = null);
     Task<bool> ExistsByCodeAndCourseAsync(string code, int courseId);
     Task<Dictionary<int, int>> GetFileCountsAsync(IEnumerable<int> moduleIds);
     Task<Dictionary<int, int>> GetTokenCountsAsync(IEnumerable<int> moduleIds);

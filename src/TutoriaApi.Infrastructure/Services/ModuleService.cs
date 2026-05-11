@@ -72,42 +72,26 @@ public class ModuleService : IModuleService
         int pageSize,
         User? currentUser)
     {
-        // Get accessible course IDs based on user role
+        // Compute scope at the SQL level so pagination is correct and there's no
+        // chance of leaking cross-tenant rows even when other filters are absent.
+        int? scopeUniversityId = null;
         List<int>? allowedCourseIds = null;
 
-        if (currentUser != null)
+        if (currentUser != null && currentUser.UserType != UserTypes.SuperAdmin)
         {
-            // Manager, Tutor, Platform Coordinator have university-scoped access (all courses in their university)
-            if (currentUser.UserType == UserTypes.Manager ||
-                currentUser.UserType == UserTypes.Tutor ||
-                currentUser.UserType == UserTypes.PlatformCoordinator)
+            // Every non-super-admin caller is restricted to their own university.
+            scopeUniversityId = currentUser.UniversityId;
+
+            // Regular professors are further restricted to their assigned courses.
+            // An empty list means "no assignments yet" and must yield zero results.
+            if (currentUser.UserType == UserTypes.Professor && !(currentUser.IsAdmin ?? false))
             {
-                // University-scoped roles can access all courses in their university
-                // Filtering by university happens in the controller/query parameters
-            }
-            // Legacy: Support old professor with isAdmin flag
-            else if (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false))
-            {
-                // Admin professors can access all courses in their university (for backward compatibility)
-                // Filtering by university happens in the controller/query parameters
-            }
-            else if (currentUser.UserType == UserTypes.Professor && !(currentUser.IsAdmin ?? false))
-            {
-                // Regular professors can only access assigned courses
                 allowedCourseIds = (await _accessControl.GetProfessorCourseIdsAsync(currentUser.UserId)).ToList();
             }
-            // Super admins can access all (no filtering)
         }
 
-        // Get modules with applied filters and access control
-        var (modules, total) = await _moduleRepository.SearchAsync(courseId, semester, year, search, page, pageSize);
-
-        // Apply professor access control filter
-        if (allowedCourseIds != null && allowedCourseIds.Any())
-        {
-            modules = modules.Where(m => allowedCourseIds.Contains(m.CourseId));
-            total = modules.Count();  // Recalculate total after filtering
-        }
+        var (modules, total) = await _moduleRepository.SearchAsync(
+            courseId, semester, year, search, page, pageSize, scopeUniversityId, allowedCourseIds);
 
         // Build view models with counts
         var moduleIds = modules.Select(m => m.Id).ToList();

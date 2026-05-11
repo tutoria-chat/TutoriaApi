@@ -49,13 +49,26 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
         int? year,
         string? search,
         int page,
-        int pageSize)
+        int pageSize,
+        int? universityId = null,
+        List<int>? allowedCourseIds = null)
     {
         var query = _dbSet
             .Include(m => m.Course)
             .Include(m => m.AIModel)
             .Where(m => m.IsActive)
             .AsQueryable();
+
+        if (universityId.HasValue)
+        {
+            query = query.Where(m => m.Course.UniversityId == universityId.Value);
+        }
+
+        // An explicit empty list MUST filter to zero rows; null means "no restriction".
+        if (allowedCourseIds != null)
+        {
+            query = query.Where(m => allowedCourseIds.Contains(m.CourseId));
+        }
 
         if (courseId.HasValue)
         {

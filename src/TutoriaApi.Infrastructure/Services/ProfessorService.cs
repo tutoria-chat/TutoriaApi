@@ -116,6 +116,17 @@ public class ProfessorService : IProfessorService
         var professor = await _userRepository.GetProfessorByIdWithUniversityAsync(id);
         if (professor == null) return null;
 
+        // Tenant isolation: any non-super-admin caller can only see professors that
+        // belong to their own university. Returning null (treated as 404 by the
+        // controller) avoids leaking the existence of cross-tenant users.
+        if (currentUser != null
+            && currentUser.UserType != "super_admin"
+            && currentUser.UniversityId.HasValue
+            && professor.UniversityId != currentUser.UniversityId)
+        {
+            return null;
+        }
+
         // Get assigned course IDs
         var assignedCourseIds = await _professorCourseRepository.GetCourseIdsByProfessorIdAsync(id);
 
