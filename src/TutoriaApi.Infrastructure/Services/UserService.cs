@@ -295,6 +295,7 @@ public class UserService : IUserService
         int? courseId,
         string? themePreference,
         string? languagePreference,
+        string? userType,
         User currentUser)
     {
         var user = await _userRepository.GetByIdAsync(id);
@@ -433,6 +434,27 @@ public class UserService : IUserService
         {
             changes["LanguagePreference"] = (user.LanguagePreference, languagePreference);
             user.LanguagePreference = languagePreference;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userType) && user.UserType != userType)
+        {
+            var validRoles = new[] { UserTypes.SuperAdmin, UserTypes.Manager, UserTypes.Tutor,
+                                     UserTypes.PlatformCoordinator, UserTypes.Professor, UserTypes.Student };
+            if (!validRoles.Contains(userType))
+                throw new ArgumentException($"Invalid user type: {userType}");
+
+            // Managers can only assign non-privileged roles
+            if (currentUser.UserType == UserTypes.Manager ||
+                (currentUser.UserType == UserTypes.Professor && (currentUser.IsAdmin ?? false)))
+            {
+                var allowedTargetRoles = new[] { UserTypes.Tutor, UserTypes.PlatformCoordinator,
+                                                  UserTypes.Professor, UserTypes.Student };
+                if (!allowedTargetRoles.Contains(userType))
+                    throw new InvalidOperationException("Managers can only assign Tutor, Platform Coordinator, Professor, or Student roles");
+            }
+
+            changes["UserType"] = (user.UserType, userType);
+            user.UserType = userType;
         }
 
         user.UpdatedAt = DateTime.UtcNow;

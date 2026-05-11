@@ -228,6 +228,9 @@ public class UserUpdateRequest
 
     [MaxLength(10)]
     public string? LanguagePreference { get; set; }
+
+    [MaxLength(50)]
+    public string? UserType { get; set; }
 }
 
 public class ChangeUserPasswordRequest

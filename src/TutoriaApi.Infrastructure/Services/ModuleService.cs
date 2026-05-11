@@ -79,6 +79,10 @@ public class ModuleService : IModuleService
 
         if (currentUser != null && currentUser.UserType != UserTypes.SuperAdmin)
         {
+            // Non-super-admins without a university in their token get zero results (fail-safe).
+            if (!currentUser.UniversityId.HasValue)
+                return (new List<ModuleListViewModel>(), 0);
+
             // Every non-super-admin caller is restricted to their own university.
             scopeUniversityId = currentUser.UniversityId;
 

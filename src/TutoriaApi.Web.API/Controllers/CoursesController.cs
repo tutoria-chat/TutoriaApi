@@ -103,10 +103,19 @@ public class CoursesController : ControllerBase
         if (size < 1) size = 10;
         if (size > 100) size = 100;
 
-        // Tenant isolation: auto-scope non-super-admin users to their university
+        // Tenant isolation: non-super-admins are always scoped to their own university.
+        // If a non-super-admin has no university in their token, return empty (fail-safe).
         var currentUser = _currentUserService.GetCurrentUser();
-        if (currentUser.UserType != "super_admin" && currentUser.UniversityId.HasValue)
+        if (currentUser.UserType != "super_admin")
         {
+            if (!currentUser.UniversityId.HasValue)
+            {
+                return Ok(new PaginatedResponse<CourseDetailDto>
+                {
+                    Items = new List<CourseDetailDto>(),
+                    Total = 0, Page = page, Size = size, Pages = 0
+                });
+            }
             universityId = currentUser.UniversityId.Value;
         }
 

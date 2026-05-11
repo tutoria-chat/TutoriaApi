@@ -242,6 +242,7 @@ public class UsersController : ControllerBase
                 request.CourseId,
                 request.ThemePreference,
                 request.LanguagePreference,
+                request.UserType,
                 currentUser);
 
             var user = viewModel.User;

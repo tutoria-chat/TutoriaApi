@@ -44,6 +44,7 @@ public interface IUserService
         int? courseId,
         string? themePreference,
         string? languagePreference,
+        string? userType,
         User currentUser);
     Task<UserListViewModel> ActivateAsync(int id, User currentUser);
     Task<UserListViewModel> DeactivateAsync(int id, User currentUser);
