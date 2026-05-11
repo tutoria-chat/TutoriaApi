@@ -26,6 +26,11 @@ public class ProfessorAgentService : IProfessorAgentService
         _aiModelRepository = aiModelRepository;
     }
 
+    public async Task<ProfessorAgent?> GetByIdAsync(int id)
+    {
+        return await _professorAgentRepository.GetByIdAsync(id);
+    }
+
     public async Task<ProfessorAgent?> GetByProfessorIdAsync(int professorId)
     {
         return await _professorAgentRepository.GetByProfessorIdAsync(professorId);

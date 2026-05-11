@@ -18,4 +18,5 @@ public class ProfessorAgent : BaseEntity
     public University University { get; set; } = null!;
     public AIModel? AIModel { get; set; }
     public ICollection<ProfessorAgentToken> ProfessorAgentTokens { get; set; } = new List<ProfessorAgentToken>();
+    public ICollection<File> Files { get; set; } = new List<File>();
 }

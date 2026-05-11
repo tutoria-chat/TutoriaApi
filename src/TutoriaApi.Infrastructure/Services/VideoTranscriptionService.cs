@@ -89,7 +89,7 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         }
 
         // Authorization check (with eager loading to avoid N+1 queries)
-        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
+        var module = file.ModuleId.HasValue ? await _moduleRepository.GetWithDetailsAsync(file.ModuleId.Value) : null;
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -107,7 +107,7 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         }
 
         // Authorization check (with eager loading to avoid N+1 queries)
-        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
+        var module = file.ModuleId.HasValue ? await _moduleRepository.GetWithDetailsAsync(file.ModuleId.Value) : null;
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -130,7 +130,7 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         }
 
         // Authorization check (with eager loading to avoid N+1 queries)
-        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
+        var module = file.ModuleId.HasValue ? await _moduleRepository.GetWithDetailsAsync(file.ModuleId.Value) : null;
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to access this file");
@@ -164,7 +164,7 @@ public class VideoTranscriptionService : IVideoTranscriptionService
         }
 
         // Authorization check (with eager loading to avoid N+1 queries)
-        var module = await _moduleRepository.GetWithDetailsAsync(file.ModuleId);
+        var module = file.ModuleId.HasValue ? await _moduleRepository.GetWithDetailsAsync(file.ModuleId.Value) : null;
         if (module == null || !await CanAccessModuleAsync(module, currentUser))
         {
             throw new UnauthorizedAccessException("You do not have permission to delete this file");

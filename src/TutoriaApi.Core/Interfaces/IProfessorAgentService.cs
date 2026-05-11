@@ -5,6 +5,7 @@ namespace TutoriaApi.Core.Interfaces;
 
 public interface IProfessorAgentService
 {
+    Task<ProfessorAgent?> GetByIdAsync(int id);
     Task<ProfessorAgent?> GetByProfessorIdAsync(int professorId);
     Task<IEnumerable<ProfessorAgent>> GetAllAgentsAsync(int? universityId = null);
     Task<IEnumerable<ProfessorAgentStatusDto>> GetProfessorAgentStatusAsync(int? universityId = null);

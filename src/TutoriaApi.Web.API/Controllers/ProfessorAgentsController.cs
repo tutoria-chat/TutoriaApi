@@ -5,6 +5,7 @@ using TutoriaApi.Core.DTOs;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.API.DTOs;
+using FileEntity = TutoriaApi.Core.Entities.File;
 
 namespace TutoriaApi.Web.API.Controllers;
 
@@ -17,13 +18,19 @@ namespace TutoriaApi.Web.API.Controllers;
 public class ProfessorAgentsController : ControllerBase
 {
     private readonly IProfessorAgentService _professorAgentService;
+    private readonly IFileService _fileService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<ProfessorAgentsController> _logger;
 
     public ProfessorAgentsController(
         IProfessorAgentService professorAgentService,
+        IFileService fileService,
+        ICurrentUserService currentUserService,
         ILogger<ProfessorAgentsController> logger)
     {
         _professorAgentService = professorAgentService;
+        _fileService = fileService;
+        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -333,6 +340,117 @@ public class ProfessorAgentsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error deleting professor agent with ID {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpGet("{id}/files")]
+    public async Task<ActionResult<IEnumerable<FileListDto>>> GetAgentFiles(int id)
+    {
+        try
+        {
+            var files = await _fileService.GetProfessorAgentFilesAsync(id);
+            var dtos = files.Select(f => new FileListDto
+            {
+                Id = f.Id,
+                Name = f.Name,
+                FileType = f.FileType,
+                FileName = f.FileName,
+                BlobPath = f.BlobPath,
+                BlobUrl = f.BlobUrl,
+                ContentType = f.ContentType,
+                FileSize = f.FileSize,
+                ProfessorAgentId = f.ProfessorAgentId,
+                IsActive = f.IsActive,
+                ProcessingStatus = f.ProcessingStatus,
+                CreatedAt = f.CreatedAt,
+                UpdatedAt = f.UpdatedAt
+            });
+            return Ok(dtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting files for professor agent {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpPost("{id}/files")]
+    [RequestSizeLimit(31457280)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 31457280)]
+    public async Task<ActionResult<FileListDto>> UploadAgentFile(int id, [FromForm] UploadAgentFileRequest request)
+    {
+        try
+        {
+            var agent = await _professorAgentService.GetByIdAsync(id);
+            if (agent == null)
+                return NotFound(new { message = "Professor agent not found" });
+
+            var currentUser = _currentUserService.GetCurrentUser();
+
+            using var stream = request.File.OpenReadStream();
+            var file = await _fileService.UploadProfessorAgentFileAsync(
+                id,
+                agent.UniversityId,
+                stream,
+                request.File.FileName,
+                request.File.ContentType ?? "application/octet-stream",
+                request.File.Length,
+                request.Name,
+                currentUser);
+
+            return Ok(new FileListDto
+            {
+                Id = file.Id,
+                Name = file.Name,
+                FileType = file.FileType,
+                FileName = file.FileName,
+                BlobPath = file.BlobPath,
+                BlobUrl = file.BlobUrl,
+                ContentType = file.ContentType,
+                FileSize = file.FileSize,
+                ProfessorAgentId = file.ProfessorAgentId,
+                IsActive = file.IsActive,
+                ProcessingStatus = file.ProcessingStatus,
+                CreatedAt = file.CreatedAt,
+                UpdatedAt = file.UpdatedAt
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading file to professor agent {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpDelete("{id}/files/{fileId}")]
+    public async Task<ActionResult> DeleteAgentFile(int id, int fileId)
+    {
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            await _fileService.DeleteFileAsync(fileId, currentUser);
+            return Ok(new { message = "File deleted successfully" });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "File not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting file {FileId} from professor agent {Id}", fileId, id);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }

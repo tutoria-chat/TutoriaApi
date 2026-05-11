@@ -248,7 +248,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.BlobPath).HasColumnName("BlobPath").HasMaxLength(500);
             entity.Property(e => e.FileSize).HasColumnName("FileSize");
             entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100);
-            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId").IsRequired(false);
+            entity.Property(e => e.ProfessorAgentId).HasColumnName("ProfessorAgentId").IsRequired(false);
             entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
             entity.Property(e => e.OpenAIFileId).HasColumnName("OpenAIFileId").HasMaxLength(255);
             entity.Property(e => e.AnthropicFileId).HasColumnName("AnthropicFileId").HasMaxLength(255);
@@ -276,6 +277,13 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Module)
                 .WithMany(m => m.Files)
                 .HasForeignKey(e => e.ModuleId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.ProfessorAgent)
+                .WithMany(a => a.Files)
+                .HasForeignKey(e => e.ProfessorAgentId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

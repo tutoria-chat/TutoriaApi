@@ -10,7 +10,8 @@ public class File : BaseEntity
     public string? BlobPath { get; set; }
     public long? FileSize { get; set; }
     public string? ContentType { get; set; }
-    public int ModuleId { get; set; }
+    public int? ModuleId { get; set; }
+    public int? ProfessorAgentId { get; set; }
     public bool IsActive { get; set; } = true;
     public string? OpenAIFileId { get; set; }
     public string? AnthropicFileId { get; set; }
@@ -37,5 +38,6 @@ public class File : BaseEntity
     public string? SummarizedText { get; set; }  // AI-generated summary for large files
 
     // Navigation properties
-    public Module Module { get; set; } = null!;
+    public Module? Module { get; set; }
+    public ProfessorAgent? ProfessorAgent { get; set; }
 }

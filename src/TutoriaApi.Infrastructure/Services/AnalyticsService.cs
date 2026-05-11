@@ -1509,7 +1509,8 @@ public class AnalyticsService : IAnalyticsService
 
             var totalCost = transcriptions.Sum(f => f.TranscriptionCostUSD ?? 0);
             var costByModule = transcriptions
-                .GroupBy(f => f.ModuleId)
+                .Where(f => f.ModuleId.HasValue)
+                .GroupBy(f => f.ModuleId!.Value)
                 .ToDictionary(g => g.Key, g => g.Sum(f => f.TranscriptionCostUSD ?? 0));
 
             return new TranscriptionCostsDto

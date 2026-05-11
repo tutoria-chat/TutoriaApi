@@ -12,8 +12,9 @@ public class FileListDto
     public string? BlobUrl { get; set; }
     public string? ContentType { get; set; }
     public long? FileSize { get; set; }
-    public int ModuleId { get; set; }
+    public int? ModuleId { get; set; }
     public string? ModuleName { get; set; }
+    public int? ProfessorAgentId { get; set; }
     public bool IsActive { get; set; }
     public string? ProcessingStatus { get; set; }
     public string? OpenAIFileId { get; set; }
@@ -40,8 +41,9 @@ public class FileDetailDto
     public string? BlobContainer { get; set; }
     public string? ContentType { get; set; }
     public long? FileSize { get; set; }
-    public int ModuleId { get; set; }
+    public int? ModuleId { get; set; }
     public string? ModuleName { get; set; }
+    public int? ProfessorAgentId { get; set; }
     public int? CourseId { get; set; }
     public string? CourseName { get; set; }
     public int? UniversityId { get; set; }
@@ -67,6 +69,15 @@ public class UploadFileRequest
     [Required(ErrorMessage = "Module ID is required")]
     public int ModuleId { get; set; }
 
+    [MaxLength(255, ErrorMessage = "Name cannot exceed 255 characters")]
+    public string? Name { get; set; }
+
+    [Required(ErrorMessage = "File is required")]
+    public IFormFile File { get; set; } = null!;
+}
+
+public class UploadAgentFileRequest
+{
     [MaxLength(255, ErrorMessage = "Name cannot exceed 255 characters")]
     public string? Name { get; set; }
 

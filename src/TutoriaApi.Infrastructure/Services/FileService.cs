@@ -212,6 +212,69 @@ public class FileService : IFileService
         return created;
     }
 
+    public async Task<FileEntity> UploadProfessorAgentFileAsync(
+        int professorAgentId,
+        int universityId,
+        Stream fileStream,
+        string originalFileName,
+        string contentType,
+        long fileSize,
+        string? customName,
+        User currentUser)
+    {
+        if (fileStream == null || fileSize == 0)
+            throw new InvalidOperationException("File is required");
+
+        if (fileSize > 10 * 1024 * 1024)
+            throw new InvalidOperationException("File size exceeds 10MB limit");
+
+        var sanitizedFilename = FileHelper.SanitizeFilename(originalFileName);
+        if (string.IsNullOrWhiteSpace(sanitizedFilename))
+            throw new InvalidOperationException("Invalid filename");
+
+        var sanitizedName = string.IsNullOrWhiteSpace(customName)
+            ? sanitizedFilename
+            : FileHelper.SanitizeFilename(customName);
+
+        var blobPath = $"professor-agents/{professorAgentId}/{sanitizedFilename}";
+        var blobUrl = await _blobStorageService.UploadFileAsync(fileStream, blobPath, contentType);
+
+        var fileExtension = Path.GetExtension(sanitizedFilename).TrimStart('.').ToLowerInvariant();
+        var fileEntity = new FileEntity
+        {
+            Name = sanitizedName,
+            FileType = string.IsNullOrEmpty(fileExtension) ? "upload" : fileExtension,
+            FileName = sanitizedName,
+            BlobUrl = blobUrl,
+            BlobPath = blobPath,
+            ContentType = contentType,
+            FileSize = fileSize,
+            ModuleId = null,
+            ProfessorAgentId = professorAgentId,
+            IsActive = true,
+            ProcessingStatus = "pending"
+        };
+
+        var created = await _fileRepository.AddAsync(fileEntity);
+
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId,
+            username: currentUser.Username,
+            universityId: universityId,
+            action: "Create",
+            entityType: "ProfessorAgentFile",
+            entityId: created.Id,
+            entityName: created.Name,
+            changes: null);
+
+        return created;
+    }
+
+    public async Task<List<FileEntity>> GetProfessorAgentFilesAsync(int professorAgentId)
+    {
+        return await _fileRepository.GetByProfessorAgentIdAsync(professorAgentId);
+    }
+
     public async Task<string> GetDownloadUrlAsync(int id, User currentUser)
     {
         var file = await _fileRepository.GetByIdAsync(id);
@@ -267,7 +330,7 @@ public class FileService : IFileService
         // Get module and course to retrieve university ID for audit log
         if (changes.Any())
         {
-            var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+            var module = file.ModuleId.HasValue ? await _moduleRepository.GetByIdAsync(file.ModuleId.Value) : null;
             var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
 
             // Audit log: Only log if there were actual changes
@@ -328,7 +391,7 @@ public class FileService : IFileService
         }
 
         // Get module and course to retrieve university ID for audit log before deletion
-        var module = await _moduleRepository.GetByIdAsync(file.ModuleId);
+        var module = file.ModuleId.HasValue ? await _moduleRepository.GetByIdAsync(file.ModuleId.Value) : null;
         var course = module != null ? await _courseRepository.GetByIdAsync(module.CourseId) : null;
 
         // Delete from blob storage
@@ -357,7 +420,14 @@ public class FileService : IFileService
             return false;
         }
 
+        // Professor agent files have no module — access granted to any authenticated user
+        // (route scoping /{agentId}/files/{fileId} provides the real constraint)
+        if (file.ProfessorAgentId.HasValue && !file.ModuleId.HasValue)
+        {
+            return true;
+        }
+
         var accessibleModuleIds = await GetAccessibleModuleIdsAsync(user);
-        return accessibleModuleIds.Contains(file.ModuleId);
+        return file.ModuleId.HasValue && accessibleModuleIds.Contains(file.ModuleId.Value);
     }
 }

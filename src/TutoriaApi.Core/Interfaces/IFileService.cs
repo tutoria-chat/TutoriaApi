@@ -32,6 +32,18 @@ public interface IFileService
         string? customName,
         User currentUser);
 
+    Task<FileEntity> UploadProfessorAgentFileAsync(
+        int professorAgentId,
+        int universityId,
+        Stream fileStream,
+        string originalFileName,
+        string contentType,
+        long fileSize,
+        string? customName,
+        User currentUser);
+
+    Task<List<FileEntity>> GetProfessorAgentFilesAsync(int professorAgentId);
+
     Task<FileEntity> UpdateFileAsync(int id, string? newFileName, User currentUser);
 
     Task<FileEntity> UpdateFileStatusAsync(

@@ -13,6 +13,7 @@ public interface IFileRepository : IRepository<FileEntity>
         int pageSize,
         List<int>? allowedModuleIds = null);
     Task<List<FileEntity>> GetByModuleIdAsync(int moduleId);
+    Task<List<FileEntity>> GetByProfessorAgentIdAsync(int professorAgentId);
     Task<bool> ExistsByBlobNameAsync(string blobName);
     Task<List<FileEntity>> GetFailedYoutubeTranscriptionsFromLast72HoursAsync();
     Task<List<FileEntity>> GetCompletedTranscriptionsAsync(

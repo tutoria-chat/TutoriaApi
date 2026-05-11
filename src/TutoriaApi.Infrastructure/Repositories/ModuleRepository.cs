@@ -109,8 +109,8 @@ public class ModuleRepository : Repository<Module>, IModuleRepository
     public async Task<Dictionary<int, int>> GetFileCountsAsync(IEnumerable<int> moduleIds)
     {
         return await _context.Files
-            .Where(f => moduleIds.Contains(f.ModuleId))
-            .GroupBy(f => f.ModuleId)
+            .Where(f => f.ModuleId.HasValue && moduleIds.Contains(f.ModuleId.Value))
+            .GroupBy(f => f.ModuleId!.Value)
             .Select(g => new { ModuleId = g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.ModuleId, x => x.Count);
     }

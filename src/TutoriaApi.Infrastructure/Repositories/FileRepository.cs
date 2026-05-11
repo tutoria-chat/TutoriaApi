@@ -33,10 +33,10 @@ public class FileRepository : Repository<FileEntity>, IFileRepository
                 .ThenInclude(m => m.Course)
             .AsQueryable();
 
-        // Access control filter
+        // Access control filter (exclude professor agent files which have no module)
         if (allowedModuleIds != null && allowedModuleIds.Any())
         {
-            query = query.Where(f => allowedModuleIds.Contains(f.ModuleId));
+            query = query.Where(f => f.ModuleId.HasValue && allowedModuleIds.Contains(f.ModuleId.Value));
         }
 
         if (moduleId.HasValue)
@@ -66,6 +66,14 @@ public class FileRepository : Repository<FileEntity>, IFileRepository
             .ToListAsync();
     }
 
+    public async Task<List<FileEntity>> GetByProfessorAgentIdAsync(int professorAgentId)
+    {
+        return await _dbSet
+            .Where(f => f.ProfessorAgentId == professorAgentId && f.IsActive)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task<bool> ExistsByBlobNameAsync(string blobName)
     {
         return await _dbSet.AnyAsync(f => f.BlobPath == blobName);
@@ -91,7 +99,7 @@ public class FileRepository : Repository<FileEntity>, IFileRepository
         DateTime? endDate = null)
     {
         var query = _dbSet
-            .Where(f => moduleIds.Contains(f.ModuleId)
+            .Where(f => f.ModuleId.HasValue && moduleIds.Contains(f.ModuleId.Value)
                      && f.SourceType == "youtube"
                      && f.TranscriptionStatus == "completed"
                      && f.TranscriptionCostUSD != null
