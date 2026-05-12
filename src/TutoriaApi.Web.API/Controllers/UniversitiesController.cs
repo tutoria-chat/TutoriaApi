@@ -14,17 +14,20 @@ public class UniversitiesController : ControllerBase
     private readonly IUniversityService _universityService;
     private readonly IStudentService _studentService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IUniversityPersonalizationService _personalizationService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
         IUniversityService universityService,
         IStudentService studentService,
         ICurrentUserService currentUserService,
+        IUniversityPersonalizationService personalizationService,
         ILogger<UniversitiesController> logger)
     {
         _universityService = universityService;
         _studentService = studentService;
         _currentUserService = currentUserService;
+        _personalizationService = personalizationService;
         _logger = logger;
     }
 
@@ -52,58 +55,20 @@ public class UniversitiesController : ControllerBase
                 });
             }
 
-            var dto = new UniversityDto
-            {
-                Id = university.Id,
-                Name = university.Name,
-                Code = university.Code,
-                Description = university.Description,
-                Address = university.Address,
-                TaxId = university.TaxId,
-                ContactEmail = university.ContactEmail,
-                ContactPhone = university.ContactPhone,
-                ContactPerson = university.ContactPerson,
-                Website = university.Website,
-                SubscriptionTier = university.SubscriptionTier,
-                IsEnterprise = university.IsEnterprise,
-                HasAssignments = university.HasAssignments,
-                MaxCourses = university.MaxCourses,
-                MaxModules = university.MaxModules,
-                MaxStudents = university.MaxStudents,
-                CreatedAt = university.CreatedAt,
-                UpdatedAt = university.UpdatedAt
-            };
+            // Load personalization separately (GetByIdAsync doesn't eager-load it)
+            var personalization = await _personalizationService.GetByUniversityIdAsync(university.Id);
 
             return Ok(new PaginatedResponse<UniversityDto>
             {
-                Items = new List<UniversityDto> { dto },
+                Items = new List<UniversityDto> { MapToDto(university, personalization) },
                 Total = 1, Page = 1, Size = size, Pages = 1
             });
         }
 
         var (items, total) = await _universityService.GetPagedAsync(search, page, size);
 
-        var dtos = items.Select(u => new UniversityDto
-        {
-            Id = u.Id,
-            Name = u.Name,
-            Code = u.Code,
-            Description = u.Description,
-            Address = u.Address,
-            TaxId = u.TaxId,
-            ContactEmail = u.ContactEmail,
-            ContactPhone = u.ContactPhone,
-            ContactPerson = u.ContactPerson,
-            Website = u.Website,
-            SubscriptionTier = u.SubscriptionTier,
-            IsEnterprise = u.IsEnterprise,
-            HasAssignments = u.HasAssignments,
-            MaxCourses = u.MaxCourses,
-            MaxModules = u.MaxModules,
-            MaxStudents = u.MaxStudents,
-            CreatedAt = u.CreatedAt,
-            UpdatedAt = u.UpdatedAt
-        }).ToList();
+        // Personalization is already included via SearchAsync's Include(u => u.Personalization)
+        var dtos = items.Select(u => MapToDto(u)).ToList();
 
         return Ok(new PaginatedResponse<UniversityDto>
         {
@@ -314,35 +279,113 @@ public class UniversitiesController : ControllerBase
         }
     }
 
+    /// <summary>Get widget personalization for a university (public — used by widget)</summary>
+    [HttpGet("{id}/personalization")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetPersonalization(int id)
+    {
+        try
+        {
+            var p = await _personalizationService.GetByUniversityIdAsync(id);
+            if (p == null)
+                return Ok(new { primaryColor = (string?)null, secondaryColor = (string?)null, defaultTheme = "auto" });
+
+            return Ok(new
+            {
+                primaryColor = p.PrimaryColor,
+                secondaryColor = p.SecondaryColor,
+                defaultTheme = p.DefaultTheme
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting personalization for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>Upsert widget personalization for a university (manager or super_admin)</summary>
+    [HttpPut("{id}/personalization")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult> UpsertPersonalization(int id, [FromBody] UniversityAppearanceUpdateRequest request)
+    {
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            var result = await _personalizationService.UpsertAsync(
+                id,
+                request.WidgetPrimaryColor,
+                request.WidgetSecondaryColor,
+                request.WidgetDefaultTheme,
+                currentUser.UserId,
+                currentUser.UserType,
+                currentUser.UniversityId);
+
+            return Ok(new
+            {
+                primaryColor = result.PrimaryColor,
+                secondaryColor = result.SecondaryColor,
+                defaultTheme = result.DefaultTheme,
+                updatedAt = result.UpdatedAt
+            });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "University not found" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error upserting personalization for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private static UniversityDto MapToDto(University u) => new()
+    /// <summary>
+    /// Maps a University entity to a UniversityDto.
+    /// Pass <paramref name="personalization"/> explicitly when the entity was fetched without
+    /// eager-loading the Personalization navigation property (e.g. GetByIdAsync).
+    /// When fetched via SearchAsync (which includes Personalization), omit the parameter.
+    /// </summary>
+    private static UniversityDto MapToDto(University u, UniversityPersonalization? personalization = null)
     {
-        Id = u.Id,
-        Name = u.Name,
-        Code = u.Code,
-        Description = u.Description,
-        Address = u.Address,
-        PostalCode = u.PostalCode,
-        Street = u.Street,
-        StreetNumber = u.StreetNumber,
-        Complement = u.Complement,
-        Neighborhood = u.Neighborhood,
-        City = u.City,
-        State = u.State,
-        Country = u.Country,
-        TaxId = u.TaxId,
-        ContactEmail = u.ContactEmail,
-        ContactPhone = u.ContactPhone,
-        ContactPerson = u.ContactPerson,
-        Website = u.Website,
-        SubscriptionTier = u.SubscriptionTier,
-        IsEnterprise = u.IsEnterprise,
-        HasAssignments = u.HasAssignments,
-        MaxCourses = u.MaxCourses,
-        MaxModules = u.MaxModules,
-        MaxStudents = u.MaxStudents,
-        CreatedAt = u.CreatedAt,
-        UpdatedAt = u.UpdatedAt,
-    };
+        var p = personalization ?? u.Personalization;
+        return new UniversityDto
+        {
+            Id = u.Id,
+            Name = u.Name,
+            Code = u.Code,
+            Description = u.Description,
+            Address = u.Address,
+            PostalCode = u.PostalCode,
+            Street = u.Street,
+            StreetNumber = u.StreetNumber,
+            Complement = u.Complement,
+            Neighborhood = u.Neighborhood,
+            City = u.City,
+            State = u.State,
+            Country = u.Country,
+            TaxId = u.TaxId,
+            ContactEmail = u.ContactEmail,
+            ContactPhone = u.ContactPhone,
+            ContactPerson = u.ContactPerson,
+            Website = u.Website,
+            SubscriptionTier = u.SubscriptionTier,
+            IsEnterprise = u.IsEnterprise,
+            HasAssignments = u.HasAssignments,
+            MaxCourses = u.MaxCourses,
+            MaxModules = u.MaxModules,
+            MaxStudents = u.MaxStudents,
+            CreatedAt = u.CreatedAt,
+            UpdatedAt = u.UpdatedAt,
+            WidgetPrimaryColor = p?.PrimaryColor,
+            WidgetSecondaryColor = p?.SecondaryColor,
+            WidgetDefaultTheme = p?.DefaultTheme,
+        };
+    }
 }

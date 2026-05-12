@@ -36,6 +36,11 @@ public class UniversityDto
 
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+
+    // Widget branding (from UniversityPersonalization)
+    public string? WidgetPrimaryColor { get; set; }
+    public string? WidgetSecondaryColor { get; set; }
+    public string? WidgetDefaultTheme { get; set; }
 }
 
 public class UniversityCreateRequest
@@ -167,6 +172,20 @@ public class UniversityUpdateRequest
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
+}
+
+public class UniversityAppearanceUpdateRequest
+{
+    [MaxLength(7, ErrorMessage = "Primary color must be a hex value (e.g. #7C3AED)")]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$", ErrorMessage = "Primary color must be a valid hex color (e.g. #7C3AED)")]
+    public string? WidgetPrimaryColor { get; set; }
+
+    [MaxLength(7, ErrorMessage = "Secondary color must be a hex value")]
+    [RegularExpression(@"^#[0-9A-Fa-f]{6}$", ErrorMessage = "Secondary color must be a valid hex color")]
+    public string? WidgetSecondaryColor { get; set; }
+
+    [RegularExpression(@"^(light|dark|auto)$", ErrorMessage = "Default theme must be 'light', 'dark', or 'auto'")]
+    public string WidgetDefaultTheme { get; set; } = "auto";
 }
 
 public class UniversityWithCoursesDto

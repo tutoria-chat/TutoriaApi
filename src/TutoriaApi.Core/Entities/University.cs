@@ -36,6 +36,7 @@ public class University : BaseEntity
     public int? MaxStudents { get; set; }
 
     // Navigation properties
+    public UniversityPersonalization? Personalization { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Professor> Professors { get; set; } = new List<Professor>();
 }

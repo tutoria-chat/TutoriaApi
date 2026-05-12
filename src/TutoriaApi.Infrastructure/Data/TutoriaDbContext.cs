@@ -64,6 +64,7 @@ public class TutoriaDbContext : DbContext
     }
 
     public DbSet<University> Universities { get; set; }
+    public DbSet<UniversityPersonalization> UniversityPersonalizations { get; set; }
     public DbSet<Course> Courses { get; set; }
     public DbSet<Module> Modules { get; set; }
     public DbSet<AIModel> AIModels { get; set; }
@@ -979,6 +980,26 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Module)
                 .WithMany()
                 .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UniversityPersonalization>(entity =>
+        {
+            entity.ToTable("UniversityPersonalizations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId").IsRequired();
+            entity.Property(e => e.PrimaryColor).HasColumnName("PrimaryColor").HasMaxLength(7);
+            entity.Property(e => e.SecondaryColor).HasColumnName("SecondaryColor").HasMaxLength(7);
+            entity.Property(e => e.DefaultTheme).HasColumnName("DefaultTheme").HasMaxLength(10).HasDefaultValue("auto");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.UniversityId).IsUnique();
+
+            entity.HasOne(e => e.University)
+                .WithOne(u => u.Personalization)
+                .HasForeignKey<UniversityPersonalization>(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

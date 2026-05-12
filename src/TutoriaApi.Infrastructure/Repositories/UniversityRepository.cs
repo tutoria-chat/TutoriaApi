@@ -47,7 +47,7 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
 
     public async Task<(IEnumerable<University> Items, int Total)> SearchAsync(string? search, int page, int pageSize)
     {
-        var query = _dbSet.AsQueryable();
+        var query = _dbSet.Include(u => u.Personalization).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(search))
         {
