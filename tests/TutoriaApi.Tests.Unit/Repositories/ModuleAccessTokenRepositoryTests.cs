@@ -266,8 +266,8 @@ public class ModuleAccessTokenRepositoryTests : IDisposable
     [Fact]
     public async Task SearchAsync_WithEmptyAllowedModuleIds_ReturnsNoTokens()
     {
-        // Act - Repository implementation doesn't filter on empty list, only on non-null with items
-        // So passing empty list returns all tokens (not filtered)
+        // Act - An empty (non-null) list means "user has no allowed modules",
+        // so the filter IS applied and zero rows should be returned.
         var (items, total) = await _repository.SearchAsync(
             moduleId: null,
             universityId: null,
@@ -276,9 +276,9 @@ public class ModuleAccessTokenRepositoryTests : IDisposable
             pageSize: 10,
             allowedModuleIds: new List<int>());
 
-        // Assert - Empty list doesn't filter, this is expected behavior
-        // The service layer should handle authorization filtering
-        Assert.Equal(2, total); // All tokens returned when empty list provided
+        // Assert - Empty list applies the filter and returns nothing (not all tokens)
+        Assert.Equal(0, total);
+        Assert.Empty(items);
     }
 
     [Fact]
