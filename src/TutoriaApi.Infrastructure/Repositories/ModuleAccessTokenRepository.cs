@@ -42,8 +42,9 @@ public class ModuleAccessTokenRepository : Repository<ModuleAccessToken>, IModul
                 .ThenInclude(m => m.Course)
             .AsQueryable();
 
-        // Access control filter
-        if (allowedModuleIds != null && allowedModuleIds.Any())
+        // Access control filter. An empty list MUST still apply so a user with no
+        // allowed modules sees zero tokens rather than every token in the system.
+        if (allowedModuleIds != null)
         {
             query = query.Where(t => allowedModuleIds.Contains(t.ModuleId));
         }

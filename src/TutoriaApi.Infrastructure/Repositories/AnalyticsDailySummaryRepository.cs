@@ -20,7 +20,8 @@ public class AnalyticsDailySummaryRepository : IAnalyticsDailySummaryRepository
         var query = _context.AnalyticsDailySummaries
             .Where(a => a.Date >= startDate && a.Date <= endDate);
 
-        if (moduleIds != null && moduleIds.Any())
+        // null = no restriction; empty list = caller has no modules, return nothing
+        if (moduleIds != null)
         {
             query = query.Where(a => moduleIds.Contains(a.ModuleId));
         }

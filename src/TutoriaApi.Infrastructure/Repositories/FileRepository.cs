@@ -33,8 +33,10 @@ public class FileRepository : Repository<FileEntity>, IFileRepository
                 .ThenInclude(m => m.Course)
             .AsQueryable();
 
-        // Access control filter (exclude professor agent files which have no module)
-        if (allowedModuleIds != null && allowedModuleIds.Any())
+        // Access control filter (exclude professor agent files which have no module).
+        // An empty list MUST still apply so a user with no allowed modules sees zero
+        // files rather than every file in the system.
+        if (allowedModuleIds != null)
         {
             query = query.Where(f => f.ModuleId.HasValue && allowedModuleIds.Contains(f.ModuleId.Value));
         }
