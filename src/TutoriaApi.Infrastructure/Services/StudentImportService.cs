@@ -59,7 +59,8 @@ public class StudentImportService : IStudentImportService
             maxStudents = subscription?.Plan?.MaxStudents;
         }
 
-        if (maxStudents.HasValue)
+        // 0 is treated as unlimited (same as null); only enforce when a positive cap is set
+        if (maxStudents.HasValue && maxStudents.Value > 0)
         {
             // Count how many rows would result in NEW enrollments at this university.
             // A student already enrolled in any course at this university doesn't consume

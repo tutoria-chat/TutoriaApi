@@ -114,7 +114,8 @@ public class SubscriptionsController : BaseAuthController
             };
 
             // Compute over-limit IDs (newest items that exceed the limit)
-            if (coursesUsed > maxCourses)
+            // 0 is treated as unlimited; only flag over-limit when a positive cap is set
+            if (maxCourses > 0 && coursesUsed > maxCourses)
             {
                 limits.OverLimitCourseIds = await _dbContext.Courses
                     .Where(c => c.UniversityId == universityId)
@@ -124,7 +125,7 @@ public class SubscriptionsController : BaseAuthController
                     .ToListAsync();
             }
 
-            if (modulesUsed > maxModules)
+            if (maxModules > 0 && modulesUsed > maxModules)
             {
                 limits.OverLimitModuleIds = await _dbContext.Modules
                     .Where(m => m.Course.UniversityId == universityId)
@@ -134,7 +135,7 @@ public class SubscriptionsController : BaseAuthController
                     .ToListAsync();
             }
 
-            if (maxStudents.HasValue && studentsUsed > maxStudents.Value)
+            if (maxStudents.HasValue && maxStudents.Value > 0 && studentsUsed > maxStudents.Value)
             {
                 // Get the newest student IDs that exceed the limit
                 var allStudentIds = await _dbContext.StudentCourses
