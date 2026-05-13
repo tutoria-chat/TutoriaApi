@@ -240,8 +240,10 @@ public class UserRepository : IUserRepository
             .Where(u => u.UserType == "student")
             .AsQueryable();
 
-        // Filter by student IDs (for course-specific queries)
-        if (filterByStudentIds != null && filterByStudentIds.Any())
+        // Filter by student IDs (for course-specific queries). An empty list MUST
+        // still apply the filter so a course with no enrolled students returns no
+        // rows; otherwise every student in the system is returned.
+        if (filterByStudentIds != null)
         {
             query = query.Where(u => filterByStudentIds.Contains(u.UserId));
         }
