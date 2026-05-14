@@ -30,7 +30,16 @@ public class AssignmentService : IAssignmentService
     public async Task<(List<Assignment> Items, int Total)> GetPagedAsync(
         int moduleId, int page, int pageSize, User currentUser)
     {
-        await EnsureModuleAccessAsync(moduleId, currentUser);
+        var module = await _moduleRepository.GetWithDetailsAsync(moduleId)
+            ?? throw new KeyNotFoundException($"Module {moduleId} not found");
+
+        var university = module.Course?.University
+            ?? throw new InvalidOperationException("Module is not linked to a university");
+
+        if (!university.HasAssignments)
+            throw new UnauthorizedAccessException("Assignments feature is not enabled for this university");
+
+        await EnsureModuleAccessAsync(moduleId, currentUser, module);
         return await _assignmentRepository.GetPagedByModuleIdAsync(moduleId, page, pageSize);
     }
 
@@ -46,11 +55,16 @@ public class AssignmentService : IAssignmentService
             ? _blobStorageService.GetDownloadUrl(assignment.RubricS3Key, expiresInHours: 1)
             : null;
 
+        var contextFiles = assignment.ContextFiles
+            .Select(f => (f, _blobStorageService.GetDownloadUrl(f.S3Key, expiresInHours: 1)))
+            .ToList();
+
         return new AssignmentWithDownloadUrl
         {
             Assignment = assignment,
             DownloadUrl = downloadUrl,
             RubricDownloadUrl = rubricDownloadUrl,
+            ContextFiles = contextFiles,
         };
     }
 
@@ -59,7 +73,8 @@ public class AssignmentService : IAssignmentService
         string? keywords,
         Stream fileStream, string originalFileName, string contentType, long fileSize,
         Stream? rubricStream, string? rubricFileName, string? rubricContentType, long? rubricSize,
-        User currentUser)
+        User currentUser,
+        List<ContextFileUpload>? contextFiles = null)
     {
         var module = await _moduleRepository.GetWithDetailsAsync(moduleId)
             ?? throw new KeyNotFoundException($"Module {moduleId} not found");
@@ -104,7 +119,29 @@ public class AssignmentService : IAssignmentService
         };
 
         await _assignmentRepository.AddAsync(assignment);
-        _logger.LogInformation("Created assignment '{Title}' for module {ModuleId}", title, moduleId);
+
+        if (contextFiles?.Count > 0)
+        {
+            var contextEntities = new List<AssignmentContextFile>();
+            foreach (var cf in contextFiles)
+            {
+                var ext = Path.GetExtension(cf.FileName);
+                var cfKey = $"assignments/{moduleId}/context_{Guid.NewGuid()}{ext}";
+                await _blobStorageService.UploadFileAsync(cf.Stream, cfKey, cf.ContentType);
+                contextEntities.Add(new AssignmentContextFile
+                {
+                    AssignmentId = assignment.Id,
+                    S3Key = cfKey,
+                    OriginalFileName = cf.FileName,
+                    ContentType = cf.ContentType,
+                    FileSizeBytes = cf.Size,
+                });
+            }
+            await _assignmentRepository.AddContextFilesAsync(contextEntities);
+        }
+
+        _logger.LogInformation("Created assignment '{Title}' for module {ModuleId} with {ContextCount} context files",
+            title, moduleId, contextFiles?.Count ?? 0);
         return assignment;
     }
 

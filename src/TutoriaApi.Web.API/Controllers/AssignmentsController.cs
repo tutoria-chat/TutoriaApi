@@ -55,6 +55,13 @@ public class AssignmentsController : ControllerBase
                 Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 RubricOriginalFileName = a.RubricOriginalFileName,
                 CreatedByUserId = a.CreatedByUserId,
+                ContextFiles = a.ContextFiles.Select(cf => new AssignmentContextFileDto
+                {
+                    Id = cf.Id,
+                    OriginalFileName = cf.OriginalFileName,
+                    FileSizeBytes = cf.FileSizeBytes,
+                    ContentType = cf.ContentType,
+                }).ToList(),
                 CreatedAt = a.CreatedAt,
                 UpdatedAt = a.UpdatedAt,
             }).ToList();
@@ -105,6 +112,14 @@ public class AssignmentsController : ControllerBase
                 CreatedByUserId = a.CreatedByUserId,
                 DownloadUrl = result.DownloadUrl,
                 RubricDownloadUrl = result.RubricDownloadUrl,
+                ContextFiles = result.ContextFiles.Select(cf => new AssignmentContextFileDto
+                {
+                    Id = cf.File.Id,
+                    OriginalFileName = cf.File.OriginalFileName,
+                    FileSizeBytes = cf.File.FileSizeBytes,
+                    ContentType = cf.File.ContentType,
+                    DownloadUrl = cf.DownloadUrl,
+                }).ToList(),
                 CreatedAt = a.CreatedAt,
                 UpdatedAt = a.UpdatedAt,
             });
@@ -125,8 +140,8 @@ public class AssignmentsController : ControllerBase
     }
 
     [HttpPost]
-    [RequestSizeLimit(62914560)] // 60 MB to accommodate two files
-    [RequestFormLimits(MultipartBodyLengthLimit = 62914560)]
+    [RequestSizeLimit(209715200)] // 200 MB to accommodate multiple context files
+    [RequestFormLimits(MultipartBodyLengthLimit = 209715200)]
     public async Task<ActionResult<AssignmentDetailDto>> CreateAssignment([FromForm] AssignmentCreateRequest request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
@@ -138,10 +153,25 @@ public class AssignmentsController : ControllerBase
         if (request.RubricFile != null && !allowedTypes.Contains(request.RubricFile.ContentType))
             return BadRequest(new { message = "Only PDF and DOCX files are allowed for the rubric" });
 
+        if (request.ContextFiles != null)
+        {
+            var invalidContextFile = request.ContextFiles.FirstOrDefault(f => !allowedTypes.Contains(f.ContentType));
+            if (invalidContextFile != null)
+                return BadRequest(new { message = $"Context file '{invalidContextFile.FileName}' must be a PDF or DOCX" });
+        }
+
         try
         {
             using var stream = request.File.OpenReadStream();
             Stream? rubricStream = request.RubricFile != null ? request.RubricFile.OpenReadStream() : null;
+
+            List<ContextFileUpload>? contextUploads = null;
+            if (request.ContextFiles?.Count > 0)
+            {
+                contextUploads = request.ContextFiles
+                    .Select(f => new ContextFileUpload(f.OpenReadStream(), f.FileName, f.ContentType, f.Length))
+                    .ToList();
+            }
 
             var assignment = await _assignmentService.CreateAsync(
                 request.ModuleId,
@@ -157,9 +187,12 @@ public class AssignmentsController : ControllerBase
                 request.RubricFile?.FileName,
                 request.RubricFile?.ContentType,
                 request.RubricFile?.Length,
-                _currentUserService.GetCurrentUser());
+                _currentUserService.GetCurrentUser(),
+                contextUploads);
 
             rubricStream?.Dispose();
+            if (contextUploads != null)
+                foreach (var cu in contextUploads) await cu.Stream.DisposeAsync();
 
             return CreatedAtAction(nameof(GetAssignment), new { id = assignment.Id }, new AssignmentDetailDto
             {
@@ -176,6 +209,7 @@ public class AssignmentsController : ControllerBase
                 Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
                 RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
+                ContextFiles = [],
                 CreatedAt = assignment.CreatedAt,
                 UpdatedAt = assignment.UpdatedAt,
             });

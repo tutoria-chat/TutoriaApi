@@ -31,4 +31,7 @@ public class Assignment : BaseEntity
     public User CreatedBy { get; set; } = null!;
 
     public ICollection<AssignmentSubmission> Submissions { get; set; } = new List<AssignmentSubmission>();
+
+    /// <summary>Supplementary reference files professors upload alongside the assignment.</summary>
+    public ICollection<AssignmentContextFile> ContextFiles { get; set; } = new List<AssignmentContextFile>();
 }

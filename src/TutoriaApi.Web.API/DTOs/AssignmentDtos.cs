@@ -2,6 +2,15 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TutoriaApi.Web.API.DTOs;
 
+public class AssignmentContextFileDto
+{
+    public int Id { get; set; }
+    public string OriginalFileName { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+    public string ContentType { get; set; } = string.Empty;
+    public string? DownloadUrl { get; set; }
+}
+
 public class AssignmentListDto
 {
     public int Id { get; set; }
@@ -17,6 +26,7 @@ public class AssignmentListDto
     public string[] Keywords { get; set; } = [];
     public string? RubricOriginalFileName { get; set; }
     public int CreatedByUserId { get; set; }
+    public List<AssignmentContextFileDto> ContextFiles { get; set; } = [];
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -48,6 +58,9 @@ public class AssignmentCreateRequest
 
     /// Optional rubric / evaluation criteria file
     public IFormFile? RubricFile { get; set; }
+
+    /// Optional supplementary context files (reference material for AI grading)
+    public List<IFormFile>? ContextFiles { get; set; }
 }
 
 public class AssignmentUpdateRequest

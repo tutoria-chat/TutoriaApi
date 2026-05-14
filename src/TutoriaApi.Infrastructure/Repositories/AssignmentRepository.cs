@@ -16,6 +16,7 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
     {
         var query = _dbSet
             .Include(a => a.CreatedBy)
+            .Include(a => a.ContextFiles)
             .Where(a => a.ModuleId == moduleId && a.IsActive);
 
         if (!includeUnpublished)
@@ -38,7 +39,14 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
                 .ThenInclude(m => m.Course)
                     .ThenInclude(c => c.University)
             .Include(a => a.CreatedBy)
+            .Include(a => a.ContextFiles)
             .FirstOrDefaultAsync(a => a.Id == id);
+    }
+
+    public async Task AddContextFilesAsync(IEnumerable<AssignmentContextFile> contextFiles)
+    {
+        await _context.Set<AssignmentContextFile>().AddRangeAsync(contextFiles);
+        await _context.SaveChangesAsync();
     }
 
     public async Task<List<Assignment>> GetPublishedByModuleIdAsync(int moduleId)

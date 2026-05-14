@@ -98,6 +98,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<TopicClassification> TopicClassifications { get; set; }
     public DbSet<QuizAnalytic> QuizAnalytics { get; set; }
     public DbSet<Assignment> Assignments { get; set; }
+    public DbSet<AssignmentContextFile> AssignmentContextFiles { get; set; }
     public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -924,6 +925,21 @@ public class TutoriaDbContext : DbContext
                 .HasForeignKey(e => e.CreatedByUserId)
                 .HasPrincipalKey(u => u.UserId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // AssignmentContextFile configuration
+        modelBuilder.Entity<AssignmentContextFile>(entity =>
+        {
+            entity.ToTable("AssignmentContextFiles");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.S3Key).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.OriginalFileName).HasMaxLength(255).IsRequired();
+            entity.Property(e => e.ContentType).HasMaxLength(100).IsRequired();
+
+            entity.HasOne(e => e.Assignment)
+                .WithMany(a => a.ContextFiles)
+                .HasForeignKey(e => e.AssignmentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // AssignmentSubmission configuration
