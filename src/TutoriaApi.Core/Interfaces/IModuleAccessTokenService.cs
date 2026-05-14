@@ -28,7 +28,8 @@ public interface IModuleAccessTokenService
         bool? isActive,
         int page,
         int pageSize,
-        User? currentUser);
+        User? currentUser,
+        string? search = null);
     Task<ModuleAccessTokenDetailViewModel> CreateAsync(
         int moduleId,
         string name,

@@ -35,6 +35,7 @@ public class ModuleAccessTokenRepository : Repository<ModuleAccessToken>, IModul
         bool? isActive,
         int page,
         int pageSize,
+        string? search = null,
         List<int>? allowedModuleIds = null)
     {
         var query = _dbSet
@@ -63,6 +64,14 @@ public class ModuleAccessTokenRepository : Repository<ModuleAccessToken>, IModul
         if (isActive.HasValue)
         {
             query = query.Where(t => t.IsActive == isActive.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            query = query.Where(t =>
+                t.Name.Contains(search) ||
+                (t.Description != null && t.Description.Contains(search)) ||
+                t.Module.Name.Contains(search));
         }
 
         var total = await query.CountAsync();

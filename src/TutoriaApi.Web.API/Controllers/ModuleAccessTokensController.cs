@@ -51,7 +51,8 @@ public class ModuleAccessTokensController : ControllerBase
         [FromQuery] int size = 10,
         [FromQuery] int? moduleId = null,
         [FromQuery] int? universityId = null,
-        [FromQuery] bool? isActive = null)
+        [FromQuery] bool? isActive = null,
+        [FromQuery] string? search = null)
     {
         if (page < 1) page = 1;
         if (size < 1) size = 10;
@@ -65,7 +66,8 @@ public class ModuleAccessTokensController : ControllerBase
                 isActive,
                 page,
                 size,
-                _currentUserService.GetCurrentUser());
+                _currentUserService.GetCurrentUser(),
+                search);
 
             var items = viewModels.Select(vm => new ModuleAccessTokenListDto
             {

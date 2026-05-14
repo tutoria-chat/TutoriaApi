@@ -51,7 +51,8 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
         bool? isActive,
         int page,
         int pageSize,
-        User? currentUser)
+        User? currentUser,
+        string? search = null)
     {
         // Get accessible module IDs based on user role
         List<int>? allowedModuleIds = null;
@@ -95,6 +96,7 @@ public class ModuleAccessTokenService : IModuleAccessTokenService
             isActive,
             page,
             pageSize,
+            search,
             allowedModuleIds);
 
         var viewModels = tokens.Select(t => new ModuleAccessTokenListViewModel

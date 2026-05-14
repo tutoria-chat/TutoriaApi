@@ -12,6 +12,7 @@ public interface IModuleAccessTokenRepository : IRepository<ModuleAccessToken>
         bool? isActive,
         int page,
         int pageSize,
+        string? search = null,
         List<int>? allowedModuleIds = null);
     Task<List<ModuleAccessToken>> GetByModuleIdAsync(int moduleId);
     Task<bool> ExistsByTokenAsync(string token);
