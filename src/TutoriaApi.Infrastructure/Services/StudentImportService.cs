@@ -1,6 +1,10 @@
+using System.Globalization;
+using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OfficeOpenXml;
 using TutoriaApi.Core.Entities;
@@ -17,6 +21,8 @@ public class StudentImportService : IStudentImportService
     private readonly IStudentImportJobRepository _importJobRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly ILogger<StudentImportService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     public StudentImportService(
         TutoriaDbContext context,
@@ -24,7 +30,9 @@ public class StudentImportService : IStudentImportService
         IStudentCourseRepository studentCourseRepository,
         IStudentImportJobRepository importJobRepository,
         ISubscriptionRepository subscriptionRepository,
-        ILogger<StudentImportService> logger)
+        ILogger<StudentImportService> logger,
+        IConfiguration configuration,
+        IHttpClientFactory httpClientFactory)
     {
         _context = context;
         _courseRepository = courseRepository;
@@ -32,6 +40,8 @@ public class StudentImportService : IStudentImportService
         _importJobRepository = importJobRepository;
         _subscriptionRepository = subscriptionRepository;
         _logger = logger;
+        _configuration = configuration;
+        _httpClientFactory = httpClientFactory;
     }
 
     public async Task<StudentImportResult> ImportStudentsFromFileAsync(int courseId, IFormFile file, User currentUser)
@@ -357,7 +367,7 @@ public class StudentImportService : IStudentImportService
             .Select(h => h.Trim().ToLower().Trim('"'))
             .ToList();
 
-        var columnMap = MapColumns(headers);
+        var columnMap = await MapColumnsAsync(headers);
 
         // Read data rows
         string? line;
@@ -417,7 +427,17 @@ public class StudentImportService : IStudentImportService
             headers.Add(headerValue);
         }
 
-        var columnMap = MapColumns(headers);
+        // Collect up to 3 sample rows to help AI fallback if needed
+        var sampleValues = new List<List<string>>();
+        for (int sampleRow = 2; sampleRow <= Math.Min(4, rowCount); sampleRow++)
+        {
+            var rowValues = new List<string>();
+            for (int col = 1; col <= colCount; col++)
+                rowValues.Add(worksheet.Cells[sampleRow, col].Text?.Trim() ?? string.Empty);
+            sampleValues.Add(rowValues);
+        }
+
+        var columnMap = await MapColumnsAsync(headers, sampleValues);
 
         // Read data rows
         for (int row = 2; row <= rowCount; row++)
@@ -446,35 +466,244 @@ public class StudentImportService : IStudentImportService
         return rows;
     }
 
-    private static ColumnMapping MapColumns(List<string> headers)
+    // ── Column mapping ──────────────────────────────────────────────────────────
+
+    // Pass 1: exact match after diacritic normalization (handles accented headers
+    //         like "Matrícula" → "matricula", "Endereço de e-mail" → "endereco de e-mail")
+    // Pass 2: substring/contains match for headers that embed the key term
+    // Pass 3: fuzzy match (FuzzySharp) for typos / slight variations
+    // Pass 4: AI fallback (OpenAI gpt-4o-mini) when all heuristics fail
+
+    private async Task<ColumnMapping> MapColumnsAsync(
+        List<string> headers, List<List<string>>? sampleRows = null)
     {
         var map = new ColumnMapping
         {
-            MatriculaIndex = FindColumnIndex(headers, "matricula", "registration", "student_id", "studentid", "external_id", "externalid", "id"),
-            EmailIndex = FindColumnIndex(headers, "email", "e-mail", "e_mail", "correo"),
-            FirstNameIndex = FindColumnIndex(headers, "first_name", "firstname", "nome", "first name", "nombre", "given_name"),
-            LastNameIndex = FindColumnIndex(headers, "last_name", "lastname", "sobrenome", "last name", "apellido", "family_name", "surname")
+            EmailIndex     = FindColumnIndex(headers,
+                "email", "e-mail", "e_mail", "correo", "mail",
+                "endereco de e-mail", "endereço de e-mail",
+                "email address", "e-mail address", "correo electronico",
+                "e-mail institucional", "email institucional",
+                "electronic mail", "correo del alumno"),
+
+            MatriculaIndex = FindColumnIndex(headers,
+                "matricula", "matrícula", "registration", "student_id", "studentid",
+                "external_id", "externalid", "id", "enrollment",
+                "numero de matricula", "número de matrícula",
+                "id do aluno", "id aluno", "codigo do aluno",
+                "ra", "id estudiantil", "numero de estudiante"),
+
+            FirstNameIndex = FindColumnIndex(headers,
+                "first_name", "firstname", "nome", "first name",
+                "nombre", "given_name", "given name", "primeiro nome",
+                "name", "first", "prenom", "vorname"),
+
+            LastNameIndex  = FindColumnIndex(headers,
+                "last_name", "lastname", "sobrenome", "last name",
+                "apellido", "family_name", "family name", "surname",
+                "segundo nome", "apelido", "nachname", "nom de famille")
         };
 
-        // If no email column found, throw
+        // Pass 2 — contains matching for any still-unresolved fields
+        if (map.EmailIndex < 0)
+            map.EmailIndex = FindColumnIndexContaining(headers, "email", "e-mail");
+        if (map.MatriculaIndex < 0)
+            map.MatriculaIndex = FindColumnIndexContaining(headers, "matricul", "matric", "enrollment", "student_id", "studentid");
+        if (map.FirstNameIndex < 0)
+            map.FirstNameIndex = FindColumnIndexContaining(headers, "firstname", "first_name", "primeiro", "given_name");
+        if (map.LastNameIndex < 0)
+            map.LastNameIndex = FindColumnIndexContaining(headers, "lastname", "last_name", "sobrenome", "surname", "apellido", "family");
+
+        // Pass 3 — fuzzy matching (≥ 85 similarity) for typos / transliterations
+        const int FuzzyThreshold = 85;
+        if (map.EmailIndex < 0)
+            map.EmailIndex = FindColumnIndexFuzzy(headers, FuzzyThreshold, "email", "e-mail", "correo", "mail");
+        if (map.MatriculaIndex < 0)
+            map.MatriculaIndex = FindColumnIndexFuzzy(headers, FuzzyThreshold, "matricula", "registration", "student id", "enrollment");
+        if (map.FirstNameIndex < 0)
+            map.FirstNameIndex = FindColumnIndexFuzzy(headers, FuzzyThreshold, "first name", "firstname", "nome", "nombre");
+        if (map.LastNameIndex < 0)
+            map.LastNameIndex = FindColumnIndexFuzzy(headers, FuzzyThreshold, "last name", "lastname", "sobrenome", "apellido", "surname");
+
+        // Pass 4 — AI fallback when we still can't identify the email column
+        if (map.EmailIndex < 0)
+        {
+            _logger.LogWarning(
+                "Could not identify email column from headers {Headers} using heuristics — attempting AI fallback",
+                string.Join(", ", headers));
+
+            var aiMap = await TryAiColumnMappingAsync(headers, sampleRows);
+            if (aiMap != null)
+            {
+                if (map.EmailIndex < 0)     map.EmailIndex     = aiMap.EmailIndex;
+                if (map.MatriculaIndex < 0) map.MatriculaIndex = aiMap.MatriculaIndex;
+                if (map.FirstNameIndex < 0) map.FirstNameIndex = aiMap.FirstNameIndex;
+                if (map.LastNameIndex < 0)  map.LastNameIndex  = aiMap.LastNameIndex;
+            }
+        }
+
         if (map.EmailIndex < 0)
         {
             throw new InvalidOperationException(
-                "Could not find an 'email' column in the file. " +
-                "Expected column headers: email, matricula, first_name/nome, last_name/sobrenome");
+                $"Could not identify the email column. " +
+                $"Headers found: [{string.Join(", ", headers)}]. " +
+                "Please ensure your file has a column for email addresses.");
         }
 
         return map;
     }
 
+    // Exact alias match after diacritic normalization (pass 1)
     private static int FindColumnIndex(List<string> headers, params string[] possibleNames)
     {
+        var normalizedAliases = possibleNames.Select(NormalizeHeader).ToArray();
         for (int i = 0; i < headers.Count; i++)
         {
-            if (possibleNames.Any(name => string.Equals(headers[i], name, StringComparison.OrdinalIgnoreCase)))
+            var normalized = NormalizeHeader(headers[i]);
+            if (normalizedAliases.Any(alias => string.Equals(normalized, alias, StringComparison.Ordinal)))
                 return i;
         }
         return -1;
+    }
+
+    // Substring/contains match after normalization (pass 2)
+    private static int FindColumnIndexContaining(List<string> headers, params string[] keywords)
+    {
+        var normalizedKeywords = keywords.Select(NormalizeHeader).ToArray();
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var normalized = NormalizeHeader(headers[i]);
+            if (normalizedKeywords.Any(kw => normalized.Contains(kw, StringComparison.Ordinal)))
+                return i;
+        }
+        return -1;
+    }
+
+    // Fuzzy match using FuzzySharp (pass 3)
+    private static int FindColumnIndexFuzzy(List<string> headers, int threshold, params string[] candidates)
+    {
+        var normalizedCandidates = candidates.Select(NormalizeHeader).ToArray();
+        var bestScore = 0;
+        var bestIndex = -1;
+
+        for (int i = 0; i < headers.Count; i++)
+        {
+            var normalized = NormalizeHeader(headers[i]);
+            foreach (var candidate in normalizedCandidates)
+            {
+                var score = FuzzySharp.Fuzz.Ratio(normalized, candidate);
+                if (score > bestScore && score >= threshold)
+                {
+                    bestScore = score;
+                    bestIndex = i;
+                }
+            }
+        }
+        return bestIndex;
+    }
+
+    // AI fallback — calls OpenAI gpt-4o-mini to identify column mapping (pass 4)
+    private async Task<ColumnMapping?> TryAiColumnMappingAsync(
+        List<string> headers, List<List<string>>? sampleRows)
+    {
+        try
+        {
+            var apiKey = _configuration["OpenAI:ApiKey"];
+            if (string.IsNullOrWhiteSpace(apiKey) || apiKey.StartsWith("your-", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("OpenAI API key not configured — skipping AI column mapping fallback");
+                return null;
+            }
+
+            var headersJson = JsonSerializer.Serialize(headers);
+            var sampleJson  = sampleRows is { Count: > 0 }
+                ? $"\n\nSample data rows (first {sampleRows.Count}):\n{JsonSerializer.Serialize(sampleRows)}"
+                : string.Empty;
+
+            var prompt = $$"""
+                You are analyzing a spreadsheet header row to map columns for a student import.
+
+                Headers (0-indexed): {{headersJson}}{{sampleJson}}
+
+                Identify which 0-based column index contains each of the following fields.
+                Use -1 when a field is absent.
+
+                Return ONLY a valid JSON object with exactly these four keys and no explanation:
+                {"emailIndex":<int>,"matriculaIndex":<int>,"firstNameIndex":<int>,"lastNameIndex":<int>}
+                """;
+
+            var requestBody = new
+            {
+                model    = "gpt-4o-mini",
+                messages = new[] { new { role = "user", content = prompt } },
+                temperature = 0,
+                max_tokens  = 80
+            };
+
+            using var http = _httpClientFactory.CreateClient();
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+            var response = await http.PostAsJsonAsync(
+                "https://api.openai.com/v1/chat/completions", requestBody);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("OpenAI column mapping returned {Status}", response.StatusCode);
+                return null;
+            }
+
+            var json    = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var content = doc.RootElement
+                .GetProperty("choices")[0]
+                .GetProperty("message")
+                .GetProperty("content")
+                .GetString()?.Trim();
+
+            if (string.IsNullOrWhiteSpace(content)) return null;
+
+            // Strip potential markdown code fences
+            content = content.Trim('`').TrimStart('j', 's', 'o', 'n').Trim();
+
+            using var aiDoc = JsonDocument.Parse(content);
+            var root = aiDoc.RootElement;
+
+            int GetIdx(string key) =>
+                root.TryGetProperty(key, out var el) ? el.GetInt32() : -1;
+
+            var result = new ColumnMapping
+            {
+                EmailIndex     = GetIdx("emailIndex"),
+                MatriculaIndex = GetIdx("matriculaIndex"),
+                FirstNameIndex = GetIdx("firstNameIndex"),
+                LastNameIndex  = GetIdx("lastNameIndex")
+            };
+
+            _logger.LogInformation(
+                "AI column mapping result: email={E} matricula={M} firstName={F} lastName={L}",
+                result.EmailIndex, result.MatriculaIndex, result.FirstNameIndex, result.LastNameIndex);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AI column mapping failed — will report unmapped columns to user");
+            return null;
+        }
+    }
+
+    // Strips diacritics and lowercases a header for comparison
+    private static string NormalizeHeader(string header)
+    {
+        var decomposed = header.ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(decomposed.Length);
+        foreach (var ch in decomposed)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(ch) != UnicodeCategory.NonSpacingMark)
+                sb.Append(ch);
+        }
+        return sb.ToString().Normalize(NormalizationForm.FormC).Trim();
     }
 
     private static List<string> SplitCsvLine(string line, char delimiter)
