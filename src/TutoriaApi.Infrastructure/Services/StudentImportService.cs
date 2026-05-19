@@ -200,6 +200,19 @@ public class StudentImportService : IStudentImportService
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(row.Matricula))
+        {
+            result.ErrorCount++;
+            result.Errors.Add(new StudentImportError
+            {
+                Row = rowNumber,
+                Matricula = row.Matricula,
+                Email = row.Email,
+                Reason = "Matricula is required"
+            });
+            return;
+        }
+
         var email = row.Email.Trim().ToLower();
         var matricula = row.Matricula?.Trim();
 
