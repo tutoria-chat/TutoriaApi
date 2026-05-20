@@ -9,20 +9,17 @@ public class AssignmentService : IAssignmentService
 {
     private readonly IAssignmentRepository _assignmentRepository;
     private readonly IModuleRepository _moduleRepository;
-    private readonly IProfessorCourseRepository _professorCourseRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ILogger<AssignmentService> _logger;
 
     public AssignmentService(
         IAssignmentRepository assignmentRepository,
         IModuleRepository moduleRepository,
-        IProfessorCourseRepository professorCourseRepository,
         IBlobStorageService blobStorageService,
         ILogger<AssignmentService> logger)
     {
         _assignmentRepository = assignmentRepository;
         _moduleRepository = moduleRepository;
-        _professorCourseRepository = professorCourseRepository;
         _blobStorageService = blobStorageService;
         _logger = logger;
     }
@@ -196,27 +193,15 @@ public class AssignmentService : IAssignmentService
 
         var moduleUniversityId = module.Course?.UniversityId;
 
-        if (currentUser.UserType is UserTypes.Manager or UserTypes.Tutor or UserTypes.PlatformCoordinator)
+        // All university-scoped staff roles require only that the module belongs to their
+        // university — the same rule the module detail page uses. Professors are not further
+        // restricted to courses they are assigned to; if they can open the module page they
+        // should also be able to see its assignments.
+        if (currentUser.UserType is UserTypes.Manager or UserTypes.Tutor
+            or UserTypes.PlatformCoordinator or UserTypes.Professor)
         {
             if (moduleUniversityId != currentUser.UniversityId)
                 throw new UnauthorizedAccessException("Access denied: module belongs to a different university");
-            return;
-        }
-
-        if (currentUser.UserType == UserTypes.Professor)
-        {
-            if (moduleUniversityId != currentUser.UniversityId)
-                throw new UnauthorizedAccessException("Access denied: module belongs to a different university");
-
-            // IsAdmin professors keep university-wide access for backwards compat;
-            // regular professors must be assigned to the module's course.
-            if (!(currentUser.IsAdmin ?? false))
-            {
-                var assigned = await _professorCourseRepository.IsProfessorAssignedToCourseAsync(
-                    currentUser.UserId, module.CourseId);
-                if (!assigned)
-                    throw new UnauthorizedAccessException("Access denied: not assigned to this course");
-            }
             return;
         }
 
