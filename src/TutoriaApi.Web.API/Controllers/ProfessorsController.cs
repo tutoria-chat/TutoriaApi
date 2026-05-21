@@ -202,7 +202,7 @@ public class ProfessorsController : ControllerBase
 
             var courseIds = await _professorService.GetProfessorCourseIdsAsync(id, currentUser);
 
-            return Ok(new { course_ids = courseIds });
+            return Ok(new { CourseIds = courseIds });
         }
         catch (UnauthorizedAccessException ex)
         {
