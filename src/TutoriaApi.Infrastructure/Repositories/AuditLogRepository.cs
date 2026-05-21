@@ -64,6 +64,7 @@ public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
         var total = await query.CountAsync();
 
         var items = await query
+            .Include(a => a.User)
             .OrderByDescending(a => a.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
@@ -91,6 +92,7 @@ public class AuditLogRepository : Repository<AuditLog>, IAuditLogRepository
         if (endDate.HasValue) query = query.Where(a => a.CreatedAt <= endDate.Value);
 
         return await query
+            .Include(a => a.User)
             .OrderByDescending(a => a.CreatedAt)
             .Take(10000)  // Safety limit for exports
             .ToListAsync();

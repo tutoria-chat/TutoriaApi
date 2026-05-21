@@ -119,7 +119,9 @@ public class AuditLogsController : ControllerBase
         {
             Id = log.Id,
             UserId = log.UserId,
-            Username = log.Username,
+            Username = !string.IsNullOrEmpty(log.Username)
+                ? log.Username
+                : log.User?.Username ?? $"#{log.UserId}",
             UniversityId = log.UniversityId,
             Action = log.Action,
             EntityType = log.EntityType,

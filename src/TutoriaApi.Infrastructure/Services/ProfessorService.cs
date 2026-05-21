@@ -254,9 +254,18 @@ public class ProfessorService : IProfessorService
             throw new KeyNotFoundException("Professor not found");
         }
 
+        // Tenant isolation: managers can only update professors in their own university
+        if (currentUser.UserType == UserTypes.Manager
+            && professor.UniversityId != currentUser.UniversityId)
+        {
+            throw new UnauthorizedAccessException("Managers can only update professors in their own university");
+        }
+
         // Determine allowed fields based on permissions
         var isUpdatingSelf = currentUser.UserId == id;
-        var isAdminUser = currentUser.UserType == "super_admin" || (currentUser.IsAdmin ?? false);
+        var isAdminUser = currentUser.UserType == "super_admin"
+            || currentUser.UserType == UserTypes.Manager
+            || (currentUser.IsAdmin ?? false);
 
         // Non-admin professors can only update certain fields about themselves
         if (isUpdatingSelf && !isAdminUser)
