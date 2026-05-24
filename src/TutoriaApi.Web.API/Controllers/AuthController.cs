@@ -301,6 +301,9 @@ public class AuthController : ControllerBase
         string[] scopes = user.UserType switch
         {
             "super_admin" => new[] { "api.read", "api.write", "api.admin" },
+            "manager" => new[] { "api.read", "api.write", "api.manage" },
+            "tutor" => new[] { "api.read", "api.write" },
+            "platform_coordinator" => new[] { "api.read", "api.write" },
             "professor" when user.IsAdmin == true => new[] { "api.read", "api.write", "api.manage" },
             "professor" => new[] { "api.read", "api.write" },
             "student" => new[] { "api.read" },
@@ -1031,6 +1034,9 @@ public class AuthController : ControllerBase
         string[] scopes = user.UserType switch
         {
             "super_admin" => new[] { "api.read", "api.write", "api.admin" },
+            "manager" => new[] { "api.read", "api.write", "api.manage" },
+            "tutor" => new[] { "api.read", "api.write" },
+            "platform_coordinator" => new[] { "api.read", "api.write" },
             "professor" when user.IsAdmin == true => new[] { "api.read", "api.write", "api.manage" },
             "professor" => new[] { "api.read", "api.write" },
             "student" => new[] { "api.read" },
@@ -1544,6 +1550,9 @@ public class AuthController : ControllerBase
             string[] scopes = user.UserType switch
             {
                 "super_admin" => new[] { "api.read", "api.write", "api.admin" },
+                "manager" => new[] { "api.read", "api.write", "api.manage" },
+                "tutor" => new[] { "api.read", "api.write" },
+                "platform_coordinator" => new[] { "api.read", "api.write" },
                 "professor" when user.IsAdmin == true => new[] { "api.read", "api.write", "api.manage" },
                 "professor" => new[] { "api.read", "api.write" },
                 "student" => new[] { "api.read" },
