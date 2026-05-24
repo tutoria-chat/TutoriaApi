@@ -56,4 +56,14 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
             .OrderBy(a => a.DueDate)
             .ToListAsync();
     }
+
+    public async Task<List<Assignment>> GetPublishedByCourseIdAsync(int courseId)
+    {
+        return await _dbSet
+            .Include(a => a.Module)
+            .Include(a => a.ContextFiles)
+            .Where(a => a.Module.CourseId == courseId && a.IsActive && a.IsPublished)
+            .OrderBy(a => a.DueDate)
+            .ToListAsync();
+    }
 }

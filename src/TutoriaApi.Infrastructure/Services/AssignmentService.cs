@@ -40,6 +40,23 @@ public class AssignmentService : IAssignmentService
         return await _assignmentRepository.GetPagedByModuleIdAsync(moduleId, page, pageSize);
     }
 
+    public async Task<List<Assignment>> GetPublishedByCourseAsync(int courseId, User currentUser)
+    {
+        // Verify access by loading any module from this course with its university info
+        var courseModules = await _moduleRepository.GetByCourseIdAsync(courseId);
+        var sampleModule = courseModules.FirstOrDefault();
+        if (sampleModule == null)
+            return []; // No modules → no assignments to return
+
+        var moduleWithDetails = await _moduleRepository.GetWithDetailsAsync(sampleModule.Id);
+        var university = moduleWithDetails?.Course?.University;
+        if (university == null || !university.HasAssignments)
+            throw new UnauthorizedAccessException("Assignments feature is not enabled for this university");
+
+        await EnsureModuleAccessAsync(sampleModule.Id, currentUser, moduleWithDetails);
+        return await _assignmentRepository.GetPublishedByCourseIdAsync(courseId);
+    }
+
     public async Task<AssignmentWithDownloadUrl?> GetByIdAsync(int id, User currentUser)
     {
         var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id);

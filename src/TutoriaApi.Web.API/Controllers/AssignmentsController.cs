@@ -27,44 +27,39 @@ public class AssignmentsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<AssignmentListDto>>> GetAssignments(
         [FromQuery] int moduleId = 0,
+        [FromQuery] int courseId = 0,
         [FromQuery] int page = 1,
         [FromQuery] int size = 20)
     {
-        if (moduleId <= 0) return BadRequest(new { message = "moduleId is required" });
+        if (moduleId <= 0 && courseId <= 0)
+            return BadRequest(new { message = "Either moduleId or courseId is required" });
+
         if (page < 1) page = 1;
         if (size < 1) size = 20;
         if (size > 100) size = 100;
 
+        var currentUser = _currentUserService.GetCurrentUser();
+
         try
         {
-            var (items, total) = await _assignmentService.GetPagedAsync(
-                moduleId, page, size, _currentUserService.GetCurrentUser());
-
-            var dtos = items.Select(a => new AssignmentListDto
+            // Course-level query: published assignments from all modules in the course
+            if (courseId > 0)
             {
-                Id = a.Id,
-                ModuleId = a.ModuleId,
-                Title = a.Title,
-                Description = a.Description,
-                DueDate = a.DueDate,
-                IsPublished = a.IsPublished,
-                IsActive = a.IsActive,
-                OriginalFileName = a.OriginalFileName,
-                FileSizeBytes = a.FileSizeBytes,
-                ContentType = a.ContentType,
-                Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-                RubricOriginalFileName = a.RubricOriginalFileName,
-                CreatedByUserId = a.CreatedByUserId,
-                ContextFiles = a.ContextFiles.Select(cf => new AssignmentContextFileDto
+                var courseItems = await _assignmentService.GetPublishedByCourseAsync(courseId, currentUser);
+                var courseDtos = courseItems.Select(a => MapToListDto(a, includeModuleName: true)).ToList();
+                return Ok(new PaginatedResponse<AssignmentListDto>
                 {
-                    Id = cf.Id,
-                    OriginalFileName = cf.OriginalFileName,
-                    FileSizeBytes = cf.FileSizeBytes,
-                    ContentType = cf.ContentType,
-                }).ToList(),
-                CreatedAt = a.CreatedAt,
-                UpdatedAt = a.UpdatedAt,
-            }).ToList();
+                    Items = courseDtos,
+                    Total = courseDtos.Count,
+                    Page = 1,
+                    Size = courseDtos.Count,
+                    Pages = 1,
+                });
+            }
+
+            // Module-level query: all assignments (incl. unpublished) for the owning module
+            var (items, total) = await _assignmentService.GetPagedAsync(moduleId, page, size, currentUser);
+            var dtos = items.Select(a => MapToListDto(a)).ToList();
 
             return Ok(new PaginatedResponse<AssignmentListDto>
             {
@@ -81,10 +76,37 @@ public class AssignmentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving assignments for module {ModuleId}", moduleId);
+            _logger.LogError(ex, "Error retrieving assignments (moduleId={ModuleId}, courseId={CourseId})", moduleId, courseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
+
+    private static AssignmentListDto MapToListDto(Assignment a, bool includeModuleName = false) => new()
+    {
+        Id = a.Id,
+        ModuleId = a.ModuleId,
+        ModuleName = includeModuleName ? a.Module?.Name : null,
+        Title = a.Title,
+        Description = a.Description,
+        DueDate = a.DueDate,
+        IsPublished = a.IsPublished,
+        IsActive = a.IsActive,
+        OriginalFileName = a.OriginalFileName,
+        FileSizeBytes = a.FileSizeBytes,
+        ContentType = a.ContentType,
+        Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        RubricOriginalFileName = a.RubricOriginalFileName,
+        CreatedByUserId = a.CreatedByUserId,
+        ContextFiles = a.ContextFiles.Select(cf => new AssignmentContextFileDto
+        {
+            Id = cf.Id,
+            OriginalFileName = cf.OriginalFileName,
+            FileSizeBytes = cf.FileSizeBytes,
+            ContentType = cf.ContentType,
+        }).ToList(),
+        CreatedAt = a.CreatedAt,
+        UpdatedAt = a.UpdatedAt,
+    };
 
     [HttpGet("{id}")]
     public async Task<ActionResult<AssignmentDetailDto>> GetAssignment(int id)

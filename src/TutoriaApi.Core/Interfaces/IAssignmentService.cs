@@ -15,6 +15,7 @@ public class AssignmentWithDownloadUrl
 public interface IAssignmentService
 {
     Task<(List<Assignment> Items, int Total)> GetPagedAsync(int moduleId, int page, int pageSize, User currentUser);
+    Task<List<Assignment>> GetPublishedByCourseAsync(int courseId, User currentUser);
     Task<AssignmentWithDownloadUrl?> GetByIdAsync(int id, User currentUser);
     Task<Assignment> CreateAsync(int moduleId, string title, string? description, DateTime dueDate,
         string? keywords,
