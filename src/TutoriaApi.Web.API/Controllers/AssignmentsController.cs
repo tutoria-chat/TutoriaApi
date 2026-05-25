@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.API.DTOs;
 
