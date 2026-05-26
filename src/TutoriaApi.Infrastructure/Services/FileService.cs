@@ -50,25 +50,12 @@ public class FileService : IFileService
             return universityModules.Select(m => m.Id).ToList();
         }
 
-        // Legacy: Support old professor with isAdmin flag
-        if (user.UserType == UserTypes.Professor && (user.IsAdmin ?? false))
+        // Professors (both admin and regular) have university-scoped access,
+        // consistent with their read access via CallerOwnsModuleAsync in ModulesController.
+        if (user.UserType == UserTypes.Professor)
         {
-            // Admin professors can access all modules in their university
             var universityModules = await _moduleRepository.GetByUniversityIdAsync(user.UniversityId ?? 0);
             return universityModules.Select(m => m.Id).ToList();
-        }
-
-        if (user.UserType == UserTypes.Professor && !(user.IsAdmin ?? false))
-        {
-            // Regular professors can only access modules from assigned courses
-            var courseIds = await _accessControl.GetProfessorCourseIdsAsync(user.UserId);
-            var modules = new List<int>();
-            foreach (var courseId in courseIds)
-            {
-                var courseModules = await _moduleRepository.GetByCourseIdAsync(courseId);
-                modules.AddRange(courseModules.Select(m => m.Id));
-            }
-            return modules;
         }
 
         return new List<int>();
