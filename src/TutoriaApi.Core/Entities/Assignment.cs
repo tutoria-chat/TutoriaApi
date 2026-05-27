@@ -27,6 +27,9 @@ public class Assignment : BaseEntity
     public long? RubricFileSizeBytes { get; set; }
     public string? RubricContentType { get; set; }
 
+    // Cached text extracted from the assignment document — populated lazily by tutoria-api on first chat access
+    public string? ExtractedText { get; set; }
+
     public int CreatedByUserId { get; set; }
     public User CreatedBy { get; set; } = null!;
 
