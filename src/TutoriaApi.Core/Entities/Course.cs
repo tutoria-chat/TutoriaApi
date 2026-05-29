@@ -6,6 +6,7 @@ public class Course : BaseEntity
     public required string Code { get; set; }
     public string? Description { get; set; }
     public int UniversityId { get; set; }
+    public int? ExternalCourseId { get; set; }
 
     // Navigation properties
     public University University { get; set; } = null!;

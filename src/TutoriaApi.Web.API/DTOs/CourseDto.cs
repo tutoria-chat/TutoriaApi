@@ -10,6 +10,7 @@ public class CourseDetailDto
     public string? Description { get; set; }
     public int UniversityId { get; set; }
     public string? UniversityName { get; set; }
+    public int? ExternalCourseId { get; set; }
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
@@ -31,6 +32,8 @@ public class CourseCreateRequest
 
     [Required(ErrorMessage = "University ID is required")]
     public int UniversityId { get; set; }
+
+    public int? ExternalCourseId { get; set; }
 }
 
 public class CourseUpdateRequest
@@ -42,6 +45,8 @@ public class CourseUpdateRequest
     public string? Code { get; set; }
 
     public string? Description { get; set; }
+
+    public int? ExternalCourseId { get; set; }
 }
 
 public class CourseWithDetailsDto
@@ -52,6 +57,7 @@ public class CourseWithDetailsDto
     public string? Description { get; set; }
     public int UniversityId { get; set; }
     public string? UniversityName { get; set; }
+    public int? ExternalCourseId { get; set; }
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();

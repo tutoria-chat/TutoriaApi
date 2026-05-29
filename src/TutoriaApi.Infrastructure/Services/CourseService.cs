@@ -192,6 +192,12 @@ public class CourseService : ICourseService
             existing.Description = course.Description;
         }
 
+        if (course.ExternalCourseId != existing.ExternalCourseId)
+        {
+            changes["ExternalCourseId"] = (existing.ExternalCourseId, course.ExternalCourseId);
+            existing.ExternalCourseId = course.ExternalCourseId;
+        }
+
         await _courseRepository.UpdateAsync(existing);
 
         // Audit log: Only log if there were actual changes

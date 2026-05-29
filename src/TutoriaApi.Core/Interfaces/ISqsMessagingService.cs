@@ -22,4 +22,10 @@ public interface ISqsMessagingService
     /// tutoria-worker picks it up, downloads/transcribes the video, and writes transcript back to File.
     /// </summary>
     Task<bool> SendTranscriptionJobAsync(int fileId, string youtubeUrl, string language);
+
+    /// <summary>
+    /// Enqueue an AI grading job.
+    /// tutoria-worker picks it up, grades the uploaded student answers, and writes a CSV result to S3.
+    /// </summary>
+    Task<bool> SendGradingJobAsync(int jobId, int courseId);
 }

@@ -17,6 +17,7 @@ public class SqsMessagingService : ISqsMessagingService
     private readonly string? _extractionQueueUrl;
     private readonly string? _quizGenQueueUrl;
     private readonly string? _transcriptionQueueUrl;
+    private readonly string? _gradingQueueUrl;
     private readonly IAmazonSQS _sqsClient;
 
     public SqsMessagingService(IConfiguration configuration, ILogger<SqsMessagingService> logger)
@@ -25,6 +26,7 @@ public class SqsMessagingService : ISqsMessagingService
         _extractionQueueUrl = configuration["Sqs:ExtractionQueueUrl"];
         _quizGenQueueUrl = configuration["Sqs:QuizGenQueueUrl"];
         _transcriptionQueueUrl = configuration["Sqs:TranscriptionQueueUrl"];
+        _gradingQueueUrl = configuration["Sqs:GradingQueueUrl"];
 
         var region = configuration["AWS:Region"] ?? "us-east-2";
         var accessKey = configuration["AWS:AccessKeyId"];
@@ -87,6 +89,21 @@ public class SqsMessagingService : ISqsMessagingService
 
         var body = JsonSerializer.Serialize(new { file_id = fileId, youtube_url = youtubeUrl, language });
         return await SendMessageAsync(_transcriptionQueueUrl, body, $"transcription:file:{fileId}");
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> SendGradingJobAsync(int jobId, int courseId)
+    {
+        if (string.IsNullOrEmpty(_gradingQueueUrl))
+        {
+            _logger.LogWarning(
+                "Sqs:GradingQueueUrl is not configured — skipping grading job {JobId}",
+                jobId);
+            return false;
+        }
+
+        var body = JsonSerializer.Serialize(new { job_id = jobId, course_id = courseId });
+        return await SendMessageAsync(_gradingQueueUrl, body, $"grading:job:{jobId}");
     }
 
     private async Task<bool> SendMessageAsync(string queueUrl, string messageBody, string logLabel)

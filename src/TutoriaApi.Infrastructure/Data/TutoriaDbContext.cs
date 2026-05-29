@@ -100,6 +100,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<Assignment> Assignments { get; set; }
     public DbSet<AssignmentContextFile> AssignmentContextFiles { get; set; }
     public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
+    public DbSet<GradingJob> GradingJobs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -144,6 +145,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Code).HasColumnName("Code").HasMaxLength(50).IsRequired();
             entity.Property(e => e.Description).HasColumnName("Description");
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.ExternalCourseId).HasColumnName("ExternalCourseId");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -997,6 +999,43 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // GradingJob configuration
+        modelBuilder.Entity<GradingJob>(entity =>
+        {
+            entity.ToTable("GradingJobs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.InputS3Key).HasColumnName("InputS3Key").HasMaxLength(500);
+            entity.Property(e => e.ResultS3Key).HasColumnName("ResultS3Key").HasMaxLength(500);
+            entity.Property(e => e.TotalSubmissions).HasColumnName("TotalSubmissions").HasDefaultValue(0);
+            entity.Property(e => e.ProcessedSubmissions).HasColumnName("ProcessedSubmissions").HasDefaultValue(0);
+            entity.Property(e => e.ErrorMessage).HasColumnName("ErrorMessage");
+            entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasCheckConstraint("CK_GradingJobs_Status",
+                "\"Status\" IN ('pending', 'processing', 'completed', 'failed')");
+
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => new { e.CourseId, e.CreatedAt });
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreatedBy)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .HasPrincipalKey(u => u.UserId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<UniversityPersonalization>(entity =>
