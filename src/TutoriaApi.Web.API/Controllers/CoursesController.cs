@@ -188,6 +188,7 @@ public class CoursesController : ControllerBase
                     Name = viewModel.University.Name,
                     Code = viewModel.University.Code,
                     Description = viewModel.University.Description,
+                    HasAssignments = viewModel.University.HasAssignments,
                     CreatedAt = viewModel.University.CreatedAt,
                     UpdatedAt = viewModel.University.UpdatedAt
                 } : null,
