@@ -70,7 +70,8 @@ public class GradingJobsController : ControllerBase
                 request.CourseId,
                 stream,
                 request.File.FileName,
-                currentUser);
+                currentUser,
+                request.GradingCriteria);
 
             return StatusCode(StatusCodes.Status202Accepted, MapToDto(job));
         }
@@ -168,6 +169,7 @@ public class GradingJobsController : ControllerBase
         ErrorMessage = job.ErrorMessage,
         ProcessedAt = job.ProcessedAt,
         HasResult = !string.IsNullOrEmpty(job.ResultS3Key),
+        GradingCriteria = job.GradingCriteria,
         CreatedAt = job.CreatedAt,
         UpdatedAt = job.UpdatedAt
     };

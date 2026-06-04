@@ -96,6 +96,7 @@ public class AssignmentsController : ControllerBase
         FileSizeBytes = a.FileSizeBytes,
         ContentType = a.ContentType,
         Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+        GradingCriteria = a.GradingCriteria,
         RubricOriginalFileName = a.RubricOriginalFileName,
         CreatedByUserId = a.CreatedByUserId,
         ContextFiles = a.ContextFiles.Select(cf => new AssignmentContextFileDto
@@ -131,6 +132,7 @@ public class AssignmentsController : ControllerBase
                 FileSizeBytes = a.FileSizeBytes,
                 ContentType = a.ContentType,
                 Keywords = (a.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                GradingCriteria = a.GradingCriteria,
                 RubricOriginalFileName = a.RubricOriginalFileName,
                 CreatedByUserId = a.CreatedByUserId,
                 DownloadUrl = result.DownloadUrl,
@@ -202,6 +204,7 @@ public class AssignmentsController : ControllerBase
                 request.Description,
                 request.DueDate,
                 request.Keywords,
+                request.GradingCriteria,
                 stream,
                 request.File.FileName,
                 request.File.ContentType,
@@ -230,6 +233,7 @@ public class AssignmentsController : ControllerBase
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
                 Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                GradingCriteria = assignment.GradingCriteria,
                 RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 ContextFiles = [],
@@ -265,7 +269,7 @@ public class AssignmentsController : ControllerBase
         {
             var assignment = await _assignmentService.UpdateAsync(
                 id, request.Title, request.Description, request.DueDate,
-                request.Keywords, _currentUserService.GetCurrentUser());
+                request.Keywords, request.GradingCriteria, _currentUserService.GetCurrentUser());
 
             return Ok(new AssignmentDetailDto
             {
@@ -280,6 +284,7 @@ public class AssignmentsController : ControllerBase
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
                 Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                GradingCriteria = assignment.GradingCriteria,
                 RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 CreatedAt = assignment.CreatedAt,
@@ -343,6 +348,7 @@ public class AssignmentsController : ControllerBase
                 FileSizeBytes = assignment.FileSizeBytes,
                 ContentType = assignment.ContentType,
                 Keywords = (assignment.Keywords ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+                GradingCriteria = assignment.GradingCriteria,
                 RubricOriginalFileName = assignment.RubricOriginalFileName,
                 CreatedByUserId = assignment.CreatedByUserId,
                 CreatedAt = assignment.CreatedAt,

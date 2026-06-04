@@ -29,7 +29,7 @@ public class GradingJobService : IGradingJobService
         _logger = logger;
     }
 
-    public async Task<GradingJob> CreateJobAsync(int courseId, Stream jsonStream, string fileName, User currentUser)
+    public async Task<GradingJob> CreateJobAsync(int courseId, Stream jsonStream, string fileName, User currentUser, string? gradingCriteria = null)
     {
         // Load course with university info
         var course = await _courseRepository.GetWithDetailsAsync(courseId)
@@ -59,7 +59,8 @@ public class GradingJobService : IGradingJobService
             CreatedByUserId = currentUser.UserId,
             Status = "pending",
             TotalSubmissions = 0,
-            ProcessedSubmissions = 0
+            ProcessedSubmissions = 0,
+            GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim()
         };
 
         var created = await _gradingJobRepository.AddAsync(job);

@@ -7,7 +7,7 @@ public interface IGradingJobService
     /// <summary>
     /// Validates access, uploads the JSON to S3, creates the GradingJob record, and enqueues the SQS message.
     /// </summary>
-    Task<GradingJob> CreateJobAsync(int courseId, Stream jsonStream, string fileName, User currentUser);
+    Task<GradingJob> CreateJobAsync(int courseId, Stream jsonStream, string fileName, User currentUser, string? gradingCriteria = null);
 
     /// <summary>
     /// Returns all grading jobs for a course, ordered newest-first.

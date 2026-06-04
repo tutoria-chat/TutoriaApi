@@ -28,4 +28,10 @@ public interface ISqsMessagingService
     /// tutoria-worker picks it up, grades the uploaded student answers, and writes a CSV result to S3.
     /// </summary>
     Task<bool> SendGradingJobAsync(int jobId, int courseId);
+
+    /// <summary>
+    /// Enqueue a quiz upload extraction job.
+    /// tutoria-worker picks it up, extracts questions from the file, and stores them in QuizUploadJob.ExtractedQuestionsJson.
+    /// </summary>
+    Task<bool> SendQuizUploadJobAsync(int jobId, int moduleId);
 }

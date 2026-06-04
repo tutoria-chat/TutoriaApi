@@ -21,6 +21,11 @@ public class Assignment : BaseEntity
     // Comma-separated keywords the AI should focus on when giving feedback
     public string? Keywords { get; set; }
 
+    /// <summary>
+    /// Professor-defined grading criteria / rubric description shown to students and used by AI for grading.
+    /// </summary>
+    public string? GradingCriteria { get; set; }
+
     // Optional rubric file (evaluation criteria uploaded by professor)
     public string? RubricS3Key { get; set; }
     public string? RubricOriginalFileName { get; set; }

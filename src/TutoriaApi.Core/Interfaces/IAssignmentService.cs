@@ -18,13 +18,13 @@ public interface IAssignmentService
     Task<List<Assignment>> GetPublishedByCourseAsync(int courseId, User currentUser);
     Task<AssignmentWithDownloadUrl?> GetByIdAsync(int id, User currentUser);
     Task<Assignment> CreateAsync(int moduleId, string title, string? description, DateTime dueDate,
-        string? keywords,
+        string? keywords, string? gradingCriteria,
         Stream fileStream, string originalFileName, string contentType, long fileSize,
         Stream? rubricStream, string? rubricFileName, string? rubricContentType, long? rubricSize,
         User currentUser,
         List<ContextFileUpload>? contextFiles = null);
     Task<Assignment> UpdateAsync(int id, string title, string? description, DateTime dueDate,
-        string? keywords, User currentUser);
+        string? keywords, string? gradingCriteria, User currentUser);
     Task DeleteAsync(int id, User currentUser);
     Task<Assignment> TogglePublishAsync(int id, User currentUser);
 }

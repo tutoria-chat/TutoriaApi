@@ -25,6 +25,7 @@ public class AssignmentListDto
     public long FileSizeBytes { get; set; }
     public string ContentType { get; set; } = string.Empty;
     public string[] Keywords { get; set; } = [];
+    public string? GradingCriteria { get; set; }
     public string? RubricOriginalFileName { get; set; }
     public int CreatedByUserId { get; set; }
     public List<AssignmentContextFileDto> ContextFiles { get; set; } = [];
@@ -54,6 +55,10 @@ public class AssignmentCreateRequest
     /// Comma-separated keywords (e.g. "argumentação,estrutura,referências")
     public string? Keywords { get; set; }
 
+    /// <summary>Grading criteria / rubric description shown to students and used by AI for grading.</summary>
+    [MaxLength(2000)]
+    public string? GradingCriteria { get; set; }
+
     [Required(ErrorMessage = "Assignment file is required")]
     public IFormFile File { get; set; } = null!;
 
@@ -77,4 +82,8 @@ public class AssignmentUpdateRequest
 
     /// Comma-separated keywords
     public string? Keywords { get; set; }
+
+    /// <summary>Grading criteria / rubric description.</summary>
+    [MaxLength(2000)]
+    public string? GradingCriteria { get; set; }
 }

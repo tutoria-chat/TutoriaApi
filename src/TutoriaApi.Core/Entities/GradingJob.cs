@@ -19,6 +19,12 @@ public class GradingJob : BaseEntity
     public string? ErrorMessage { get; set; }
     public DateTime? ProcessedAt { get; set; }
 
+    /// <summary>
+    /// Optional professor-defined criteria the AI should focus on when grading.
+    /// Injected into the AI system prompt.
+    /// </summary>
+    public string? GradingCriteria { get; set; }
+
     // Navigation properties
     public Course Course { get; set; } = null!;
     public User CreatedBy { get; set; } = null!;

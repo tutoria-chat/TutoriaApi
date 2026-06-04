@@ -84,7 +84,7 @@ public class AssignmentService : IAssignmentService
 
     public async Task<Assignment> CreateAsync(
         int moduleId, string title, string? description, DateTime dueDate,
-        string? keywords,
+        string? keywords, string? gradingCriteria,
         Stream fileStream, string originalFileName, string contentType, long fileSize,
         Stream? rubricStream, string? rubricFileName, string? rubricContentType, long? rubricSize,
         User currentUser,
@@ -121,6 +121,7 @@ public class AssignmentService : IAssignmentService
             Description = description,
             DueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc),
             Keywords = keywords,
+            GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim(),
             S3Key = s3Key,
             OriginalFileName = originalFileName,
             ContentType = contentType,
@@ -161,7 +162,7 @@ public class AssignmentService : IAssignmentService
 
     public async Task<Assignment> UpdateAsync(
         int id, string title, string? description, DateTime dueDate,
-        string? keywords, User currentUser)
+        string? keywords, string? gradingCriteria, User currentUser)
     {
         var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id)
             ?? throw new KeyNotFoundException($"Assignment {id} not found");
@@ -172,6 +173,7 @@ public class AssignmentService : IAssignmentService
         assignment.Description = description;
         assignment.DueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc);
         assignment.Keywords = keywords;
+        assignment.GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim();
 
         await _assignmentRepository.UpdateAsync(assignment);
         return assignment;
