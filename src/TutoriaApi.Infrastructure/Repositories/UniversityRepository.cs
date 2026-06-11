@@ -98,4 +98,11 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
             .Where(u => u.Id == id)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.HasAssignments, hasAssignments));
     }
+
+    public async Task<int> SetHasAIQuizzesAsync(int id, bool hasAIQuizzes)
+    {
+        return await _context.Universities
+            .Where(u => u.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.HasAIQuizzes, hasAIQuizzes));
+    }
 }

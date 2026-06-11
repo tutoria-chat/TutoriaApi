@@ -30,6 +30,7 @@ public class University : BaseEntity
     public string? StripeCustomerId { get; set; }
     public bool IsEnterprise { get; set; }
     public bool HasAssignments { get; set; }
+    public bool HasAIQuizzes { get; set; }
     public int? CreatedByUserId { get; set; }
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }

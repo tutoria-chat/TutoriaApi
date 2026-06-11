@@ -109,6 +109,7 @@ public class UniversityService : IUniversityService
         existing.SubscriptionTier = university.SubscriptionTier;
         existing.IsEnterprise = university.IsEnterprise;
         existing.HasAssignments = university.HasAssignments;
+        existing.HasAIQuizzes = university.HasAIQuizzes;
         existing.MaxCourses = university.MaxCourses;
         existing.MaxModules = university.MaxModules;
         existing.MaxStudents = university.MaxStudents;
@@ -119,12 +120,13 @@ public class UniversityService : IUniversityService
 
         await _universityRepository.UpdateAsync(existing);
 
-        // Belt-and-suspenders: also write HasAssignments via direct SQL so EF
-        // change-tracking quirks can never silently drop this column from the UPDATE.
+        // Belt-and-suspenders: also write the feature flags via direct SQL so EF
+        // change-tracking quirks can never silently drop these columns from the UPDATE.
         var rows = await _universityRepository.SetHasAssignmentsAsync(id, university.HasAssignments);
         _logger.LogInformation(
             "SetHasAssignmentsAsync university {Id}: value={Value}, rows affected={Rows}",
             id, university.HasAssignments, rows);
+        await _universityRepository.SetHasAIQuizzesAsync(id, university.HasAIQuizzes);
 
         // Audit log: Only log if there were actual changes
         if (changes.Any())

@@ -105,7 +105,7 @@ public class SubscriptionsController : BaseAuthController
                 CurrentCourses = coursesUsed,
                 CurrentModules = modulesUsed,
                 CurrentStudents = studentsUsed,
-                HasAIQuizzes = subscription?.Plan?.HasAIQuizzes ?? false,
+                HasAIQuizzes = (university?.HasAIQuizzes ?? false) || (subscription?.Plan?.HasAIQuizzes ?? false),
                 HasWhatsApp = subscription?.Plan?.HasWhatsApp ?? false,
                 HasPrioritySupport = subscription?.Plan?.HasPrioritySupport ?? false,
                 HasCustomModelConfig = subscription?.Plan?.HasCustomModelConfig ?? false,
