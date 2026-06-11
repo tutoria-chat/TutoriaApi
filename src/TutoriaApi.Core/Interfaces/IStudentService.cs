@@ -9,7 +9,8 @@ public interface IStudentService
         int? courseId,
         string? search,
         int page,
-        int pageSize);
+        int pageSize,
+        List<int>? restrictToCourseIds = null);
     Task<User?> GetByIdAsync(int id);
     Task<User> CreateAsync(
         string username,

@@ -19,6 +19,16 @@ public class StudentImportErrorDto
     public string Reason { get; set; } = string.Empty;
 }
 
+public class StudentMassUnenrollResultDto
+{
+    public int TotalRows { get; set; }
+    public int UnenrolledStudents { get; set; }
+    public int RemovedEnrollments { get; set; }
+    public int NotFoundCount { get; set; }
+    public int SkippedCount { get; set; }
+    public List<StudentImportErrorDto> Errors { get; set; } = new();
+}
+
 public class StudentImportJobDto
 {
     public int Id { get; set; }

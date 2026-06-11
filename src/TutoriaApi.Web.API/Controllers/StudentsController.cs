@@ -130,7 +130,23 @@ public class StudentsController : ControllerBase
                 return NotFound(new { message = "Course not found" });
             }
 
-            var (students, total) = await _studentService.GetPagedAsync(universityId, courseId, search, page, size);
+            // Regular professors only see students of the courses they teach
+            List<int>? restrictToCourseIds = null;
+            if (currentUser.UserType == "professor" && currentUser.IsAdmin != true)
+            {
+                restrictToCourseIds = await _dbContext.ProfessorCourses
+                    .Where(pc => pc.ProfessorId == currentUser.UserId)
+                    .Select(pc => pc.CourseId)
+                    .ToListAsync();
+
+                if (courseId.HasValue && !restrictToCourseIds.Contains(courseId.Value))
+                {
+                    return NotFound(new { message = "Course not found" });
+                }
+            }
+
+            var (students, total) = await _studentService.GetPagedAsync(
+                universityId, courseId, search, page, size, restrictToCourseIds);
 
             // Batch-load enrolled courses for all students
             var studentIds = students.Select(s => s.UserId).ToList();
@@ -497,6 +513,102 @@ public class StudentsController : ControllerBase
         {
             _logger.LogError(ex, "Error importing students for course {CourseId}", courseId);
             return StatusCode(500, new { message = "An error occurred while processing the import" });
+        }
+    }
+
+    /// <summary>
+    /// Mass-unenroll students from a CSV/XLSX (matricula and/or email columns).
+    /// With courseId: that course only. Without: every course of the university —
+    /// e.g. a graduating cohort. Student records are kept (history/analytics).
+    /// </summary>
+    [HttpPost("mass-unenroll")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10MB limit
+    public async Task<ActionResult<StudentMassUnenrollResultDto>> MassUnenrollStudents(
+        [FromForm] int? courseId,
+        [FromForm] int? universityId,
+        IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "File is required" });
+        }
+
+        var allowedExtensions = new[] { ".csv", ".xlsx" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new { message = "Only .csv and .xlsx files are supported" });
+        }
+
+        try
+        {
+            // Destructive bulk action: admins only (super admin or admin professor)
+            var currentUser = _currentUserService.GetCurrentUser();
+            var isAdmin = currentUser.UserType == "super_admin" || currentUser.IsAdmin == true;
+            if (!isAdmin)
+            {
+                return StatusCode(403, new { message = "Only administrators can mass-unenroll students" });
+            }
+
+            // Resolve the effective university
+            int? effectiveUniversityId = GetCallerUniversityId();
+            if (effectiveUniversityId == null) // super admin
+            {
+                if (courseId.HasValue)
+                {
+                    var course = await _courseRepository.GetByIdAsync(courseId.Value);
+                    if (course == null)
+                        return NotFound(new { message = "Course not found" });
+                    effectiveUniversityId = course.UniversityId;
+                }
+                else if (universityId.HasValue)
+                {
+                    effectiveUniversityId = universityId.Value;
+                }
+                else
+                {
+                    return BadRequest(new { message = "universityId is required (or provide a courseId)" });
+                }
+            }
+
+            if (courseId.HasValue && !await CallerOwnsCourseAsync(courseId.Value))
+                return NotFound(new { message = "Course not found" });
+
+            var result = await _studentImportService.MassUnenrollFromFileAsync(
+                effectiveUniversityId.Value, courseId, file);
+
+            _logger.LogInformation(
+                "Mass unenroll by user {UserId} for university {UniversityId} (course {CourseId}): {Students} students, {Enrollments} enrollments removed",
+                currentUser.UserId, effectiveUniversityId, courseId, result.UnenrolledStudents, result.RemovedEnrollments);
+
+            return Ok(new StudentMassUnenrollResultDto
+            {
+                TotalRows = result.TotalRows,
+                UnenrolledStudents = result.UnenrolledStudents,
+                RemovedEnrollments = result.RemovedEnrollments,
+                NotFoundCount = result.NotFoundCount,
+                SkippedCount = result.SkippedCount,
+                Errors = result.Errors.Select(e => new StudentImportErrorDto
+                {
+                    Row = e.Row,
+                    Matricula = e.Matricula,
+                    Email = e.Email,
+                    Reason = e.Reason
+                }).ToList()
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error mass-unenrolling students");
+            return StatusCode(500, new { message = "An error occurred while processing the file" });
         }
     }
 

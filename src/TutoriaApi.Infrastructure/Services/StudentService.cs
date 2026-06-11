@@ -29,9 +29,20 @@ public class StudentService : IStudentService
         int? courseId,
         string? search,
         int page,
-        int pageSize)
+        int pageSize,
+        List<int>? restrictToCourseIds = null)
     {
         List<int>? studentIdsFilter = null;
+
+        // Regular professors only see students of the courses they teach
+        if (restrictToCourseIds != null)
+        {
+            studentIdsFilter = await _dbContext.StudentCourses
+                .Where(sc => restrictToCourseIds.Contains(sc.CourseId))
+                .Select(sc => sc.StudentId)
+                .Distinct()
+                .ToListAsync();
+        }
 
         if (universityId.HasValue)
         {
@@ -40,11 +51,15 @@ public class StudentService : IStudentService
                 .Select(c => c.Id)
                 .ToListAsync();
 
-            studentIdsFilter = await _dbContext.StudentCourses
+            var universityStudentIds = await _dbContext.StudentCourses
                 .Where(sc => courseIds.Contains(sc.CourseId))
                 .Select(sc => sc.StudentId)
                 .Distinct()
                 .ToListAsync();
+
+            studentIdsFilter = studentIdsFilter != null
+                ? studentIdsFilter.Intersect(universityStudentIds).ToList()
+                : universityStudentIds;
         }
 
         if (courseId.HasValue)

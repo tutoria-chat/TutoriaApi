@@ -174,6 +174,120 @@ public class StudentImportService : IStudentImportService
         return result;
     }
 
+    public async Task<StudentMassUnenrollResult> MassUnenrollFromFileAsync(int universityId, int? courseId, IFormFile file)
+    {
+        var rows = await ParseFileAsync(file, requireEmail: false);
+        if (rows.Count == 0)
+            throw new InvalidOperationException("The file contains no data rows");
+
+        var result = new StudentMassUnenrollResult { TotalRows = rows.Count };
+
+        // Scope: one course, or every course of the university (graduating cohort)
+        var scopeCourseIds = courseId.HasValue
+            ? new List<int> { courseId.Value }
+            : await _context.Courses
+                .Where(c => c.UniversityId == universityId)
+                .Select(c => c.Id)
+                .ToListAsync();
+
+        // Batch resolution: email first, then per-university matricula, then legacy matricula
+        var emails = rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Email))
+            .Select(r => r.Email.Trim().ToLower())
+            .Distinct()
+            .ToList();
+        var matriculas = rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.Matricula))
+            .Select(r => r.Matricula.Trim())
+            .Distinct()
+            .ToList();
+
+        var emailMap = (await _context.Users
+                .Where(u => u.UserType == "student" && emails.Contains(u.Email.ToLower()))
+                .Select(u => new { u.UserId, u.Email })
+                .ToListAsync())
+            .GroupBy(x => x.Email.ToLower())
+            .ToDictionary(g => g.Key, g => g.First().UserId);
+
+        var matriculaMap = (await _context.UserUniversities
+                .Where(uu => uu.UniversityId == universityId
+                       && uu.ExternalId != null
+                       && matriculas.Contains(uu.ExternalId))
+                .Select(uu => new { uu.UserId, uu.ExternalId })
+                .ToListAsync())
+            .GroupBy(x => x.ExternalId!)
+            .ToDictionary(g => g.Key, g => g.First().UserId);
+
+        var legacyMatches = await _context.Users
+            .Where(u => u.UserType == "student"
+                   && u.ExternalId != null
+                   && matriculas.Contains(u.ExternalId)
+                   && (u.UniversityId == universityId || u.UniversityId == null))
+            .Select(u => new { u.UserId, u.ExternalId })
+            .ToListAsync();
+        foreach (var legacy in legacyMatches)
+        {
+            matriculaMap.TryAdd(legacy.ExternalId!, legacy.UserId);
+        }
+
+        var resolvedIds = new HashSet<int>();
+        for (int i = 0; i < rows.Count; i++)
+        {
+            var row = rows[i];
+            var email = string.IsNullOrWhiteSpace(row.Email) ? null : row.Email.Trim().ToLower();
+            var matricula = string.IsNullOrWhiteSpace(row.Matricula) ? null : row.Matricula.Trim();
+
+            if (email == null && matricula == null)
+            {
+                result.Errors.Add(new StudentImportError
+                {
+                    Row = i + 2,
+                    Reason = "Row has neither email nor matricula"
+                });
+                continue;
+            }
+
+            int? studentId = null;
+            if (email != null && emailMap.TryGetValue(email, out var byEmail))
+                studentId = byEmail;
+            else if (matricula != null && matriculaMap.TryGetValue(matricula, out var byMatricula))
+                studentId = byMatricula;
+
+            if (studentId == null)
+            {
+                result.NotFoundCount++;
+                result.Errors.Add(new StudentImportError
+                {
+                    Row = i + 2,
+                    Matricula = matricula ?? string.Empty,
+                    Email = row.Email ?? string.Empty,
+                    Reason = "Student not found at this institution"
+                });
+                continue;
+            }
+
+            resolvedIds.Add(studentId.Value);
+        }
+
+        var enrollments = await _context.StudentCourses
+            .Where(sc => resolvedIds.Contains(sc.StudentId) && scopeCourseIds.Contains(sc.CourseId))
+            .ToListAsync();
+
+        var studentsWithRemovals = enrollments.Select(e => e.StudentId).ToHashSet();
+        result.UnenrolledStudents = studentsWithRemovals.Count;
+        result.RemovedEnrollments = enrollments.Count;
+        result.SkippedCount = resolvedIds.Count(id => !studentsWithRemovals.Contains(id));
+
+        _context.StudentCourses.RemoveRange(enrollments);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Mass unenroll for university {UniversityId} (course {CourseId}): {Students} students, {Enrollments} enrollments removed, {NotFound} not found, {Skipped} already unenrolled",
+            universityId, courseId, result.UnenrolledStudents, result.RemovedEnrollments, result.NotFoundCount, result.SkippedCount);
+
+        return result;
+    }
+
     public async Task<IEnumerable<StudentImportJob>> GetImportJobsByCourseIdAsync(int courseId)
     {
         return await _importJobRepository.GetByCourseIdAsync(courseId);
@@ -388,18 +502,18 @@ public class StudentImportService : IStudentImportService
         return studentIds;
     }
 
-    private async Task<List<StudentImportRow>> ParseFileAsync(IFormFile file)
+    private async Task<List<StudentImportRow>> ParseFileAsync(IFormFile file, bool requireEmail = true)
     {
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         return ext switch
         {
-            ".csv" => await ParseCsvAsync(file),
-            ".xlsx" => await ParseXlsxAsync(file),
+            ".csv" => await ParseCsvAsync(file, requireEmail),
+            ".xlsx" => await ParseXlsxAsync(file, requireEmail),
             _ => throw new InvalidOperationException("Unsupported file format. Use .csv or .xlsx")
         };
     }
 
-    private async Task<List<StudentImportRow>> ParseCsvAsync(IFormFile file)
+    private async Task<List<StudentImportRow>> ParseCsvAsync(IFormFile file, bool requireEmail = true)
     {
         var rows = new List<StudentImportRow>();
 
@@ -416,7 +530,7 @@ public class StudentImportService : IStudentImportService
             .Select(h => h.Trim().ToLower().Trim('"'))
             .ToList();
 
-        var columnMap = await MapColumnsAsync(headers);
+        var columnMap = await MapColumnsAsync(headers, null, requireEmail);
 
         // Read data rows
         string? line;
@@ -446,7 +560,7 @@ public class StudentImportService : IStudentImportService
         return rows;
     }
 
-    private async Task<List<StudentImportRow>> ParseXlsxAsync(IFormFile file)
+    private async Task<List<StudentImportRow>> ParseXlsxAsync(IFormFile file, bool requireEmail = true)
     {
         var rows = new List<StudentImportRow>();
 
@@ -486,7 +600,7 @@ public class StudentImportService : IStudentImportService
             sampleValues.Add(rowValues);
         }
 
-        var columnMap = await MapColumnsAsync(headers, sampleValues);
+        var columnMap = await MapColumnsAsync(headers, sampleValues, requireEmail);
 
         // Read data rows
         for (int row = 2; row <= rowCount; row++)
@@ -524,7 +638,7 @@ public class StudentImportService : IStudentImportService
     // Pass 4: AI fallback (OpenAI gpt-4o-mini) when all heuristics fail
 
     private async Task<ColumnMapping> MapColumnsAsync(
-        List<string> headers, List<List<string>>? sampleRows = null)
+        List<string> headers, List<List<string>>? sampleRows = null, bool requireEmail = true)
     {
         var map = new ColumnMapping
         {
@@ -575,7 +689,7 @@ public class StudentImportService : IStudentImportService
             map.LastNameIndex = FindColumnIndexFuzzy(headers, FuzzyThreshold, "last name", "lastname", "sobrenome", "apellido", "surname");
 
         // Pass 4 — AI fallback when we still can't identify the email column
-        if (map.EmailIndex < 0)
+        if (map.EmailIndex < 0 && requireEmail)
         {
             _logger.LogWarning(
                 "Could not identify email column from headers {Headers} using heuristics — attempting AI fallback",
@@ -591,12 +705,20 @@ public class StudentImportService : IStudentImportService
             }
         }
 
-        if (map.EmailIndex < 0)
+        if (map.EmailIndex < 0 && requireEmail)
         {
             throw new InvalidOperationException(
                 $"Could not identify the email column. " +
                 $"Headers found: [{string.Join(", ", headers)}]. " +
                 "Please ensure your file has a column for email addresses.");
+        }
+
+        // Unenroll files may identify students by matricula alone
+        if (map.EmailIndex < 0 && map.MatriculaIndex < 0)
+        {
+            throw new InvalidOperationException(
+                $"Could not identify an email or matricula column. " +
+                $"Headers found: [{string.Join(", ", headers)}].");
         }
 
         return map;
