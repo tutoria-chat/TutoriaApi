@@ -1540,14 +1540,14 @@ Si fuiste tú, puedes ignorar este mensaje de forma segura. De lo contrario, ase
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
-                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Added to University</h1>
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Added to Institution</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Hi {name},</p>
                             <p>You have been added to <strong>{universityName}</strong> on the Tutoria platform.</p>
-                            <p>You can now access courses, modules, and resources associated with this university by logging in to your account.</p>
+                            <p>You can now access courses, modules, and resources associated with this institution by logging in to your account.</p>
                         </td>
                     </tr>
                     <tr>
@@ -1571,7 +1571,7 @@ Si fuiste tú, puedes ignorar este mensaje de forma segura. De lo contrario, ase
 
 You have been added to {universityName} on the Tutoria platform.
 
-You can now access courses, modules, and resources associated with this university by logging in to your account.
+You can now access courses, modules, and resources associated with this institution by logging in to your account.
 
 Log in at: {_frontendUrl}/login
 
@@ -1597,14 +1597,14 @@ Log in at: {_frontendUrl}/login
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
-                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Adicionado à Universidade</h1>
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Adicionado à Instituição de Ensino</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Olá {name},</p>
                             <p>Você foi adicionado à <strong>{universityName}</strong> na plataforma Tutoria.</p>
-                            <p>Agora você pode acessar cursos, módulos e recursos associados a esta universidade fazendo login na sua conta.</p>
+                            <p>Agora você pode acessar cursos, módulos e recursos associados a esta instituição de ensino fazendo login na sua conta.</p>
                         </td>
                     </tr>
                     <tr>
@@ -1628,7 +1628,7 @@ Log in at: {_frontendUrl}/login
 
 Você foi adicionado à {universityName} na plataforma Tutoria.
 
-Agora você pode acessar cursos, módulos e recursos associados a esta universidade fazendo login na sua conta.
+Agora você pode acessar cursos, módulos e recursos associados a esta instituição de ensino fazendo login na sua conta.
 
 Acesse: {_frontendUrl}/login
 
@@ -1654,14 +1654,14 @@ Acesse: {_frontendUrl}/login
                 <table role=""presentation"" style=""width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"">
                     <tr>
                         <td style=""padding: 40px 40px 20px 40px; text-align: center;"">
-                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Agregado a Universidad</h1>
+                            <h1 style=""margin: 0; color: #333333; font-size: 24px;"">Agregado a Institución Educativa</h1>
                         </td>
                     </tr>
                     <tr>
                         <td style=""padding: 20px 40px; color: #666666; font-size: 16px; line-height: 24px;"">
                             <p>Hola {name},</p>
                             <p>Has sido agregado a <strong>{universityName}</strong> en la plataforma Tutoria.</p>
-                            <p>Ahora puedes acceder a cursos, módulos y recursos asociados con esta universidad iniciando sesión en tu cuenta.</p>
+                            <p>Ahora puedes acceder a cursos, módulos y recursos asociados con esta institución educativa iniciando sesión en tu cuenta.</p>
                         </td>
                     </tr>
                     <tr>
@@ -1685,7 +1685,7 @@ Acesse: {_frontendUrl}/login
 
 Has sido agregado a {universityName} en la plataforma Tutoria.
 
-Ahora puedes acceder a cursos, módulos y recursos asociados con esta universidad iniciando sesión en tu cuenta.
+Ahora puedes acceder a cursos, módulos y recursos asociados con esta institución educativa iniciando sesión en tu cuenta.
 
 Inicia sesión en: {_frontendUrl}/login
 
