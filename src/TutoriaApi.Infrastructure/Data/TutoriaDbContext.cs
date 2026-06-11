@@ -101,6 +101,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<AssignmentContextFile> AssignmentContextFiles { get; set; }
     public DbSet<AssignmentSubmission> AssignmentSubmissions { get; set; }
     public DbSet<GradingJob> GradingJobs { get; set; }
+    public DbSet<CourseEvent> CourseEvents { get; set; }
+    public DbSet<CourseEventReminderLog> CourseEventReminderLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -974,6 +976,69 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Assignment)
                 .WithMany(a => a.Submissions)
                 .HasForeignKey(e => e.AssignmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CourseEvent configuration
+        modelBuilder.Entity<CourseEvent>(entity =>
+        {
+            entity.ToTable("CourseEvents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.AssignmentId).HasColumnName("AssignmentId");
+            entity.Property(e => e.Title).HasColumnName("Title").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.Description).HasColumnName("Description");
+            entity.Property(e => e.EventType).HasColumnName("EventType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.StartsAtUtc).HasColumnName("StartsAtUtc");
+            entity.Property(e => e.EndsAtUtc).HasColumnName("EndsAtUtc");
+            entity.Property(e => e.Remind7Days).HasColumnName("Remind7Days");
+            entity.Property(e => e.Remind3Days).HasColumnName("Remind3Days");
+            entity.Property(e => e.Remind2Days).HasColumnName("Remind2Days");
+            entity.Property(e => e.Remind24Hours).HasColumnName("Remind24Hours");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.StartsAtUtc);
+            entity.HasIndex(e => e.AssignmentId);
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.Assignment)
+                .WithMany()
+                .HasForeignKey(e => e.AssignmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CourseEventReminderLog configuration
+        modelBuilder.Entity<CourseEventReminderLog>(entity =>
+        {
+            entity.ToTable("CourseEventReminderLogs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseEventId).HasColumnName("CourseEventId");
+            entity.Property(e => e.ReminderKey).HasColumnName("ReminderKey").HasMaxLength(10).IsRequired();
+            entity.Property(e => e.SentAt).HasColumnName("SentAt");
+            entity.Property(e => e.RecipientsCount).HasColumnName("RecipientsCount");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.CourseEventId, e.ReminderKey }).IsUnique();
+
+            entity.HasOne(e => e.CourseEvent)
+                .WithMany()
+                .HasForeignKey(e => e.CourseEventId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
