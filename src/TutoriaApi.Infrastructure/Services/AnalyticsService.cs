@@ -910,12 +910,14 @@ public class AnalyticsService : IAnalyticsService
     #region Engagement / Evasion
 
     public async Task<AtRiskStudentsDto> GetAtRiskStudentsAsync(
-        int userId, string userRole, int? userUniversityId, int windowDays = 14)
+        int userId, string userRole, int? userUniversityId, int windowDays = 14, int? universityId = null)
     {
         try
         {
             windowDays = Math.Clamp(windowDays, 3, 90);
-            var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, new AnalyticsFilterDto());
+            // universityId is only honored for super admins inside GetAuthorizedModuleIdsAsync
+            var moduleIds = await GetAuthorizedModuleIdsAsync(
+                userId, userRole, userUniversityId, new AnalyticsFilterDto { UniversityId = universityId });
             if (!moduleIds.Any())
                 return new AtRiskStudentsDto { WindowDays = windowDays };
 
@@ -1155,7 +1157,7 @@ public class AnalyticsService : IAnalyticsService
     }
 
     public async Task<QuizPerformanceResponseDto> GetQuizPerformanceAsync(
-        int userId, string userRole, int? userUniversityId, int? moduleId)
+        int userId, string userRole, int? userUniversityId, int? moduleId, int? universityId = null)
     {
         try
         {
@@ -1180,7 +1182,8 @@ public class AnalyticsService : IAnalyticsService
             }
             else
             {
-                var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, new AnalyticsFilterDto());
+                var moduleIds = await GetAuthorizedModuleIdsAsync(
+                    userId, userRole, userUniversityId, new AnalyticsFilterDto { UniversityId = universityId });
 
                 if (!moduleIds.Any())
                 {

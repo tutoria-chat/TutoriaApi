@@ -694,12 +694,14 @@ public class AnalyticsController : ControllerBase
     [HttpGet("at-risk-students")]
     [ProducesResponseType(typeof(AtRiskStudentsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<AtRiskStudentsDto>> GetAtRiskStudents([FromQuery] int days = 14)
+    public async Task<ActionResult<AtRiskStudentsDto>> GetAtRiskStudents(
+        [FromQuery] int days = 14,
+        [FromQuery] int? universityId = null)
     {
         try
         {
             var (userId, userRole, userUniversityId) = GetUserContext();
-            var result = await _analyticsService.GetAtRiskStudentsAsync(userId, userRole, userUniversityId, days);
+            var result = await _analyticsService.GetAtRiskStudentsAsync(userId, userRole, userUniversityId, days, universityId);
             return Ok(result);
         }
         catch (UnauthorizedAccessException)
@@ -799,7 +801,8 @@ public class AnalyticsController : ControllerBase
     public async Task<ActionResult<TopTopicsResponseDto>> GetMostDemandedTopics(
         [FromQuery] DateTime? startDate = null,
         [FromQuery] DateTime? endDate = null,
-        [FromQuery] int? moduleId = null)
+        [FromQuery] int? moduleId = null,
+        [FromQuery] int? universityId = null)
     {
         try
         {
@@ -809,7 +812,8 @@ public class AnalyticsController : ControllerBase
             {
                 StartDate = startDate,
                 EndDate = endDate,
-                ModuleId = moduleId
+                ModuleId = moduleId,
+                UniversityId = universityId
             };
 
             var result = await _analyticsService.GetTopTopicsAsync(userId, userRole, userUniversityId, filters);
@@ -839,13 +843,14 @@ public class AnalyticsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<QuizPerformanceResponseDto>> GetQuizPerformance(
-        [FromQuery] int? moduleId = null)
+        [FromQuery] int? moduleId = null,
+        [FromQuery] int? universityId = null)
     {
         try
         {
             var (userId, userRole, userUniversityId) = GetUserContext();
 
-            var result = await _analyticsService.GetQuizPerformanceAsync(userId, userRole, userUniversityId, moduleId);
+            var result = await _analyticsService.GetQuizPerformanceAsync(userId, userRole, userUniversityId, moduleId, universityId);
             return Ok(result);
         }
         catch (UnauthorizedAccessException ex)

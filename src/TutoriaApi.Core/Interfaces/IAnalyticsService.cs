@@ -143,7 +143,7 @@ public interface IAnalyticsService
     /// Enrolled students with no chat activity inside the lookback window (evasion signal).
     /// </summary>
     Task<AtRiskStudentsDto> GetAtRiskStudentsAsync(
-        int userId, string userRole, int? userUniversityId, int windowDays = 14);
+        int userId, string userRole, int? userUniversityId, int windowDays = 14, int? universityId = null);
 
     /// <summary>
     /// Recent AI-written daily briefings for the university (worker-generated).
@@ -171,5 +171,5 @@ public interface IAnalyticsService
     /// Get quiz performance metrics from pre-computed quiz analytics
     /// </summary>
     Task<QuizPerformanceResponseDto> GetQuizPerformanceAsync(
-        int userId, string userRole, int? userUniversityId, int? moduleId);
+        int userId, string userRole, int? userUniversityId, int? moduleId, int? universityId = null);
 }
