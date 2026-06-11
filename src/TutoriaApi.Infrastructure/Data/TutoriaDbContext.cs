@@ -957,6 +957,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.FileSizeBytes).HasColumnName("FileSizeBytes");
             entity.Property(e => e.ContentType).HasColumnName("ContentType").HasMaxLength(100).IsRequired();
             entity.Property(e => e.SubmittedAt).HasColumnName("SubmittedAt");
+            entity.Property(e => e.FeedbackText).HasColumnName("FeedbackText");
+            entity.Property(e => e.FeedbackGeneratedAt).HasColumnName("FeedbackGeneratedAt");
             entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).HasDefaultValue("submitted");
             entity.Property(e => e.Grade).HasColumnName("Grade").HasColumnType("numeric(5,2)");
             entity.Property(e => e.GradingNotes).HasColumnName("GradingNotes");

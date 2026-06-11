@@ -14,6 +14,10 @@ public class AssignmentSubmission : BaseEntity
     public required string ContentType { get; set; }
     public DateTime SubmittedAt { get; set; }
 
+    // AI feedback generated asynchronously by tutoria-api ("processing" -> "completed"/"failed")
+    public string? FeedbackText { get; set; }
+    public DateTime? FeedbackGeneratedAt { get; set; }
+
     // Nullable until auto-grading is built
     public string Status { get; set; } = "submitted";
     public decimal? Grade { get; set; }
