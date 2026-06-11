@@ -13,6 +13,8 @@ public class GradingJobDto
     public DateTime? ProcessedAt { get; set; }
     public bool HasResult { get; set; }
     public string? GradingCriteria { get; set; }
+    public string? OriginalFilename { get; set; }
+    public string? CreatedByName { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

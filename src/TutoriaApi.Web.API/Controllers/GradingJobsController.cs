@@ -170,6 +170,10 @@ public class GradingJobsController : ControllerBase
         ProcessedAt = job.ProcessedAt,
         HasResult = !string.IsNullOrEmpty(job.ResultS3Key),
         GradingCriteria = job.GradingCriteria,
+        OriginalFilename = job.OriginalFilename,
+        CreatedByName = job.CreatedBy is { } u
+            ? $"{u.FirstName} {u.LastName}".Trim().TrimEnd()
+            : null,
         CreatedAt = job.CreatedAt,
         UpdatedAt = job.UpdatedAt
     };

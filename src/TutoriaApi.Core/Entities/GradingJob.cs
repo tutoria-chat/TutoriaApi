@@ -8,6 +8,9 @@ public class GradingJob : BaseEntity
     /// <summary>pending | processing | completed | failed</summary>
     public required string Status { get; set; }
 
+    /// <summary>Original filename of the uploaded JSON (for display).</summary>
+    public string? OriginalFilename { get; set; }
+
     /// <summary>S3 key for the uploaded student-answers JSON.</summary>
     public string? InputS3Key { get; set; }
 

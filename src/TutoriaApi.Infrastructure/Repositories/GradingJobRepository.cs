@@ -16,6 +16,7 @@ public class GradingJobRepository : Repository<GradingJob>, IGradingJobRepositor
         return await _dbSet
             .Include(j => j.Course)
             .ThenInclude(c => c.University)
+            .Include(j => j.CreatedBy)
             .FirstOrDefaultAsync(j => j.Id == id);
     }
 
@@ -23,6 +24,7 @@ public class GradingJobRepository : Repository<GradingJob>, IGradingJobRepositor
     {
         return await _dbSet
             .Where(j => j.CourseId == courseId)
+            .Include(j => j.CreatedBy)
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync();
     }

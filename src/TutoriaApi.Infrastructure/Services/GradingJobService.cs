@@ -60,6 +60,7 @@ public class GradingJobService : IGradingJobService
             Status = "pending",
             TotalSubmissions = 0,
             ProcessedSubmissions = 0,
+            OriginalFilename = Path.GetFileName(fileName),
             GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim()
         };
 
