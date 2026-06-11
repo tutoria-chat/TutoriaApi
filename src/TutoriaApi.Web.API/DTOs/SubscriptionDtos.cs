@@ -53,6 +53,8 @@ public class UniversityLimitsDto
     public bool HasWhatsApp { get; set; }
     public bool HasPrioritySupport { get; set; }
     public bool HasCustomModelConfig { get; set; }
+    /// <summary>Effective assignments access: university-level override OR plan feature.</summary>
+    public bool HasAssignments { get; set; }
     public string PlanName { get; set; } = string.Empty;
     public string PlanSlug { get; set; } = string.Empty;
     /// <summary>IDs of courses that exceed the plan limit (newest first, should be grayed out).</summary>

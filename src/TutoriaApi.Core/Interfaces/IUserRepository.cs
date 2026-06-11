@@ -27,6 +27,7 @@ public interface IUserRepository
     Task<bool> ExistsByUsernameOrEmailAsync(string username, string email);
     Task<bool> ExistsByUsernameAsync(string username);
     Task<bool> ExistsByEmailAsync(string email);
+    Task<bool> StudentExistsByExternalIdAsync(string externalId, int universityId);
     Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId);
     Task<bool> ExistsByEmailExcludingUserAsync(string email, int excludeUserId);
     Task SaveChangesAsync();

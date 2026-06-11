@@ -17,6 +17,7 @@ public class PlanDto
     public bool HasWhatsApp { get; set; }
     public bool HasPrioritySupport { get; set; }
     public bool HasCustomModelConfig { get; set; }
+    public bool HasAssignments { get; set; }
     public int TrialDays { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; }
@@ -56,6 +57,7 @@ public class PlanCreateRequest
     public bool HasWhatsApp { get; set; }
     public bool HasPrioritySupport { get; set; }
     public bool HasCustomModelConfig { get; set; }
+    public bool HasAssignments { get; set; }
 
     [Range(0, 365, ErrorMessage = "Trial days must be between 0 and 365")]
     public int TrialDays { get; set; }
@@ -96,6 +98,7 @@ public class PlanUpdateRequest
     public bool HasWhatsApp { get; set; }
     public bool HasPrioritySupport { get; set; }
     public bool HasCustomModelConfig { get; set; }
+    public bool HasAssignments { get; set; }
 
     [Range(0, 365, ErrorMessage = "Trial days must be between 0 and 365")]
     public int TrialDays { get; set; }

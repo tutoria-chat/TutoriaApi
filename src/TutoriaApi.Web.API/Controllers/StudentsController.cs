@@ -288,6 +288,7 @@ public class StudentsController : ControllerBase
                 request.Email,
                 request.FirstName,
                 request.LastName,
+                request.ExternalId,
                 request.CourseId);
 
             _logger.LogInformation("Created student {Username} with ID {Id}", student.Username, student.UserId);

@@ -48,6 +48,10 @@ public class StudentCreateRequest
 
     // No password field - students don't have passwords (they don't login)
 
+    [Required(ErrorMessage = "Matricula is required")]
+    [MaxLength(100, ErrorMessage = "Matricula cannot exceed 100 characters")]
+    public string ExternalId { get; set; } = string.Empty;
+
     [Required(ErrorMessage = "Course ID is required")]
     public int CourseId { get; set; }
 }

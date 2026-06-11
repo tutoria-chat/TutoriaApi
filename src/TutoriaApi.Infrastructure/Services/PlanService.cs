@@ -64,6 +64,7 @@ public class PlanService : IPlanService
         existing.HasWhatsApp = plan.HasWhatsApp;
         existing.HasPrioritySupport = plan.HasPrioritySupport;
         existing.HasCustomModelConfig = plan.HasCustomModelConfig;
+        existing.HasAssignments = plan.HasAssignments;
         existing.TrialDays = plan.TrialDays;
         existing.DisplayOrder = plan.DisplayOrder;
         existing.IsActive = plan.IsActive;

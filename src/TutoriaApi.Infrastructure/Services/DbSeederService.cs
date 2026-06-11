@@ -82,12 +82,12 @@ public class DbSeederService
                 SELECT 'student', ""Id"" FROM ""Permissions"" WHERE ""Id"" IN (6,10,22)
                 ON CONFLICT (""Role"", ""PermissionId"") DO NOTHING;
 
-                INSERT INTO ""Plans"" (""Name"", ""Slug"", ""Description"", ""MonthlyPriceBRL"", ""MaxCourses"", ""MaxModules"", ""MaxStudents"", ""HasAIQuizzes"", ""HasWhatsApp"", ""HasPrioritySupport"", ""HasCustomModelConfig"", ""TrialDays"", ""DisplayOrder"", ""IsActive"", ""IsCustom"", ""CreatedAt"", ""UpdatedAt"")
+                INSERT INTO ""Plans"" (""Name"", ""Slug"", ""Description"", ""MonthlyPriceBRL"", ""MaxCourses"", ""MaxModules"", ""MaxStudents"", ""HasAIQuizzes"", ""HasWhatsApp"", ""HasPrioritySupport"", ""HasCustomModelConfig"", ""HasAssignments"", ""TrialDays"", ""DisplayOrder"", ""IsActive"", ""IsCustom"", ""CreatedAt"", ""UpdatedAt"")
                 VALUES
-                    ('Starter', 'starter', 'Ideal para professores individuais ou pequenas disciplinas.', 2625.00, 3, 12, 1050, false, false, false, false, 14, 1, true, false, NOW(), NOW()),
-                    ('Professional', 'professional', 'Para departamentos ou coordenacoes com multiplas disciplinas.', 6650.00, 8, 32, 2800, true, false, false, false, 14, 2, true, false, NOW(), NOW()),
-                    ('Business', 'business', 'Para universidades com grande volume.', 15750.00, 20, 80, 7000, true, true, true, true, 14, 3, true, false, NOW(), NOW()),
-                    ('Enterprise', 'enterprise', 'Solucao personalizada para grandes instituicoes.', 0.00, 999, 9999, NULL, true, true, true, true, 30, 4, true, true, NOW(), NOW())
+                    ('Starter', 'starter', 'Ideal para professores individuais ou pequenas disciplinas.', 2625.00, 3, 12, 1050, false, false, false, false, false, 14, 1, true, false, NOW(), NOW()),
+                    ('Professional', 'professional', 'Para departamentos ou coordenacoes com multiplas disciplinas.', 6650.00, 8, 32, 2800, true, false, false, false, false, 14, 2, true, false, NOW(), NOW()),
+                    ('Business', 'business', 'Para universidades com grande volume.', 15750.00, 20, 80, 7000, true, true, true, true, true, 14, 3, true, false, NOW(), NOW()),
+                    ('Enterprise', 'enterprise', 'Solucao personalizada para grandes instituicoes.', 0.00, 999, 9999, NULL, true, true, true, true, true, 30, 4, true, true, NOW(), NOW())
                 ON CONFLICT (""Slug"") DO NOTHING;
 
                 INSERT INTO ""ApiClients"" (""ClientId"", ""HashedSecret"", ""Name"", ""Description"", ""IsActive"", ""Scopes"", ""CreatedAt"", ""UpdatedAt"")

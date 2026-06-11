@@ -109,6 +109,7 @@ public class SubscriptionsController : BaseAuthController
                 HasWhatsApp = subscription?.Plan?.HasWhatsApp ?? false,
                 HasPrioritySupport = subscription?.Plan?.HasPrioritySupport ?? false,
                 HasCustomModelConfig = subscription?.Plan?.HasCustomModelConfig ?? false,
+                HasAssignments = (university?.HasAssignments ?? false) || (subscription?.Plan?.HasAssignments ?? false),
                 PlanName = subscription?.Plan?.Name ?? string.Empty,
                 PlanSlug = subscription?.Plan?.Slug ?? string.Empty
             };

@@ -951,7 +951,7 @@ public class TutoriaDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.AssignmentId).HasColumnName("AssignmentId");
-            entity.Property(e => e.StudentId).HasColumnName("StudentId").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
             entity.Property(e => e.S3Key).HasColumnName("S3Key").HasMaxLength(500).IsRequired();
             entity.Property(e => e.OriginalFileName).HasColumnName("OriginalFileName").HasMaxLength(255).IsRequired();
             entity.Property(e => e.FileSizeBytes).HasColumnName("FileSizeBytes");

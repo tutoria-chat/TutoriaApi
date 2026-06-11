@@ -5,7 +5,9 @@ public class AssignmentSubmission : BaseEntity
     public int AssignmentId { get; set; }
     public Assignment Assignment { get; set; } = null!;
 
-    public required string StudentId { get; set; }
+    // User.UserId of the verified student. Nullable only for legacy rows that
+    // stored non-numeric identifiers before matricula verification became mandatory.
+    public int? StudentId { get; set; }
     public required string S3Key { get; set; }
     public required string OriginalFileName { get; set; }
     public long FileSizeBytes { get; set; }

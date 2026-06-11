@@ -164,6 +164,12 @@ public class UserRepository : IUserRepository
         return await _context.Users.AnyAsync(u => u.Email == email);
     }
 
+    public async Task<bool> StudentExistsByExternalIdAsync(string externalId, int universityId)
+    {
+        return await _context.Users.AnyAsync(u =>
+            u.ExternalId == externalId && u.UserType == "student" && u.UniversityId == universityId);
+    }
+
     public async Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId)
     {
         return await _context.Users.AnyAsync(u => u.Username == username && u.UserId != excludeUserId);

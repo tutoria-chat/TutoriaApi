@@ -14,6 +14,7 @@ public class Plan : BaseEntity
     public bool HasWhatsApp { get; set; }
     public bool HasPrioritySupport { get; set; }
     public bool HasCustomModelConfig { get; set; }
+    public bool HasAssignments { get; set; }
     public int TrialDays { get; set; }
     public int DisplayOrder { get; set; }
     public bool IsActive { get; set; } = true;

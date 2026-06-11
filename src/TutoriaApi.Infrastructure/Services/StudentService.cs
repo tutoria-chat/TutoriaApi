@@ -74,17 +74,24 @@ public class StudentService : IStudentService
         string email,
         string firstName,
         string lastName,
+        string externalId,
         int courseId)
     {
         var course = await _courseRepository.GetByIdAsync(courseId);
         if (course == null)
             throw new KeyNotFoundException("Course not found");
 
+        if (string.IsNullOrWhiteSpace(externalId))
+            throw new InvalidOperationException("Matricula (external ID) is required for students");
+
         if (await _userRepository.ExistsByUsernameAsync(username))
             throw new InvalidOperationException("Username already exists");
 
         if (await _userRepository.ExistsByEmailAsync(email))
             throw new InvalidOperationException("Email already exists");
+
+        if (await _userRepository.StudentExistsByExternalIdAsync(externalId.Trim(), course.UniversityId))
+            throw new InvalidOperationException("A student with this matricula already exists in this university");
 
         var student = new User
         {
@@ -94,6 +101,8 @@ public class StudentService : IStudentService
             LastName = lastName,
             HashedPassword = null,
             UserType = "student",
+            ExternalId = externalId.Trim(),
+            UniversityId = course.UniversityId,
             IsActive = true
         };
 

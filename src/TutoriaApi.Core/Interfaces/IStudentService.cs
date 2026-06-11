@@ -16,6 +16,7 @@ public interface IStudentService
         string email,
         string firstName,
         string lastName,
+        string externalId,
         int courseId);
     Task<User> UpdateAsync(
         int id,
