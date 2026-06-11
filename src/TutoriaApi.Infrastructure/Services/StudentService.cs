@@ -107,6 +107,22 @@ public class StudentService : IStudentService
         };
 
         await _userRepository.AddAsync(student);
+
+        // Per-university matricula (multi-tenant direct login)
+        var membership = await _dbContext.UserUniversities
+            .FirstOrDefaultAsync(uu => uu.UserId == student.UserId && uu.UniversityId == course.UniversityId);
+        if (membership == null)
+        {
+            _dbContext.UserUniversities.Add(new UserUniversity
+            {
+                UserId = student.UserId,
+                UniversityId = course.UniversityId,
+                JoinedAt = DateTime.UtcNow,
+                ExternalId = externalId.Trim()
+            });
+            await _dbContext.SaveChangesAsync();
+        }
+
         await _studentCourseRepository.EnrollStudentInCourseAsync(student.UserId, courseId);
 
         return student;

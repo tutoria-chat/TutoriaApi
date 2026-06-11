@@ -359,6 +359,8 @@ public class TutoriaDbContext : DbContext
             entity.Property(uu => uu.UserId).HasColumnName("UserId");
             entity.Property(uu => uu.UniversityId).HasColumnName("UniversityId");
             entity.Property(uu => uu.JoinedAt).HasColumnName("JoinedAt");
+            entity.Property(uu => uu.ExternalId).HasColumnName("ExternalId").HasMaxLength(100);
+            entity.HasIndex(uu => new { uu.UniversityId, uu.ExternalId });
         });
 
         // UserInvitation configuration

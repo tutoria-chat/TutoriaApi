@@ -222,19 +222,21 @@ public class StudentImportService : IStudentImportService
 
         if (existingUser != null)
         {
+            // Update ExternalId if we have a matricula and user doesn't have one
+            if (!string.IsNullOrWhiteSpace(matricula) && string.IsNullOrWhiteSpace(existingUser.ExternalId))
+            {
+                existingUser.ExternalId = matricula;
+            }
+
+            // Per-university matricula (multi-tenant direct login)
+            await EnsureUniversityMembershipAsync(existingUser.UserId, universityId, matricula);
+
             // Student exists - check if already enrolled
             var isEnrolled = await _studentCourseRepository.IsStudentEnrolledInCourseAsync(existingUser.UserId, courseId);
             if (isEnrolled)
             {
                 result.SkippedCount++;
                 return;
-            }
-
-            // Update ExternalId if we have a matricula and user doesn't have one
-            if (!string.IsNullOrWhiteSpace(matricula) && string.IsNullOrWhiteSpace(existingUser.ExternalId))
-            {
-                existingUser.ExternalId = matricula;
-                await _context.SaveChangesAsync();
             }
 
             // Enroll in course
@@ -278,6 +280,9 @@ public class StudentImportService : IStudentImportService
                         await _context.SaveChangesAsync();
                     }
                 }
+
+                // Per-university matricula (multi-tenant direct login)
+                await EnsureUniversityMembershipAsync(existingUser.UserId, universityId, matricula);
 
                 // Check if already enrolled
                 var isEnrolled = await _studentCourseRepository.IsStudentEnrolledInCourseAsync(existingUser.UserId, courseId);
@@ -332,9 +337,40 @@ public class StudentImportService : IStudentImportService
         _context.Users.Add(newUser);
         await _context.SaveChangesAsync();
 
+        // Per-university matricula (multi-tenant direct login)
+        await EnsureUniversityMembershipAsync(newUser.UserId, universityId, matricula);
+
         // Enroll in course
         await _studentCourseRepository.EnrollStudentInCourseAsync(newUser.UserId, courseId);
         result.CreatedCount++;
+    }
+
+    /// <summary>
+    /// Upsert the UserUniversities row carrying this student's matricula at this
+    /// university. The matricula is per-institution: direct widget login resolves
+    /// the university from (email, matricula) via this table.
+    /// </summary>
+    private async Task EnsureUniversityMembershipAsync(int userId, int universityId, string? matricula)
+    {
+        var membership = await _context.UserUniversities
+            .FirstOrDefaultAsync(uu => uu.UserId == userId && uu.UniversityId == universityId);
+
+        if (membership == null)
+        {
+            _context.UserUniversities.Add(new UserUniversity
+            {
+                UserId = userId,
+                UniversityId = universityId,
+                JoinedAt = DateTime.UtcNow,
+                ExternalId = string.IsNullOrWhiteSpace(matricula) ? null : matricula
+            });
+            await _context.SaveChangesAsync();
+        }
+        else if (!string.IsNullOrWhiteSpace(matricula) && membership.ExternalId != matricula)
+        {
+            membership.ExternalId = matricula;
+            await _context.SaveChangesAsync();
+        }
     }
 
     private async Task<int> GetUniversityStudentCountAsync(int universityId)

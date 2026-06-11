@@ -10,4 +10,11 @@ public class UserUniversity
     public int UserId { get; set; }
     public int UniversityId { get; set; }
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Institution-issued student identifier (matricula) AT THIS university.
+    /// A student enrolled at two institutions has a different matricula in each;
+    /// User.ExternalId only holds the first one and is kept for backward compat.
+    /// </summary>
+    public string? ExternalId { get; set; }
 }
