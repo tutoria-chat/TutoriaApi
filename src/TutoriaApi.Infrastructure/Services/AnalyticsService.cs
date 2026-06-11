@@ -18,6 +18,9 @@ public class AnalyticsService : IAnalyticsService
     private readonly IAnalyticsDailySummaryRepository _dailySummaryRepository;
     private readonly ITopicClassificationRepository _topicClassificationRepository;
     private readonly IQuizAnalyticsRepository _quizAnalyticsRepository;
+    private readonly IStudentCourseRepository _studentCourseRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly IDailyAISummaryRepository _dailyAISummaryRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
     // Token distribution constants for cost estimation (based on typical chat usage patterns)
@@ -41,6 +44,9 @@ public class AnalyticsService : IAnalyticsService
         IAnalyticsDailySummaryRepository dailySummaryRepository,
         ITopicClassificationRepository topicClassificationRepository,
         IQuizAnalyticsRepository quizAnalyticsRepository,
+        IStudentCourseRepository studentCourseRepository,
+        IUserRepository userRepository,
+        IDailyAISummaryRepository dailyAISummaryRepository,
         ILogger<AnalyticsService> logger)
     {
         _dynamoDbService = dynamoDbService;
@@ -52,6 +58,9 @@ public class AnalyticsService : IAnalyticsService
         _dailySummaryRepository = dailySummaryRepository;
         _topicClassificationRepository = topicClassificationRepository;
         _quizAnalyticsRepository = quizAnalyticsRepository;
+        _studentCourseRepository = studentCourseRepository;
+        _userRepository = userRepository;
+        _dailyAISummaryRepository = dailyAISummaryRepository;
         _logger = logger;
     }
 
@@ -894,6 +903,126 @@ public class AnalyticsService : IAnalyticsService
             _logger.LogError(ex, "Error getting frequently asked questions for user {UserId}", userId);
             return new FrequentlyAskedQuestionsResponseDto();
         }
+    }
+
+    #endregion
+
+    #region Engagement / Evasion
+
+    public async Task<AtRiskStudentsDto> GetAtRiskStudentsAsync(
+        int userId, string userRole, int? userUniversityId, int windowDays = 14)
+    {
+        try
+        {
+            windowDays = Math.Clamp(windowDays, 3, 90);
+            var moduleIds = await GetAuthorizedModuleIdsAsync(userId, userRole, userUniversityId, new AnalyticsFilterDto());
+            if (!moduleIds.Any())
+                return new AtRiskStudentsDto { WindowDays = windowDays };
+
+            var allModules = await _moduleRepository.GetAllAsync();
+            var authorizedModules = allModules.Where(m => moduleIds.Contains(m.Id)).ToList();
+            var courseIds = authorizedModules.Select(m => m.CourseId).Distinct().ToList();
+
+            var allCourses = await _courseRepository.GetAllAsync();
+            var courseNames = allCourses
+                .Where(c => courseIds.Contains(c.Id))
+                .ToDictionary(c => c.Id, c => c.Name);
+
+            // Enrollment map: studentId -> course names
+            var enrollment = new Dictionary<int, List<string>>();
+            foreach (var courseId in courseIds)
+            {
+                var studentIds = await _studentCourseRepository.GetStudentIdsByCourseIdAsync(courseId);
+                foreach (var studentId in studentIds)
+                {
+                    if (!enrollment.TryGetValue(studentId, out var list))
+                    {
+                        list = new List<string>();
+                        enrollment[studentId] = list;
+                    }
+                    if (courseNames.TryGetValue(courseId, out var name))
+                        list.Add(name);
+                }
+            }
+
+            // Chat activity inside the lookback window (DynamoDB module index)
+            var windowStart = DateTime.UtcNow.AddDays(-windowDays);
+            var activeStudentIds = new HashSet<int>();
+            foreach (var moduleId in moduleIds)
+            {
+                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, windowStart, null, 5000);
+                foreach (var message in messages)
+                {
+                    if (message.StudentId > 0)
+                        activeStudentIds.Add(message.StudentId);
+                }
+            }
+
+            var atRiskIds = enrollment.Keys.Where(id => !activeStudentIds.Contains(id)).ToList();
+            var atRiskStudents = await _userRepository.GetActiveStudentsByIdsAsync(atRiskIds);
+
+            return new AtRiskStudentsDto
+            {
+                TotalEnrolled = enrollment.Count,
+                ActiveStudents = enrollment.Keys.Count(activeStudentIds.Contains),
+                AtRiskCount = atRiskStudents.Count,
+                WindowDays = windowDays,
+                Students = atRiskStudents
+                    .Select(u => new AtRiskStudentDto
+                    {
+                        StudentId = u.UserId,
+                        Name = $"{u.FirstName} {u.LastName}".Trim(),
+                        Email = u.Email,
+                        LastActivityAt = null, // nothing inside the window by definition
+                        CourseNames = enrollment.GetValueOrDefault(u.UserId) ?? new List<string>(),
+                    })
+                    .OrderBy(s => s.Name)
+                    .Take(100)
+                    .ToList(),
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error computing at-risk students for user {UserId}", userId);
+            return new AtRiskStudentsDto { WindowDays = windowDays };
+        }
+    }
+
+    public async Task<List<DailyAISummaryDto>> GetDailyAISummariesAsync(
+        int userId, string userRole, int? userUniversityId, int? universityId, int count = 7)
+    {
+        // Super admins may pass a universityId; everyone else is scoped to their own
+        var effectiveUniversityId = userRole == "super_admin"
+            ? (universityId ?? userUniversityId)
+            : userUniversityId;
+
+        if (effectiveUniversityId == null)
+            return new List<DailyAISummaryDto>();
+
+        var summaries = await _dailyAISummaryRepository.GetRecentByUniversityIdAsync(
+            effectiveUniversityId.Value, Math.Clamp(count, 1, 30));
+
+        return summaries.Select(s =>
+        {
+            var highlights = new List<string>();
+            if (!string.IsNullOrWhiteSpace(s.HighlightsJson))
+            {
+                try
+                {
+                    highlights = System.Text.Json.JsonSerializer
+                        .Deserialize<List<string>>(s.HighlightsJson) ?? new List<string>();
+                }
+                catch { /* malformed highlights are non-fatal */ }
+            }
+
+            return new DailyAISummaryDto
+            {
+                Date = s.Date,
+                SummaryText = s.SummaryText,
+                Highlights = highlights,
+                GeneratedAt = s.CreatedAt,
+            };
+        }).ToList();
     }
 
     #endregion

@@ -689,6 +689,59 @@ public class AnalyticsController : ControllerBase
     #region Pre-computed Analytics Endpoints
 
     /// <summary>
+    /// Enrolled students with no chat activity in the lookback window (evasion signal).
+    /// </summary>
+    [HttpGet("at-risk-students")]
+    [ProducesResponseType(typeof(AtRiskStudentsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<AtRiskStudentsDto>> GetAtRiskStudents([FromQuery] int days = 14)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+            var result = await _analyticsService.GetAtRiskStudentsAsync(userId, userRole, userUniversityId, days);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting at-risk students");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Recent AI-written daily briefings for the university.
+    /// </summary>
+    [HttpGet("daily-ai-summary")]
+    [ProducesResponseType(typeof(List<DailyAISummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<List<DailyAISummaryDto>>> GetDailyAISummaries(
+        [FromQuery] int? universityId = null,
+        [FromQuery] int count = 7)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+            var result = await _analyticsService.GetDailyAISummariesAsync(
+                userId, userRole, userUniversityId, universityId, count);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting daily AI summaries");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
     /// Get question counts per module from pre-computed daily summaries
     /// </summary>
     /// <remarks>

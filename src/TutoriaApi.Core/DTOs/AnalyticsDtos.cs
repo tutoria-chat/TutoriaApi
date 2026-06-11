@@ -596,6 +596,37 @@ public class ModuleComparisonDto
 }
 
 // =====================================
+// 9b. Engagement / Evasion DTOs
+// =====================================
+
+public class AtRiskStudentsDto
+{
+    public int TotalEnrolled { get; set; }
+    public int ActiveStudents { get; set; }
+    public int AtRiskCount { get; set; }
+    public int WindowDays { get; set; }
+    public List<AtRiskStudentDto> Students { get; set; } = new();
+}
+
+public class AtRiskStudentDto
+{
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    /// <summary>Last chat activity inside the lookback window's modules; null = never seen.</summary>
+    public DateTime? LastActivityAt { get; set; }
+    public List<string> CourseNames { get; set; } = new();
+}
+
+public class DailyAISummaryDto
+{
+    public DateOnly Date { get; set; }
+    public string SummaryText { get; set; } = string.Empty;
+    public List<string> Highlights { get; set; } = new();
+    public DateTime? GeneratedAt { get; set; }
+}
+
+// =====================================
 // 10. Pre-computed Analytics DTOs
 // =====================================
 

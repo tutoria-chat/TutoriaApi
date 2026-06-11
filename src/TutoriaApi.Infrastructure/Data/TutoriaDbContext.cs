@@ -103,6 +103,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<GradingJob> GradingJobs { get; set; }
     public DbSet<CourseEvent> CourseEvents { get; set; }
     public DbSet<CourseEventReminderLog> CourseEventReminderLogs { get; set; }
+    public DbSet<DailyAISummary> DailyAISummaries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1039,6 +1040,28 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.CourseEvent)
                 .WithMany()
                 .HasForeignKey(e => e.CourseEventId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // DailyAISummary configuration
+        modelBuilder.Entity<DailyAISummary>(entity =>
+        {
+            entity.ToTable("DailyAISummaries");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Date).HasColumnName("Date");
+            entity.Property(e => e.SummaryText).HasColumnName("SummaryText").IsRequired();
+            entity.Property(e => e.HighlightsJson).HasColumnName("HighlightsJson");
+            entity.Property(e => e.Provider).HasColumnName("Provider").HasMaxLength(50);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.UniversityId, e.Date }).IsUnique();
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

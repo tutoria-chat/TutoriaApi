@@ -136,6 +136,22 @@ public interface IAnalyticsService
         AnalyticsFilterDto filters);
 
     // =====================================
+    // Engagement / Evasion
+    // =====================================
+
+    /// <summary>
+    /// Enrolled students with no chat activity inside the lookback window (evasion signal).
+    /// </summary>
+    Task<AtRiskStudentsDto> GetAtRiskStudentsAsync(
+        int userId, string userRole, int? userUniversityId, int windowDays = 14);
+
+    /// <summary>
+    /// Recent AI-written daily briefings for the university (worker-generated).
+    /// </summary>
+    Task<List<DailyAISummaryDto>> GetDailyAISummariesAsync(
+        int userId, string userRole, int? userUniversityId, int? universityId, int count = 7);
+
+    // =====================================
     // Pre-computed Analytics (from SQL)
     // =====================================
 
