@@ -293,6 +293,91 @@ public class ResendEmailService : IEmailService
         await SendEmailAsync(toEmail, subject, htmlBody, textBody);
     }
 
+    public async Task SendCourseEventReminderEmailAsync(
+        string toEmail, string toName, string eventTitle, string eventType,
+        string courseName, string whenLocalFormatted, string timeUntil, string languageCode = "pt-br")
+    {
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping event reminder to {Email}", toEmail);
+            return;
+        }
+
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(toName) ? "Estudante" : toName);
+        var safeTitle = WebUtility.HtmlEncode(eventTitle);
+        var safeCourse = WebUtility.HtmlEncode(courseName);
+        var safeWhen = WebUtility.HtmlEncode(whenLocalFormatted);
+        var safeUntil = WebUtility.HtmlEncode(timeUntil);
+
+        var (subject, intro, typeLabel, footer) = languageCode.ToLower() switch
+        {
+            "en" => (
+                $"Reminder: {eventTitle} — {timeUntil}",
+                $"Hey {safeName}! Just a heads-up:",
+                EventTypeLabel(eventType, "en"),
+                "You're receiving this because your institution scheduled this event in TutorIA."),
+            "es" => (
+                $"Recordatorio: {eventTitle} — {timeUntil}",
+                $"¡Hola {safeName}! Solo un recordatorio:",
+                EventTypeLabel(eventType, "es"),
+                "Recibes este correo porque tu institución programó este evento en TutorIA."),
+            _ => (
+                $"Lembrete: {eventTitle} — {timeUntil}",
+                $"Oi, {safeName}! Só um lembrete:",
+                EventTypeLabel(eventType, "pt-br"),
+                "Você está recebendo este e-mail porque sua instituição agendou este evento na TutorIA."),
+        };
+
+        var html = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""UTF-8""></head>
+<body style=""margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;"">
+  <div style=""max-width:560px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;"">
+    <div style=""background:linear-gradient(90deg,#5e17eb,#5ce1e6);padding:20px 28px;"">
+      <p style=""margin:0;color:#ffffff;font-size:20px;font-weight:bold;"">TutorIA</p>
+    </div>
+    <div style=""padding:28px;"">
+      <p style=""font-size:15px;color:#333333;"">{intro}</p>
+      <div style=""border-left:4px solid #5e17eb;background:#f8f6ff;border-radius:8px;padding:16px 20px;margin:16px 0;"">
+        <p style=""margin:0 0 4px 0;font-size:12px;color:#5e17eb;font-weight:bold;text-transform:uppercase;"">{typeLabel} · {safeUntil}</p>
+        <p style=""margin:0;font-size:18px;font-weight:bold;color:#1a1a1a;"">{safeTitle}</p>
+        <p style=""margin:6px 0 0 0;font-size:14px;color:#555555;"">{safeCourse}</p>
+        <p style=""margin:6px 0 0 0;font-size:14px;color:#555555;"">📅 {safeWhen}</p>
+      </div>
+      <p style=""font-size:12px;color:#999999;margin-top:24px;"">{footer}</p>
+    </div>
+  </div>
+</body>
+</html>";
+
+        var text = $"{intro}\n\n{typeLabel} · {timeUntil}\n{eventTitle}\n{courseName}\n{whenLocalFormatted}\n\n{footer}";
+
+        await SendEmailAsync(toEmail, subject, html, text);
+    }
+
+    private static string EventTypeLabel(string eventType, string languageCode) => (eventType, languageCode) switch
+    {
+        ("test", "en") => "Test",
+        ("test", "es") => "Examen",
+        ("test", _) => "Prova",
+        ("assignment", "en") => "Assignment due",
+        ("assignment", "es") => "Entrega de actividad",
+        ("assignment", _) => "Entrega de atividade",
+        ("holiday", "en") => "Holiday",
+        ("holiday", "es") => "Feriado",
+        ("holiday", _) => "Feriado",
+        ("field_event", "en") => "Field event",
+        ("field_event", "es") => "Evento de campo",
+        ("field_event", _) => "Evento de campo",
+        (_, "en") => "Event",
+        (_, "es") => "Evento",
+        _ => "Evento",
+    };
+
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody, string textBody)
     {
         if (_resendClient == null)

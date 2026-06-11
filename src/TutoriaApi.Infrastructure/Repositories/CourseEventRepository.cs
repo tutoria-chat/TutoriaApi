@@ -45,4 +45,25 @@ public class CourseEventRepository : Repository<CourseEvent>, ICourseEventReposi
             .Select(e => e.AssignmentId!.Value)
             .ToListAsync();
     }
+
+    public async Task<List<CourseEvent>> GetUpcomingWithRemindersAsync(DateTime fromUtc, DateTime toUtc)
+    {
+        return await _dbSet
+            .Include(e => e.Course)
+            .Where(e => e.StartsAtUtc >= fromUtc && e.StartsAtUtc <= toUtc)
+            .Where(e => e.Remind7Days || e.Remind3Days || e.Remind2Days || e.Remind24Hours)
+            .ToListAsync();
+    }
+
+    public async Task<bool> HasReminderBeenSentAsync(int courseEventId, string reminderKey)
+    {
+        return await _context.CourseEventReminderLogs
+            .AnyAsync(l => l.CourseEventId == courseEventId && l.ReminderKey == reminderKey);
+    }
+
+    public async Task AddReminderLogAsync(CourseEventReminderLog log)
+    {
+        _context.CourseEventReminderLogs.Add(log);
+        await _context.SaveChangesAsync();
+    }
 }

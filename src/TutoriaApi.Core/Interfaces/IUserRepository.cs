@@ -49,4 +49,5 @@ public interface IUserRepository
 
     Task<User?> GetProfessorByIdWithUniversityAsync(int professorId);
     Task<User?> GetStudentByIdAsync(int studentId);
+    Task<List<User>> GetActiveStudentsByIdsAsync(List<int> studentIds);
 }

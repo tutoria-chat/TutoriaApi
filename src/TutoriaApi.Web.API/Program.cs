@@ -351,6 +351,11 @@ if (hangfireEnabled)
         "lgpd-data-retention-cleanup",
         service => service.RunCleanupAsync(),
         Cron.Weekly(DayOfWeek.Sunday, 2)); // Run weekly on Sundays at 2:00 AM UTC
+
+    RecurringJob.AddOrUpdate<ICourseEventReminderService>(
+        "course-event-reminders",
+        service => service.ProcessRemindersAsync(),
+        Cron.Hourly()); // Hourly: emails students about upcoming tests/assignments (deduped per event+slot)
 }
 
 // Log registered services on startup

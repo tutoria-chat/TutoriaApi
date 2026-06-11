@@ -170,6 +170,13 @@ public class UserRepository : IUserRepository
             u.ExternalId == externalId && u.UserType == "student" && u.UniversityId == universityId);
     }
 
+    public async Task<List<User>> GetActiveStudentsByIdsAsync(List<int> studentIds)
+    {
+        return await _context.Users
+            .Where(u => studentIds.Contains(u.UserId) && u.UserType == "student" && u.IsActive)
+            .ToListAsync();
+    }
+
     public async Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId)
     {
         return await _context.Users.AnyAsync(u => u.Username == username && u.UserId != excludeUserId);

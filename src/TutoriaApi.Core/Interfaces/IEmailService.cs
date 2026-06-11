@@ -88,4 +88,19 @@ public interface IEmailService
     /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
     /// <returns>Task representing the async operation</returns>
     Task SendInvitationEmailAsync(string toEmail, string universityName, string roleName, string token, string languageCode = "en");
+
+    /// <summary>
+    /// Send an upcoming course-event reminder (test, assignment due date, etc.) to a student.
+    /// </summary>
+    /// <param name="toEmail">Recipient email address</param>
+    /// <param name="toName">Recipient first name for personalization</param>
+    /// <param name="eventTitle">Event title (e.g. "Prova 1")</param>
+    /// <param name="eventType">test | assignment | holiday | field_event | other</param>
+    /// <param name="courseName">Course the event belongs to</param>
+    /// <param name="whenLocalFormatted">Event date/time already formatted in the student's locale (America/Sao_Paulo)</param>
+    /// <param name="timeUntil">Human description of the remaining time (e.g. "amanhã", "em 7 dias")</param>
+    /// <param name="languageCode">Language code for email template (e.g., "en", "pt-br", "es")</param>
+    Task SendCourseEventReminderEmailAsync(
+        string toEmail, string toName, string eventTitle, string eventType,
+        string courseName, string whenLocalFormatted, string timeUntil, string languageCode = "pt-br");
 }
