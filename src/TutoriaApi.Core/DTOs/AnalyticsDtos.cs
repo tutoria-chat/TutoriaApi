@@ -626,6 +626,69 @@ public class DailyAISummaryDto
     public DateTime? GeneratedAt { get; set; }
 }
 
+// =====================================
+// 9c. Institution / class / discipline stats DTOs
+// =====================================
+
+public class CourseStatsResponseDto
+{
+    public int WindowDays { get; set; }
+    public List<CourseStatsDto> Courses { get; set; } = new();
+}
+
+public class CourseStatsDto
+{
+    public int CourseId { get; set; }
+    public string CourseName { get; set; } = string.Empty;
+    public int Enrolled { get; set; }
+    public int Active { get; set; }
+    public int AtRisk { get; set; }
+    public int TotalXp { get; set; }
+    public double AvgLevel { get; set; }
+    public int Questions { get; set; }
+    public int Quizzes { get; set; }
+}
+
+public class ModuleStatsResponseDto
+{
+    public int CourseId { get; set; }
+    public string CourseName { get; set; } = string.Empty;
+    public int WindowDays { get; set; }
+    public List<ModuleStatsDto> Modules { get; set; } = new();
+}
+
+public class ModuleStatsDto
+{
+    public int ModuleId { get; set; }
+    public string ModuleName { get; set; } = string.Empty;
+    public int Active { get; set; }
+    public int TotalXp { get; set; }
+    public int Questions { get; set; }
+    public int Quizzes { get; set; }
+}
+
+public class PedagogicalAlertsResponseDto
+{
+    public List<PedagogicalAlertDto> Alerts { get; set; } = new();
+}
+
+public class PedagogicalAlertDto
+{
+    /// <summary>evasion | concept</summary>
+    public string Type { get; set; } = string.Empty;
+    /// <summary>high | medium</summary>
+    public string Severity { get; set; } = "medium";
+    public int CourseId { get; set; }
+    public string CourseName { get; set; } = string.Empty;
+    public int? ModuleId { get; set; }
+    public string? ModuleName { get; set; }
+    public string? Concept { get; set; }
+    /// <summary>Headline number: at-risk % (evasion) or success-rate % (concept).</summary>
+    public int Metric { get; set; }
+    /// <summary>Affected count: at-risk students (evasion) or attempts (concept).</summary>
+    public int Count { get; set; }
+}
+
 public class RiskPredictionsDto
 {
     public int WindowDays { get; set; }
