@@ -106,6 +106,9 @@ public class TutoriaDbContext : DbContext
     public DbSet<DailyAISummary> DailyAISummaries { get; set; }
     public DbSet<StudyPlan> StudyPlans { get; set; }
     public DbSet<Flashcard> Flashcards { get; set; }
+    public DbSet<StudentActivity> StudentActivities { get; set; }
+    public DbSet<StudentProgress> StudentProgress { get; set; }
+    public DbSet<StudentBadge> StudentBadges { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1121,6 +1124,60 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // StudentActivity configuration (append-only gamification ledger)
+        modelBuilder.Entity<StudentActivity>(entity =>
+        {
+            entity.ToTable("StudentActivities");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.ActivityType).HasColumnName("ActivityType").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Xp).HasColumnName("Xp");
+            entity.Property(e => e.ReferenceId).HasColumnName("ReferenceId").HasMaxLength(100);
+            entity.Property(e => e.OccurredAt).HasColumnName("OccurredAt");
+            entity.Property(e => e.DedupeKey).HasColumnName("DedupeKey").HasMaxLength(150);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.StudentId, e.OccurredAt });
+            entity.HasIndex(e => new { e.CourseId, e.OccurredAt });
+            entity.HasIndex(e => e.DedupeKey).IsUnique();
+        });
+
+        // StudentProgress configuration (per-student rollup; StudentId is the key)
+        modelBuilder.Entity<StudentProgress>(entity =>
+        {
+            entity.ToTable("StudentProgress");
+            entity.HasKey(e => e.StudentId);
+            entity.Property(e => e.StudentId).HasColumnName("StudentId").ValueGeneratedNever();
+            entity.Property(e => e.TotalXp).HasColumnName("TotalXp");
+            entity.Property(e => e.Level).HasColumnName("Level");
+            entity.Property(e => e.Tier).HasColumnName("Tier").HasMaxLength(20);
+            entity.Property(e => e.CurrentStreakDays).HasColumnName("CurrentStreakDays");
+            entity.Property(e => e.LongestStreakDays).HasColumnName("LongestStreakDays");
+            entity.Property(e => e.LastActivityDate).HasColumnName("LastActivityDate");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.TotalXp); // leaderboard ordering
+        });
+
+        // StudentBadge configuration (earned achievements)
+        modelBuilder.Entity<StudentBadge>(entity =>
+        {
+            entity.ToTable("StudentBadges");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.BadgeKey).HasColumnName("BadgeKey").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.EarnedAt).HasColumnName("EarnedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.StudentId, e.BadgeKey }).IsUnique();
         });
 
         // QuizAnalytic configuration
