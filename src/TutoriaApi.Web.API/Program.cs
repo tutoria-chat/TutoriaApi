@@ -254,8 +254,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(
                 "https://app.tutoria.tec.br",           // Production frontend
-                "https://app.dev.tutoria.tec.br",       // Dev frontend
-                "https://tutoria-ui.vercel.app",        // Vercel deployment
+                "https://app-dev.tutoria.tec.br",       // Dev frontend
                 "http://localhost:3000",                // Local development
                 "https://localhost:3000"                // Local development HTTPS
             )
