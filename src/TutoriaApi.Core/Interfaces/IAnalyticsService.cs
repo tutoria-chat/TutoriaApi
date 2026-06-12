@@ -146,6 +146,13 @@ public interface IAnalyticsService
         int userId, string userRole, int? userUniversityId, int windowDays = 14, int? universityId = null);
 
     /// <summary>
+    /// Academic risk predictions: inactive, newly quiet and declining students,
+    /// based on chat activity in the current vs previous window.
+    /// </summary>
+    Task<RiskPredictionsDto> GetRiskPredictionsAsync(
+        int userId, string userRole, int? userUniversityId, int windowDays = 14, int? universityId = null);
+
+    /// <summary>
     /// Recent AI-written daily briefings for the university (worker-generated).
     /// </summary>
     Task<List<DailyAISummaryDto>> GetDailyAISummariesAsync(

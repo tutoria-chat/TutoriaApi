@@ -626,6 +626,30 @@ public class DailyAISummaryDto
     public DateTime? GeneratedAt { get; set; }
 }
 
+public class RiskPredictionsDto
+{
+    public int WindowDays { get; set; }
+    public int TotalEnrolled { get; set; }
+    public int HighRiskCount { get; set; }
+    public int MediumRiskCount { get; set; }
+    public List<RiskStudentDto> Students { get; set; } = new();
+}
+
+public class RiskStudentDto
+{
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    /// <summary>high | medium</summary>
+    public string RiskLevel { get; set; } = "medium";
+    /// <summary>inactive | went_quiet | declining</summary>
+    public string Signal { get; set; } = "inactive";
+    public int MessagesCurrentWindow { get; set; }
+    public int MessagesPreviousWindow { get; set; }
+    public DateTime? LastActivityAt { get; set; }
+    public List<string> CourseNames { get; set; } = new();
+}
+
 // =====================================
 // 10. Pre-computed Analytics DTOs
 // =====================================

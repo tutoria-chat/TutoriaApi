@@ -716,6 +716,33 @@ public class AnalyticsController : ControllerBase
     }
 
     /// <summary>
+    /// Academic risk predictions: inactive, newly quiet and declining students.
+    /// </summary>
+    [HttpGet("risk-predictions")]
+    [ProducesResponseType(typeof(RiskPredictionsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<RiskPredictionsDto>> GetRiskPredictions(
+        [FromQuery] int days = 14,
+        [FromQuery] int? universityId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+            var result = await _analyticsService.GetRiskPredictionsAsync(userId, userRole, userUniversityId, days, universityId);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting risk predictions");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
     /// Recent AI-written daily briefings for the university.
     /// </summary>
     [HttpGet("daily-ai-summary")]

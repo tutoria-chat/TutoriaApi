@@ -990,6 +990,143 @@ public class AnalyticsService : IAnalyticsService
         }
     }
 
+    public async Task<RiskPredictionsDto> GetRiskPredictionsAsync(
+        int userId, string userRole, int? userUniversityId, int windowDays = 14, int? universityId = null)
+    {
+        try
+        {
+            windowDays = Math.Clamp(windowDays, 3, 90);
+            var moduleIds = await GetAuthorizedModuleIdsAsync(
+                userId, userRole, userUniversityId, new AnalyticsFilterDto { UniversityId = universityId });
+            if (!moduleIds.Any())
+                return new RiskPredictionsDto { WindowDays = windowDays };
+
+            var allModules = await _moduleRepository.GetAllAsync();
+            var authorizedModules = allModules.Where(m => moduleIds.Contains(m.Id)).ToList();
+            var courseIds = authorizedModules.Select(m => m.CourseId).Distinct().ToList();
+
+            var allCourses = await _courseRepository.GetAllAsync();
+            var courseNames = allCourses
+                .Where(c => courseIds.Contains(c.Id))
+                .ToDictionary(c => c.Id, c => c.Name);
+
+            // Enrollment map: studentId -> course names
+            var enrollment = new Dictionary<int, List<string>>();
+            foreach (var courseId in courseIds)
+            {
+                var studentIds = await _studentCourseRepository.GetStudentIdsByCourseIdAsync(courseId);
+                foreach (var studentId in studentIds)
+                {
+                    if (!enrollment.TryGetValue(studentId, out var list))
+                    {
+                        list = new List<string>();
+                        enrollment[studentId] = list;
+                    }
+                    if (courseNames.TryGetValue(courseId, out var name))
+                        list.Add(name);
+                }
+            }
+            if (enrollment.Count == 0)
+                return new RiskPredictionsDto { WindowDays = windowDays };
+
+            // Chat activity: current window vs the one before it (trend signal)
+            var nowUtc = DateTime.UtcNow;
+            var currentStart = nowUtc.AddDays(-windowDays);
+            var previousStart = nowUtc.AddDays(-2 * windowDays);
+
+            var currentCounts = new Dictionary<int, int>();
+            var previousCounts = new Dictionary<int, int>();
+            var lastActivity = new Dictionary<int, long>();
+
+            foreach (var moduleId in moduleIds)
+            {
+                var messages = await _dynamoDbService.GetModuleAnalyticsAsync(moduleId, previousStart, null, 5000);
+                foreach (var message in messages)
+                {
+                    if (message.StudentId <= 0) continue;
+
+                    var messageTime = DateTimeOffset.FromUnixTimeMilliseconds(message.Timestamp).UtcDateTime;
+                    var bucket = messageTime >= currentStart ? currentCounts : previousCounts;
+                    bucket[message.StudentId] = bucket.GetValueOrDefault(message.StudentId) + 1;
+
+                    if (message.Timestamp > lastActivity.GetValueOrDefault(message.StudentId))
+                        lastActivity[message.StudentId] = message.Timestamp;
+                }
+            }
+
+            var flagged = new List<RiskStudentDto>();
+            foreach (var (studentId, courses) in enrollment)
+            {
+                var current = currentCounts.GetValueOrDefault(studentId);
+                var previous = previousCounts.GetValueOrDefault(studentId);
+
+                string? riskLevel = null;
+                string signal = "inactive";
+                if (current == 0 && previous == 0)
+                {
+                    riskLevel = "high";
+                    signal = "inactive";
+                }
+                else if (current == 0 && previous > 0)
+                {
+                    riskLevel = "high";
+                    signal = "went_quiet";
+                }
+                else if (previous >= 4 && current <= previous / 2)
+                {
+                    riskLevel = "medium";
+                    signal = "declining";
+                }
+                if (riskLevel == null) continue;
+
+                flagged.Add(new RiskStudentDto
+                {
+                    StudentId = studentId,
+                    RiskLevel = riskLevel,
+                    Signal = signal,
+                    MessagesCurrentWindow = current,
+                    MessagesPreviousWindow = previous,
+                    LastActivityAt = lastActivity.TryGetValue(studentId, out var ts)
+                        ? DateTimeOffset.FromUnixTimeMilliseconds(ts).UtcDateTime
+                        : null,
+                    CourseNames = courses,
+                });
+            }
+
+            // Names/emails for the flagged students only
+            var flaggedUsers = await _userRepository.GetActiveStudentsByIdsAsync(
+                flagged.Select(f => f.StudentId).ToList());
+            var userMap = flaggedUsers.ToDictionary(u => u.UserId);
+            flagged = flagged
+                .Where(f => userMap.ContainsKey(f.StudentId))
+                .Select(f =>
+                {
+                    var user = userMap[f.StudentId];
+                    f.Name = $"{user.FirstName} {user.LastName}".Trim();
+                    f.Email = user.Email;
+                    return f;
+                })
+                // went_quiet first (strongest actionable signal), then declining, then long-inactive
+                .OrderBy(f => f.Signal == "went_quiet" ? 0 : f.Signal == "declining" ? 1 : 2)
+                .ThenBy(f => f.Name)
+                .ToList();
+
+            return new RiskPredictionsDto
+            {
+                WindowDays = windowDays,
+                TotalEnrolled = enrollment.Count,
+                HighRiskCount = flagged.Count(f => f.RiskLevel == "high"),
+                MediumRiskCount = flagged.Count(f => f.RiskLevel == "medium"),
+                Students = flagged.Take(150).ToList(),
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error computing risk predictions for user {UserId}", userId);
+            return new RiskPredictionsDto { WindowDays = windowDays };
+        }
+    }
+
     public async Task<List<DailyAISummaryDto>> GetDailyAISummariesAsync(
         int userId, string userRole, int? userUniversityId, int? universityId, int count = 7)
     {
