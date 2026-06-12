@@ -215,6 +215,11 @@ public class CourseService : ICourseService
             changes["EnableEnem"] = (existing.EnableEnem, course.EnableEnem);
             existing.EnableEnem = course.EnableEnem;
         }
+        if (course.EnemArea != existing.EnemArea)
+        {
+            changes["EnemArea"] = (existing.EnemArea, course.EnemArea);
+            existing.EnemArea = course.EnemArea;
+        }
 
         await _courseRepository.UpdateAsync(existing);
 

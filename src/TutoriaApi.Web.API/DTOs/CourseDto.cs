@@ -13,6 +13,7 @@ public class CourseDetailDto
     public int? ExternalCourseId { get; set; }
     public string? TitleTracks { get; set; }
     public bool EnableEnem { get; set; }
+    public string? EnemArea { get; set; }
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
@@ -41,6 +42,9 @@ public class CourseCreateRequest
     public string? TitleTracks { get; set; }
 
     public bool EnableEnem { get; set; }
+
+    [MaxLength(20)]
+    public string? EnemArea { get; set; }
 }
 
 public class CourseUpdateRequest
@@ -59,6 +63,9 @@ public class CourseUpdateRequest
     public string? TitleTracks { get; set; }
 
     public bool EnableEnem { get; set; }
+
+    [MaxLength(20)]
+    public string? EnemArea { get; set; }
 }
 
 public class CourseWithDetailsDto
@@ -72,6 +79,7 @@ public class CourseWithDetailsDto
     public int? ExternalCourseId { get; set; }
     public string? TitleTracks { get; set; }
     public bool EnableEnem { get; set; }
+    public string? EnemArea { get; set; }
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();

@@ -22,6 +22,12 @@ public class Course : BaseEntity
     /// </summary>
     public bool EnableEnem { get; set; }
 
+    /// <summary>
+    /// Which ENEM knowledge area this course's simulados draw from when ENEM is
+    /// enabled: linguagens | matematica | natureza | humanas. Null until enabled.
+    /// </summary>
+    public string? EnemArea { get; set; }
+
     // Navigation properties
     public University University { get; set; } = null!;
     public ICollection<Module> Modules { get; set; } = new List<Module>();

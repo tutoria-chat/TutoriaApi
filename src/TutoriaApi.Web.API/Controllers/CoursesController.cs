@@ -134,6 +134,7 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = vm.Course.ExternalCourseId,
                 TitleTracks = vm.Course.TitleTracks,
                 EnableEnem = vm.Course.EnableEnem,
+                EnemArea = vm.Course.EnemArea,
                 ModulesCount = vm.ModulesCount,
                 ProfessorsCount = vm.ProfessorsCount,
                 StudentsCount = vm.StudentsCount,
@@ -186,6 +187,7 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
+                EnemArea = viewModel.Course.EnemArea,
                 University = viewModel.University != null ? new UniversityDto
                 {
                     Id = viewModel.University.Id,
@@ -282,7 +284,8 @@ public class CoursesController : ControllerBase
                 UniversityId = request.UniversityId,
                 ExternalCourseId = request.ExternalCourseId,
                 TitleTracks = string.IsNullOrWhiteSpace(request.TitleTracks) ? null : request.TitleTracks.Trim(),
-                EnableEnem = request.EnableEnem
+                EnableEnem = request.EnableEnem,
+                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim()
             };
 
             var created = await _courseService.CreateAsync(course, _currentUserService.GetCurrentUser());
@@ -303,6 +306,7 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
+                EnemArea = viewModel.Course.EnemArea,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
@@ -352,7 +356,8 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = request.ExternalCourseId,
                 // Raw passthrough: null = leave unchanged, "" = clear (auto-detect), "math,.." = set
                 TitleTracks = request.TitleTracks,
-                EnableEnem = request.EnableEnem
+                EnableEnem = request.EnableEnem,
+                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim()
             };
 
             var viewModel = await _courseService.UpdateAsync(id, course, _currentUserService.GetCurrentUser());
@@ -370,6 +375,7 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
+                EnemArea = viewModel.Course.EnemArea,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
