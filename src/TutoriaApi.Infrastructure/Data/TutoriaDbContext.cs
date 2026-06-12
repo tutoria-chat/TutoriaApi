@@ -109,6 +109,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<StudentActivity> StudentActivities { get; set; }
     public DbSet<StudentProgress> StudentProgress { get; set; }
     public DbSet<StudentBadge> StudentBadges { get; set; }
+    public DbSet<StudentGoal> StudentGoals { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1178,6 +1179,22 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => new { e.StudentId, e.BadgeKey }).IsUnique();
+        });
+
+        // StudentGoal configuration (personal academic goals)
+        modelBuilder.Entity<StudentGoal>(entity =>
+        {
+            entity.ToTable("StudentGoals");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.Metric).HasColumnName("Metric").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.TargetValue).HasColumnName("TargetValue");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.StudentId);
         });
 
         // QuizAnalytic configuration
