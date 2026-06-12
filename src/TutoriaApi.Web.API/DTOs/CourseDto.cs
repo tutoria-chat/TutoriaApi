@@ -12,6 +12,7 @@ public class CourseDetailDto
     public string? UniversityName { get; set; }
     public int? ExternalCourseId { get; set; }
     public string? TitleTracks { get; set; }
+    public bool EnableEnem { get; set; }
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
@@ -38,6 +39,8 @@ public class CourseCreateRequest
 
     [MaxLength(200)]
     public string? TitleTracks { get; set; }
+
+    public bool EnableEnem { get; set; }
 }
 
 public class CourseUpdateRequest
@@ -54,6 +57,8 @@ public class CourseUpdateRequest
 
     [MaxLength(200)]
     public string? TitleTracks { get; set; }
+
+    public bool EnableEnem { get; set; }
 }
 
 public class CourseWithDetailsDto
@@ -66,6 +71,7 @@ public class CourseWithDetailsDto
     public string? UniversityName { get; set; }
     public int? ExternalCourseId { get; set; }
     public string? TitleTracks { get; set; }
+    public bool EnableEnem { get; set; }
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();

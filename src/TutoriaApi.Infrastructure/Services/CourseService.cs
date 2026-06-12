@@ -209,6 +209,13 @@ public class CourseService : ICourseService
             }
         }
 
+        // ENEM toggle: the course form always round-trips the full value.
+        if (course.EnableEnem != existing.EnableEnem)
+        {
+            changes["EnableEnem"] = (existing.EnableEnem, course.EnableEnem);
+            existing.EnableEnem = course.EnableEnem;
+        }
+
         await _courseRepository.UpdateAsync(existing);
 
         // Audit log: Only log if there were actual changes

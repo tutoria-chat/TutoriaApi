@@ -15,6 +15,13 @@ public class Course : BaseEntity
     /// </summary>
     public string? TitleTracks { get; set; }
 
+    /// <summary>
+    /// Whether the ENEM/Vestibular mock-exam tab is offered to this course's
+    /// students in the widget. Default false — only pre-vestibular courses turn
+    /// it on, so university students don't see an irrelevant tab.
+    /// </summary>
+    public bool EnableEnem { get; set; }
+
     // Navigation properties
     public University University { get; set; } = null!;
     public ICollection<Module> Modules { get; set; } = new List<Module>();

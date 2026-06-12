@@ -159,6 +159,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
             entity.Property(e => e.ExternalCourseId).HasColumnName("ExternalCourseId");
             entity.Property(e => e.TitleTracks).HasColumnName("TitleTracks").HasMaxLength(200);
+            entity.Property(e => e.EnableEnem).HasColumnName("EnableEnem").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
