@@ -110,6 +110,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<StudentProgress> StudentProgress { get; set; }
     public DbSet<StudentBadge> StudentBadges { get; set; }
     public DbSet<StudentGoal> StudentGoals { get; set; }
+    public DbSet<FlashcardReview> FlashcardReviews { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1195,6 +1196,31 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.StudentId);
+        });
+
+        // FlashcardReview configuration (spaced repetition state)
+        modelBuilder.Entity<FlashcardReview>(entity =>
+        {
+            entity.ToTable("FlashcardReviews");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.FlashcardId).HasColumnName("FlashcardId");
+            entity.Property(e => e.Repetitions).HasColumnName("Repetitions");
+            entity.Property(e => e.EaseFactor).HasColumnName("EaseFactor");
+            entity.Property(e => e.IntervalDays).HasColumnName("IntervalDays");
+            entity.Property(e => e.DueAt).HasColumnName("DueAt");
+            entity.Property(e => e.LastReviewedAt).HasColumnName("LastReviewedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.StudentId, e.FlashcardId }).IsUnique();
+            entity.HasIndex(e => new { e.StudentId, e.DueAt });
+
+            entity.HasOne(e => e.Flashcard)
+                .WithMany()
+                .HasForeignKey(e => e.FlashcardId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // QuizAnalytic configuration

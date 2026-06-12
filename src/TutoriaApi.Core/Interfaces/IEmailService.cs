@@ -119,4 +119,10 @@ public interface IEmailService
     Task SendStudyPlanDailyReminderEmailAsync(
         string toEmail, string toName, string courseName,
         string dayTitle, string tasksHtml, string tasksText, string languageCode = "pt-br");
+
+    /// <summary>
+    /// Nudge a student whose daily study streak is about to break.
+    /// </summary>
+    Task SendStreakSaverEmailAsync(
+        string toEmail, string toName, int streakDays, string languageCode = "pt-br");
 }

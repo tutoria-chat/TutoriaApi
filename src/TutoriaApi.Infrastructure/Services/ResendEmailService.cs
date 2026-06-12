@@ -485,6 +485,63 @@ public class ResendEmailService : IEmailService
         await SendEmailAsync(toEmail, subject, html, text);
     }
 
+    public async Task SendStreakSaverEmailAsync(
+        string toEmail, string toName, int streakDays, string languageCode = "pt-br")
+    {
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping streak-saver to {Email}", toEmail);
+            return;
+        }
+
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(toName) ? "Estudante" : toName);
+
+        var (subject, headline, body, footer) = languageCode.ToLower() switch
+        {
+            "en" => (
+                $"🔥 Don't lose your {streakDays}-day streak!",
+                $"{safeName}, your streak is at risk",
+                $"You've studied {streakDays} days in a row. Do anything in Erwin today — a question, a quiz, a few flashcards — to keep the flame alive.",
+                "You're receiving this because you have an active study streak in Erwin."),
+            "es" => (
+                $"🔥 ¡No pierdas tu racha de {streakDays} días!",
+                $"{safeName}, tu racha está en riesgo",
+                $"Has estudiado {streakDays} días seguidos. Haz cualquier cosa en Erwin hoy — una pregunta, un quiz, unos flashcards — para mantener la llama encendida.",
+                "Recibes este correo porque tienes una racha de estudio activa en Erwin."),
+            _ => (
+                $"🔥 Não perca sua sequência de {streakDays} dias!",
+                $"{safeName}, sua sequência está em risco",
+                $"Você estudou {streakDays} dias seguidos. Faça qualquer coisa no Erwin hoje — uma pergunta, um quiz, alguns flashcards — para manter a chama acesa.",
+                "Você está recebendo este e-mail porque tem uma sequência de estudos ativa no Erwin."),
+        };
+
+        var html = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""UTF-8""></head>
+<body style=""margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;"">
+  <div style=""max-width:560px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;"">
+    <div style=""background:linear-gradient(90deg,#5e17eb,#5ce1e6);padding:20px 28px;"">
+      <p style=""margin:0;color:#ffffff;font-size:20px;font-weight:bold;"">Erwin · TutorIA</p>
+    </div>
+    <div style=""padding:28px;text-align:center;"">
+      <p style=""font-size:48px;margin:0;"">🔥</p>
+      <p style=""font-size:34px;font-weight:bold;color:#5e17eb;margin:8px 0;"">{streakDays}</p>
+      <h1 style=""margin:0;color:#1a1a1a;font-size:20px;"">{headline}</h1>
+      <p style=""font-size:15px;color:#555555;margin:14px 0;line-height:1.5;"">{body}</p>
+      <p style=""font-size:12px;color:#999999;margin-top:24px;"">{footer}</p>
+    </div>
+  </div>
+</body>
+</html>";
+
+        var text = $"{headline}\n\n{body}\n\n{footer}";
+        await SendEmailAsync(toEmail, subject, html, text);
+    }
+
     private static string EventTypeLabel(string eventType, string languageCode) => (eventType, languageCode) switch
     {
         ("test", "en") => "Test",

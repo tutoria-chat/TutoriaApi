@@ -97,4 +97,12 @@ public class GamificationStatsRepository : IGamificationStatsRepository
             .ToListAsync();
         return rows.ToDictionary(r => r.StudentId, r => r.Level);
     }
+
+    public async Task<List<StreakAtRiskRow>> GetStreakAtRiskAsync(DateOnly lastActiveDate, int minStreak)
+    {
+        return await _context.StudentProgress
+            .Where(p => p.LastActivityDate == lastActiveDate && p.CurrentStreakDays >= minStreak)
+            .Select(p => new StreakAtRiskRow { StudentId = p.StudentId, StreakDays = p.CurrentStreakDays })
+            .ToListAsync();
+    }
 }

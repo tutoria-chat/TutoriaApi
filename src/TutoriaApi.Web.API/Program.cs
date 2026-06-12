@@ -366,6 +366,11 @@ if (hangfireEnabled)
         "study-plan-daily-reminders",
         service => service.SendDailyRemindersAsync(),
         Cron.Daily(10)); // 10:00 UTC = 07:00 America/Sao_Paulo: today's tasks for opted-in students
+
+    RecurringJob.AddOrUpdate<IGamificationNotificationService>(
+        "streak-saver-nudges",
+        service => service.SendStreakSaversAsync(),
+        Cron.Daily(1)); // 01:00 UTC = 22:00 America/Sao_Paulo: save streaks before midnight
 }
 
 // Log registered services on startup
