@@ -12,6 +12,7 @@ public class InstitutionStatsService : IInstitutionStatsService
     private readonly IStudentCourseRepository _studentCourseRepository;
     private readonly IQuizAnalyticsRepository _quizAnalyticsRepository;
     private readonly IGamificationStatsRepository _gamificationStatsRepository;
+    private readonly IUniversityRepository _universityRepository;
     private readonly ILogger<InstitutionStatsService> _logger;
 
     public InstitutionStatsService(
@@ -20,6 +21,7 @@ public class InstitutionStatsService : IInstitutionStatsService
         IStudentCourseRepository studentCourseRepository,
         IQuizAnalyticsRepository quizAnalyticsRepository,
         IGamificationStatsRepository gamificationStatsRepository,
+        IUniversityRepository universityRepository,
         ILogger<InstitutionStatsService> logger)
     {
         _courseRepository = courseRepository;
@@ -27,7 +29,63 @@ public class InstitutionStatsService : IInstitutionStatsService
         _studentCourseRepository = studentCourseRepository;
         _quizAnalyticsRepository = quizAnalyticsRepository;
         _gamificationStatsRepository = gamificationStatsRepository;
+        _universityRepository = universityRepository;
         _logger = logger;
+    }
+
+    public async Task<ExecutiveSummaryDto> GetExecutiveSummaryAsync(
+        int userId, string userRole, int? userUniversityId, int? universityId, int windowDays = 30)
+    {
+        windowDays = Math.Clamp(windowDays, 7, 90);
+        var summary = new ExecutiveSummaryDto { WindowDays = windowDays, GeneratedAt = DateTime.UtcNow };
+
+        try
+        {
+            var courseStats = await GetCourseStatsAsync(userId, userRole, userUniversityId, universityId, windowDays);
+            var courses = courseStats.Courses;
+
+            summary.TotalCourses = courses.Count;
+            summary.TotalEnrolled = courses.Sum(c => c.Enrolled);
+            summary.TotalActive = courses.Sum(c => c.Active);
+            summary.AtRisk = courses.Sum(c => c.AtRisk);
+            summary.TotalXp = courses.Sum(c => c.TotalXp);
+            summary.TotalQuestions = courses.Sum(c => c.Questions);
+            summary.TotalQuizzes = courses.Sum(c => c.Quizzes);
+            summary.ActiveRate = summary.TotalEnrolled > 0
+                ? Math.Round(100.0 * summary.TotalActive / summary.TotalEnrolled, 1) : 0;
+            summary.AtRiskRate = summary.TotalEnrolled > 0
+                ? Math.Round(100.0 * summary.AtRisk / summary.TotalEnrolled, 1) : 0;
+            summary.AvgLevel = summary.TotalEnrolled > 0
+                ? Math.Round(courses.Sum(c => c.AvgLevel * c.Enrolled) / summary.TotalEnrolled, 1) : 1.0;
+
+            summary.TopCourses = courses
+                .OrderByDescending(c => c.Enrolled).ThenByDescending(c => c.Active)
+                .Take(5)
+                .Select(c => new ExecutiveCourseDto { CourseName = c.CourseName, Enrolled = c.Enrolled, Active = c.Active })
+                .ToList();
+
+            var alerts = await GetPedagogicalAlertsAsync(userId, userRole, userUniversityId, universityId, windowDays);
+            summary.WorstConcepts = alerts.Alerts
+                .Where(a => a.Type == "concept")
+                .OrderBy(a => a.Metric)
+                .Take(5)
+                .Select(a => new ExecutiveConceptDto { Concept = a.Concept ?? "", ModuleName = a.ModuleName ?? "", SuccessRate = a.Metric })
+                .ToList();
+
+            var effectiveUniversityId = userRole.ToLower() == "super_admin" ? universityId : userUniversityId;
+            if (effectiveUniversityId.HasValue)
+            {
+                var university = await _universityRepository.GetByIdAsync(effectiveUniversityId.Value);
+                summary.UniversityName = university?.Name;
+            }
+
+            return summary;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building executive summary for user {UserId}", userId);
+            return summary;
+        }
     }
 
     // Mirrors AnalyticsService scoping: super admins see all (or one university);

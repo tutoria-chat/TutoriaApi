@@ -111,6 +111,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<StudentBadge> StudentBadges { get; set; }
     public DbSet<StudentGoal> StudentGoals { get; set; }
     public DbSet<FlashcardReview> FlashcardReviews { get; set; }
+    public DbSet<EnemQuestion> EnemQuestions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1221,6 +1222,25 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.FlashcardId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // EnemQuestion configuration (global ENEM/vestibular practice pool)
+        modelBuilder.Entity<EnemQuestion>(entity =>
+        {
+            entity.ToTable("EnemQuestions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Area).HasColumnName("Area").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Statement).HasColumnName("Statement").IsRequired();
+            entity.Property(e => e.OptionsJson).HasColumnName("OptionsJson").IsRequired();
+            entity.Property(e => e.CorrectIndex).HasColumnName("CorrectIndex");
+            entity.Property(e => e.Explanation).HasColumnName("Explanation");
+            entity.Property(e => e.Difficulty).HasColumnName("Difficulty").HasMaxLength(20);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.Area, e.IsActive });
         });
 
         // QuizAnalytic configuration

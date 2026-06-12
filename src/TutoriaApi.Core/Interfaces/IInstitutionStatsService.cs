@@ -18,4 +18,7 @@ public interface IInstitutionStatsService
 
     Task<PedagogicalAlertsResponseDto> GetPedagogicalAlertsAsync(
         int userId, string userRole, int? userUniversityId, int? universityId, int windowDays = 14);
+
+    Task<ExecutiveSummaryDto> GetExecutiveSummaryAsync(
+        int userId, string userRole, int? userUniversityId, int? universityId, int windowDays = 30);
 }

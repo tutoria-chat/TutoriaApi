@@ -672,6 +672,42 @@ public class PedagogicalAlertsResponseDto
     public List<PedagogicalAlertDto> Alerts { get; set; } = new();
 }
 
+public class ExecutiveSummaryDto
+{
+    public int WindowDays { get; set; }
+    public string? UniversityName { get; set; }
+    public DateTime GeneratedAt { get; set; }
+
+    public int TotalCourses { get; set; }
+    public int TotalEnrolled { get; set; }
+    public int TotalActive { get; set; }
+    public double ActiveRate { get; set; }
+    public int AtRisk { get; set; }
+    public double AtRiskRate { get; set; }
+
+    public int TotalXp { get; set; }
+    public double AvgLevel { get; set; }
+    public int TotalQuestions { get; set; }
+    public int TotalQuizzes { get; set; }
+
+    public List<ExecutiveCourseDto> TopCourses { get; set; } = new();
+    public List<ExecutiveConceptDto> WorstConcepts { get; set; } = new();
+}
+
+public class ExecutiveCourseDto
+{
+    public string CourseName { get; set; } = string.Empty;
+    public int Enrolled { get; set; }
+    public int Active { get; set; }
+}
+
+public class ExecutiveConceptDto
+{
+    public string Concept { get; set; } = string.Empty;
+    public string ModuleName { get; set; } = string.Empty;
+    public int SuccessRate { get; set; }
+}
+
 public class PedagogicalAlertDto
 {
     /// <summary>evasion | concept</summary>

@@ -99,6 +99,30 @@ public class InstitutionAnalyticsController : ControllerBase
         }
     }
 
+    /// <summary>Institution-level executive KPI summary (for reports / PDF).</summary>
+    [HttpGet("executive-summary")]
+    [ProducesResponseType(typeof(ExecutiveSummaryDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ExecutiveSummaryDto>> GetExecutiveSummary(
+        [FromQuery] int days = 30,
+        [FromQuery] int? universityId = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+            var result = await _statsService.GetExecutiveSummaryAsync(userId, userRole, userUniversityId, universityId, days);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error building executive summary");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     private (int userId, string userRole, int? userUniversityId) GetUserContext()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
