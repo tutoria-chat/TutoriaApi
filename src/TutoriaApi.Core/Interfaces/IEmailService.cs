@@ -103,4 +103,20 @@ public interface IEmailService
     Task SendCourseEventReminderEmailAsync(
         string toEmail, string toName, string eventTitle, string eventType,
         string courseName, string whenLocalFormatted, string timeUntil, string languageCode = "pt-br");
+
+    /// <summary>
+    /// Send the student their freshly generated weekly study plan.
+    /// </summary>
+    /// <param name="bodyHtml">Pre-rendered plan content (overview + days) — already HTML-encoded</param>
+    /// <param name="dailyReminderEnabled">Whether the student opted into daily morning reminders</param>
+    Task SendStudyPlanEmailAsync(
+        string toEmail, string toName, string courseName,
+        string bodyHtml, string bodyText, bool dailyReminderEnabled, string languageCode = "pt-br");
+
+    /// <summary>
+    /// Send the morning reminder with today's tasks from the student's study plan.
+    /// </summary>
+    Task SendStudyPlanDailyReminderEmailAsync(
+        string toEmail, string toName, string courseName,
+        string dayTitle, string tasksHtml, string tasksText, string languageCode = "pt-br");
 }

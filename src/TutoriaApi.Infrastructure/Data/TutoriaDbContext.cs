@@ -104,6 +104,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<CourseEvent> CourseEvents { get; set; }
     public DbSet<CourseEventReminderLog> CourseEventReminderLogs { get; set; }
     public DbSet<DailyAISummary> DailyAISummaries { get; set; }
+    public DbSet<StudyPlan> StudyPlans { get; set; }
+    public DbSet<Flashcard> Flashcards { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1064,6 +1066,60 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.University)
                 .WithMany()
                 .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // StudyPlan configuration (weekly AI study plans per student+course)
+        modelBuilder.Entity<StudyPlan>(entity =>
+        {
+            entity.ToTable("StudyPlans");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.WeekStart).HasColumnName("WeekStart");
+            entity.Property(e => e.Style).HasColumnName("Style").HasMaxLength(20);
+            entity.Property(e => e.PreferencesText).HasColumnName("PreferencesText").HasMaxLength(1000);
+            entity.Property(e => e.OverviewText).HasColumnName("OverviewText").IsRequired();
+            entity.Property(e => e.DaysJson).HasColumnName("DaysJson").IsRequired();
+            entity.Property(e => e.WeakConceptsJson).HasColumnName("WeakConceptsJson");
+            entity.Property(e => e.Language).HasColumnName("Language").HasMaxLength(10);
+            entity.Property(e => e.PlanEmailSent).HasColumnName("PlanEmailSent");
+            entity.Property(e => e.DailyReminderOptIn).HasColumnName("DailyReminderOptIn");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            // One plan per student per course per week
+            entity.HasIndex(e => new { e.StudentId, e.CourseId, e.WeekStart }).IsUnique();
+            entity.HasIndex(e => new { e.DailyReminderOptIn, e.WeekStart });
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Flashcard configuration (per-module, generated once, served to everyone)
+        modelBuilder.Entity<Flashcard>(entity =>
+        {
+            entity.ToTable("Flashcards");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.FrontText).HasColumnName("FrontText").IsRequired();
+            entity.Property(e => e.BackText).HasColumnName("BackText").IsRequired();
+            entity.Property(e => e.Concept).HasColumnName("Concept").HasMaxLength(255);
+            entity.Property(e => e.Difficulty).HasColumnName("Difficulty").HasMaxLength(20);
+            entity.Property(e => e.Source).HasColumnName("Source").HasMaxLength(30);
+            entity.Property(e => e.IsActive).HasColumnName("IsActive");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.ModuleId, e.IsActive });
+
+            entity.HasOne(e => e.Module)
+                .WithMany()
+                .HasForeignKey(e => e.ModuleId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

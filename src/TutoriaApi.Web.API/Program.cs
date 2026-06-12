@@ -356,6 +356,16 @@ if (hangfireEnabled)
         "course-event-reminders",
         service => service.ProcessRemindersAsync(),
         Cron.Hourly()); // Hourly: emails students about upcoming tests/assignments (deduped per event+slot)
+
+    RecurringJob.AddOrUpdate<IStudyPlanEmailService>(
+        "study-plan-emails",
+        service => service.SendPendingPlanEmailsAsync(),
+        "*/10 * * * *"); // Every 10 min: emails freshly generated weekly study plans
+
+    RecurringJob.AddOrUpdate<IStudyPlanEmailService>(
+        "study-plan-daily-reminders",
+        service => service.SendDailyRemindersAsync(),
+        Cron.Daily(10)); // 10:00 UTC = 07:00 America/Sao_Paulo: today's tasks for opted-in students
 }
 
 // Log registered services on startup
