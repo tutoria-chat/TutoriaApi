@@ -15,9 +15,26 @@ public class StudentDetailDto
     public int? UniversityId { get; set; }
     public string? UniversityName { get; set; }
     public List<StudentCourseDto> EnrolledCourses { get; set; } = new();
+    public EquippedTitleDto? EquippedTitle { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+/// <summary>
+/// The academic title a student chose to display, resolved from
+/// StudentProgress.DisplayedTitleKey. Structured (not a label) so the UI can
+/// localize it. Null when the student hasn't equipped a title.
+/// </summary>
+public class EquippedTitleDto
+{
+    public string Key { get; set; } = string.Empty;
+    /// <summary>track | global | hidden</summary>
+    public string Type { get; set; } = string.Empty;
+    /// <summary>For track titles: math|programming|science|health|business|language|humanities</summary>
+    public string? Track { get; set; }
+    /// <summary>For track titles: aprendiz | mestre | lenda</summary>
+    public string? Tier { get; set; }
 }
 
 public class StudentCourseDto

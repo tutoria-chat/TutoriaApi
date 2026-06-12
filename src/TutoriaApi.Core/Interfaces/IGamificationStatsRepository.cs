@@ -41,6 +41,12 @@ public interface IGamificationStatsRepository
     Task<Dictionary<int, int>> GetLevelsByStudentIdsAsync(List<int> studentIds);
 
     /// <summary>
+    /// The equipped title key (StudentProgress.DisplayedTitleKey) per student, for
+    /// the students that have one set. Used to show titles in admin/professor views.
+    /// </summary>
+    Task<Dictionary<int, string>> GetDisplayedTitleKeysByStudentIdsAsync(List<int> studentIds);
+
+    /// <summary>
     /// Students whose last activity was on <paramref name="lastActiveDate"/> (i.e.
     /// streak alive but not extended since) with a streak of at least
     /// <paramref name="minStreak"/> days — candidates for a streak-saver nudge.

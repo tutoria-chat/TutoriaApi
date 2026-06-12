@@ -98,6 +98,16 @@ public class GamificationStatsRepository : IGamificationStatsRepository
         return rows.ToDictionary(r => r.StudentId, r => r.Level);
     }
 
+    public async Task<Dictionary<int, string>> GetDisplayedTitleKeysByStudentIdsAsync(List<int> studentIds)
+    {
+        if (studentIds.Count == 0) return new Dictionary<int, string>();
+        var rows = await _context.StudentProgress
+            .Where(p => studentIds.Contains(p.StudentId) && p.DisplayedTitleKey != null)
+            .Select(p => new { p.StudentId, p.DisplayedTitleKey })
+            .ToListAsync();
+        return rows.ToDictionary(r => r.StudentId, r => r.DisplayedTitleKey!);
+    }
+
     public async Task<List<StreakAtRiskRow>> GetStreakAtRiskAsync(DateOnly lastActiveDate, int minStreak)
     {
         return await _context.StudentProgress

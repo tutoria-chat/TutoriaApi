@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.API.DTOs;
+using TutoriaApi.Web.API.Helpers;
 
 namespace TutoriaApi.Web.API.Controllers;
 
@@ -162,6 +163,13 @@ public class StudentsController : ControllerBase
                 .GroupBy(e => e.StudentId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            // Batch-load each student's equipped title (gamification rollup).
+            var displayedTitles = await _dbContext.StudentProgress
+                .Where(p => studentIds.Contains(p.StudentId) && p.DisplayedTitleKey != null)
+                .Select(p => new { p.StudentId, p.DisplayedTitleKey })
+                .ToListAsync();
+            var titleByStudent = displayedTitles.ToDictionary(x => x.StudentId, x => x.DisplayedTitleKey);
+
             var items = students.Select(u => new StudentDetailDto
             {
                 Id = u.UserId,
@@ -181,6 +189,7 @@ public class StudentsController : ControllerBase
                         EnrolledAt = e.CreatedAt
                     }).ToList()
                     : new List<StudentCourseDto>(),
+                EquippedTitle = titleByStudent.TryGetValue(u.UserId, out var tk) ? TitleCatalog.Resolve(tk) : null,
                 LastLoginAt = u.LastLoginAt,
                 CreatedAt = u.CreatedAt,
                 UpdatedAt = u.UpdatedAt

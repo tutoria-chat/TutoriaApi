@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Web.API.DTOs;
+using TutoriaApi.Web.API.Helpers;
 
 namespace TutoriaApi.Web.API.Controllers;
 
@@ -31,6 +32,7 @@ public class CoursesController : ControllerBase
     private readonly ICourseRepository _courseRepository;
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUniversityRepository _universityRepository;
+    private readonly IGamificationStatsRepository _gamificationStatsRepository;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
@@ -39,6 +41,7 @@ public class CoursesController : ControllerBase
         ICourseRepository courseRepository,
         ISubscriptionRepository subscriptionRepository,
         IUniversityRepository universityRepository,
+        IGamificationStatsRepository gamificationStatsRepository,
         ILogger<CoursesController> logger)
     {
         _courseService = courseService;
@@ -46,6 +49,7 @@ public class CoursesController : ControllerBase
         _courseRepository = courseRepository;
         _subscriptionRepository = subscriptionRepository;
         _universityRepository = universityRepository;
+        _gamificationStatsRepository = gamificationStatsRepository;
         _logger = logger;
     }
 
@@ -176,6 +180,10 @@ public class CoursesController : ControllerBase
                 return NotFound(new { message = "Course not found" });
             }
 
+            // Equipped titles for the roster (gamification rollup) — batch lookup.
+            var rosterIds = viewModel.Students.Select(s => s.UserId).ToList();
+            var titleKeys = await _gamificationStatsRepository.GetDisplayedTitleKeysByStudentIdsAsync(rosterIds);
+
             var dto = new CourseWithDetailsDto
             {
                 Id = viewModel.Course.Id,
@@ -216,7 +224,8 @@ public class CoursesController : ControllerBase
                     Username = s.Username,
                     Email = s.Email,
                     FirstName = s.FirstName,
-                    LastName = s.LastName
+                    LastName = s.LastName,
+                    EquippedTitle = titleKeys.TryGetValue(s.UserId, out var tk) ? TitleCatalog.Resolve(tk) : null
                 }).ToList(),
                 CreatedAt = viewModel.Course.CreatedAt,
                 UpdatedAt = viewModel.Course.UpdatedAt
