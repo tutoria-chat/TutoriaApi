@@ -158,6 +158,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Description).HasColumnName("Description");
             entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
             entity.Property(e => e.ExternalCourseId).HasColumnName("ExternalCourseId");
+            entity.Property(e => e.TitleTracks).HasColumnName("TitleTracks").HasMaxLength(200);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -1163,6 +1164,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CurrentStreakDays).HasColumnName("CurrentStreakDays");
             entity.Property(e => e.LongestStreakDays).HasColumnName("LongestStreakDays");
             entity.Property(e => e.LastActivityDate).HasColumnName("LastActivityDate");
+            entity.Property(e => e.DisplayedTitleKey).HasColumnName("DisplayedTitleKey").HasMaxLength(60);
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => e.TotalXp); // leaderboard ordering

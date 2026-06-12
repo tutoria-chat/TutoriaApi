@@ -198,6 +198,17 @@ public class CourseService : ICourseService
             existing.ExternalCourseId = course.ExternalCourseId;
         }
 
+        // null = not provided (keep); empty = clear; otherwise set the CSV
+        if (course.TitleTracks != null)
+        {
+            var normalized = string.IsNullOrWhiteSpace(course.TitleTracks) ? null : course.TitleTracks.Trim();
+            if (normalized != existing.TitleTracks)
+            {
+                changes["TitleTracks"] = (existing.TitleTracks, normalized);
+                existing.TitleTracks = normalized;
+            }
+        }
+
         await _courseRepository.UpdateAsync(existing);
 
         // Audit log: Only log if there were actual changes

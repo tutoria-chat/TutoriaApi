@@ -132,6 +132,7 @@ public class CoursesController : ControllerBase
                 UniversityId = vm.Course.UniversityId,
                 UniversityName = vm.UniversityName,
                 ExternalCourseId = vm.Course.ExternalCourseId,
+                TitleTracks = vm.Course.TitleTracks,
                 ModulesCount = vm.ModulesCount,
                 ProfessorsCount = vm.ProfessorsCount,
                 StudentsCount = vm.StudentsCount,
@@ -182,6 +183,7 @@ public class CoursesController : ControllerBase
                 UniversityId = viewModel.Course.UniversityId,
                 UniversityName = viewModel.University?.Name,
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
+                TitleTracks = viewModel.Course.TitleTracks,
                 University = viewModel.University != null ? new UniversityDto
                 {
                     Id = viewModel.University.Id,
@@ -276,7 +278,8 @@ public class CoursesController : ControllerBase
                 Code = request.Code,
                 Description = request.Description,
                 UniversityId = request.UniversityId,
-                ExternalCourseId = request.ExternalCourseId
+                ExternalCourseId = request.ExternalCourseId,
+                TitleTracks = string.IsNullOrWhiteSpace(request.TitleTracks) ? null : request.TitleTracks.Trim()
             };
 
             var created = await _courseService.CreateAsync(course, _currentUserService.GetCurrentUser());
@@ -295,6 +298,7 @@ public class CoursesController : ControllerBase
                 UniversityId = viewModel.Course.UniversityId,
                 UniversityName = viewModel.UniversityName,
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
+                TitleTracks = viewModel.Course.TitleTracks,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
@@ -341,7 +345,9 @@ public class CoursesController : ControllerBase
                 Name = request.Name ?? string.Empty,
                 Code = request.Code ?? string.Empty,
                 Description = request.Description,
-                ExternalCourseId = request.ExternalCourseId
+                ExternalCourseId = request.ExternalCourseId,
+                // Raw passthrough: null = leave unchanged, "" = clear (auto-detect), "math,.." = set
+                TitleTracks = request.TitleTracks
             };
 
             var viewModel = await _courseService.UpdateAsync(id, course, _currentUserService.GetCurrentUser());
@@ -357,6 +363,7 @@ public class CoursesController : ControllerBase
                 UniversityId = viewModel.Course.UniversityId,
                 UniversityName = viewModel.UniversityName,
                 ExternalCourseId = viewModel.Course.ExternalCourseId,
+                TitleTracks = viewModel.Course.TitleTracks,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,

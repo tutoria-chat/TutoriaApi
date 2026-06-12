@@ -21,5 +21,8 @@ public class StudentProgress
     /// <summary>Date (America/Sao_Paulo) of the most recent activity — drives streaks.</summary>
     public DateOnly? LastActivityDate { get; set; }
 
+    /// <summary>Catalog key of the title the student chose to display (equip). Null = default.</summary>
+    public string? DisplayedTitleKey { get; set; }
+
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
