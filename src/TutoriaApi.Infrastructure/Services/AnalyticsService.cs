@@ -21,6 +21,7 @@ public class AnalyticsService : IAnalyticsService
     private readonly IStudentCourseRepository _studentCourseRepository;
     private readonly IUserRepository _userRepository;
     private readonly IDailyAISummaryRepository _dailyAISummaryRepository;
+    private readonly IGamificationStatsRepository _gamificationStatsRepository;
     private readonly ILogger<AnalyticsService> _logger;
 
     // Token distribution constants for cost estimation (based on typical chat usage patterns)
@@ -47,6 +48,7 @@ public class AnalyticsService : IAnalyticsService
         IStudentCourseRepository studentCourseRepository,
         IUserRepository userRepository,
         IDailyAISummaryRepository dailyAISummaryRepository,
+        IGamificationStatsRepository gamificationStatsRepository,
         ILogger<AnalyticsService> logger)
     {
         _dynamoDbService = dynamoDbService;
@@ -61,6 +63,7 @@ public class AnalyticsService : IAnalyticsService
         _studentCourseRepository = studentCourseRepository;
         _userRepository = userRepository;
         _dailyAISummaryRepository = dailyAISummaryRepository;
+        _gamificationStatsRepository = gamificationStatsRepository;
         _logger = logger;
     }
 
@@ -1363,9 +1366,123 @@ public class AnalyticsService : IAnalyticsService
         }
     }
 
+    public async Task<RankingsResponseDto> GetRankingsAsync(
+        int userId, string userRole, int? userUniversityId,
+        int? universityId, DateTime? startDate, DateTime? endDate)
+    {
+        const int TOP_N = 10;
+        try
+        {
+            // Scope: students enrolled in any course this staff member can see.
+            var courseIds = await GetAuthorizedCourseIdsAsync(userId, userRole, userUniversityId, universityId);
+            if (!courseIds.Any())
+            {
+                return new RankingsResponseDto();
+            }
+
+            var studentIds = await _gamificationStatsRepository.GetEnrolledStudentIdsAsync(courseIds);
+            if (!studentIds.Any())
+            {
+                return new RankingsResponseDto();
+            }
+
+            var startUtc = (startDate ?? DateTime.UtcNow.AddDays(-30)).ToUniversalTime();
+            var endUtc = (endDate ?? DateTime.UtcNow).ToUniversalTime();
+
+            var topPerformers = await _gamificationStatsRepository.GetTopPerformersAsync(studentIds, TOP_N);
+            var mostImproved = await _gamificationStatsRepository.GetMostImprovedAsync(studentIds, startUtc, endUtc, TOP_N);
+            var longestStreaks = await _gamificationStatsRepository.GetLongestStreaksAsync(studentIds, TOP_N);
+            var mostActive = await _gamificationStatsRepository.GetMostActiveAsync(studentIds, startUtc, endUtc, TOP_N);
+            var mostBadges = await _gamificationStatsRepository.GetMostBadgesAsync(studentIds, TOP_N);
+            var engagement = await _gamificationStatsRepository.GetEngagementTotalsAsync(studentIds, startUtc, endUtc);
+
+            int rank;
+
+            rank = 0;
+            var topPerformerDtos = topPerformers.Select(r => new RankingPerformerDto
+            {
+                Rank = ++rank,
+                StudentId = r.StudentId,
+                Name = r.Name,
+                TotalXp = r.TotalXp,
+                Level = r.Level,
+                Tier = r.Tier,
+                CurrentStreakDays = r.CurrentStreakDays,
+                LongestStreakDays = r.LongestStreakDays,
+                DisplayedTitleKey = r.DisplayedTitleKey,
+            }).ToList();
+
+            List<RankingValueDto> Ranked(List<RankingValueRow> rows)
+            {
+                var i = 0;
+                return rows.Select(r => new RankingValueDto
+                {
+                    Rank = ++i,
+                    StudentId = r.StudentId,
+                    Name = r.Name,
+                    Value = r.Value,
+                    DisplayedTitleKey = r.DisplayedTitleKey,
+                }).ToList();
+            }
+
+            return new RankingsResponseDto
+            {
+                TopPerformers = topPerformerDtos,
+                MostImproved = Ranked(mostImproved),
+                LongestStreaks = Ranked(longestStreaks),
+                MostActive = Ranked(mostActive),
+                MostBadges = Ranked(mostBadges),
+                Engagement = new EngagementTotalsDto
+                {
+                    Questions = engagement.Questions,
+                    Quizzes = engagement.Quizzes,
+                    Flashcards = engagement.Flashcards,
+                    StudyPlans = engagement.StudyPlans,
+                    ActiveStudents = engagement.ActiveStudents,
+                },
+                TotalStudents = studentIds.Count,
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting rankings for user {UserId}", userId);
+            return new RankingsResponseDto();
+        }
+    }
+
     #endregion
 
     #region Helper Methods
+
+    /// <summary>
+    /// Course IDs the user may see: all (super_admin, optionally filtered by university)
+    /// or just their own university's courses (manager/professor). Mirrors
+    /// <see cref="GetAuthorizedModuleIdsAsync"/> but at course granularity.
+    /// </summary>
+    private async Task<List<int>> GetAuthorizedCourseIdsAsync(
+        int userId, string userRole, int? userUniversityId, int? universityId)
+    {
+        var role = userRole.ToLower();
+
+        if (role == "super_admin")
+        {
+            if (universityId.HasValue)
+            {
+                return (await _courseRepository.GetByUniversityIdAsync(universityId.Value))
+                    .Select(c => c.Id).ToList();
+            }
+            return (await _courseRepository.GetAllAsync()).Select(c => c.Id).ToList();
+        }
+
+        // University-scoped staff (manager/professor) only see their own university.
+        if (userUniversityId.HasValue)
+        {
+            return (await _courseRepository.GetByUniversityIdAsync(userUniversityId.Value))
+                .Select(c => c.Id).ToList();
+        }
+
+        return new List<int>();
+    }
 
     /// <summary>
     /// Get authorized module IDs based on user role and filters

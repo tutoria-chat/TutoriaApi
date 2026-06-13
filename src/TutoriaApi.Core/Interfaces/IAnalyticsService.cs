@@ -179,4 +179,12 @@ public interface IAnalyticsService
     /// </summary>
     Task<QuizPerformanceResponseDto> GetQuizPerformanceAsync(
         int userId, string userRole, int? userUniversityId, int? moduleId, int? universityId = null);
+
+    /// <summary>
+    /// Student rankings + positive highlights (top performers, most improved, engagement
+    /// wins, achievements) for the staff analytics "Rankings" tab, scoped by role/university.
+    /// </summary>
+    Task<RankingsResponseDto> GetRankingsAsync(
+        int userId, string userRole, int? userUniversityId,
+        int? universityId, DateTime? startDate, DateTime? endDate);
 }

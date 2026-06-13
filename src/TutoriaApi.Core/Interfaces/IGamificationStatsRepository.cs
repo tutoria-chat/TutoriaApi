@@ -29,6 +29,38 @@ public class StreakAtRiskRow
     public int StreakDays { get; set; }
 }
 
+/// <summary>A leaderboard row for the rankings/highlights views (real student names — staff-only).</summary>
+public class RankingPerformerRow
+{
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int TotalXp { get; set; }
+    public int Level { get; set; }
+    public string Tier { get; set; } = "bronze";
+    public int CurrentStreakDays { get; set; }
+    public int LongestStreakDays { get; set; }
+    public string? DisplayedTitleKey { get; set; }
+}
+
+/// <summary>A student + a single ranked metric value (xp gained, streak, activity count, badges…).</summary>
+public class RankingValueRow
+{
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Value { get; set; }
+    public string? DisplayedTitleKey { get; set; }
+}
+
+/// <summary>Aggregate engagement counts over a window for a set of students.</summary>
+public class EngagementTotalsRow
+{
+    public int Questions { get; set; }
+    public int Quizzes { get; set; }
+    public int Flashcards { get; set; }
+    public int StudyPlans { get; set; }
+    public int ActiveStudents { get; set; }
+}
+
 /// <summary>
 /// Read-only aggregation over the gamification ledger (StudentActivities /
 /// StudentProgress) for institution/class/discipline statistics. The ledger is
@@ -52,4 +84,27 @@ public interface IGamificationStatsRepository
     /// <paramref name="minStreak"/> days — candidates for a streak-saver nudge.
     /// </summary>
     Task<List<StreakAtRiskRow>> GetStreakAtRiskAsync(DateOnly lastActiveDate, int minStreak);
+
+    // ---- Rankings / highlights (staff-facing) ----
+
+    /// <summary>Distinct student IDs enrolled in any of the given courses.</summary>
+    Task<List<int>> GetEnrolledStudentIdsAsync(List<int> courseIds);
+
+    /// <summary>Top students by total XP (the rollup), with name/level/tier/streak/title.</summary>
+    Task<List<RankingPerformerRow>> GetTopPerformersAsync(List<int> studentIds, int limit);
+
+    /// <summary>Top students by XP gained within [startUtc, endUtc] (effort over the period).</summary>
+    Task<List<RankingValueRow>> GetMostImprovedAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit);
+
+    /// <summary>Top students by longest all-time streak (days).</summary>
+    Task<List<RankingValueRow>> GetLongestStreaksAsync(List<int> studentIds, int limit);
+
+    /// <summary>Top students by number of logged activities within [startUtc, endUtc].</summary>
+    Task<List<RankingValueRow>> GetMostActiveAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit);
+
+    /// <summary>Top students by number of badges earned (all-time).</summary>
+    Task<List<RankingValueRow>> GetMostBadgesAsync(List<int> studentIds, int limit);
+
+    /// <summary>Aggregate engagement counts (questions/quizzes/flashcards/plans/active) over a window.</summary>
+    Task<EngagementTotalsRow> GetEngagementTotalsAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc);
 }

@@ -892,6 +892,43 @@ public class AnalyticsController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Student rankings + positive highlights (top performers, most improved, engagement
+    /// wins, achievements) for the analytics "Rankings" tab.
+    /// </summary>
+    /// <remarks>
+    /// Scoped by role: super admins see all (optionally filtered by university);
+    /// managers see only their own university's students. Names are real (staff-only view).
+    /// </remarks>
+    [HttpGet("rankings")]
+    [ProducesResponseType(typeof(RankingsResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<RankingsResponseDto>> GetRankings(
+        [FromQuery] int? universityId = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
+    {
+        try
+        {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+
+            var result = await _analyticsService.GetRankingsAsync(
+                userId, userRole, userUniversityId, universityId, startDate, endDate);
+            return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Unauthorized access to rankings by user {UserId}", User.FindFirst(ClaimTypes.NameIdentifier)?.Value);
+            return Unauthorized(new { message = "You do not have access to this resource" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting rankings");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     #endregion
 
     #region Helper Methods

@@ -808,3 +808,53 @@ public class ConceptPerformanceDto
     public double SuccessRate { get; set; }
     public string? Difficulty { get; set; }
 }
+
+// ---- Rankings / positive highlights (staff-facing gamification leaderboards) ----
+
+/// <summary>A leaderboard entry with the student's rollup stats and equipped title.</summary>
+public class RankingPerformerDto
+{
+    public int Rank { get; set; }
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int TotalXp { get; set; }
+    public int Level { get; set; }
+    public string Tier { get; set; } = "bronze";
+    public int CurrentStreakDays { get; set; }
+    public int LongestStreakDays { get; set; }
+    /// <summary>Equipped title catalog key (e.g. "veterano", "math_lenda"); UI maps it to a label.</summary>
+    public string? DisplayedTitleKey { get; set; }
+}
+
+/// <summary>A leaderboard entry for a single ranked metric (xp gained, streak, activity, badges).</summary>
+public class RankingValueDto
+{
+    public int Rank { get; set; }
+    public int StudentId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Value { get; set; }
+    public string? DisplayedTitleKey { get; set; }
+}
+
+/// <summary>Aggregate engagement counters over the selected window.</summary>
+public class EngagementTotalsDto
+{
+    public int Questions { get; set; }
+    public int Quizzes { get; set; }
+    public int Flashcards { get; set; }
+    public int StudyPlans { get; set; }
+    public int ActiveStudents { get; set; }
+}
+
+/// <summary>Everything the analytics "Rankings" tab needs in one payload.</summary>
+public class RankingsResponseDto
+{
+    public List<RankingPerformerDto> TopPerformers { get; set; } = new();
+    public List<RankingValueDto> MostImproved { get; set; } = new();
+    public List<RankingValueDto> LongestStreaks { get; set; } = new();
+    public List<RankingValueDto> MostActive { get; set; } = new();
+    public List<RankingValueDto> MostBadges { get; set; } = new();
+    public EngagementTotalsDto Engagement { get; set; } = new();
+    /// <summary>Total students in scope (enrolled in authorized courses).</summary>
+    public int TotalStudents { get; set; }
+}
