@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Moq;
 using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
@@ -10,12 +11,16 @@ namespace TutoriaApi.Tests.Unit.Services;
 public class AuditLogServiceTests
 {
     private readonly Mock<IAuditLogRepository> _repositoryMock;
+    private readonly Mock<IUserRepository> _userRepositoryMock;
+    private readonly Mock<ILogger<AuditLogService>> _loggerMock;
     private readonly AuditLogService _service;
 
     public AuditLogServiceTests()
     {
         _repositoryMock = new Mock<IAuditLogRepository>();
-        _service = new AuditLogService(_repositoryMock.Object);
+        _userRepositoryMock = new Mock<IUserRepository>();
+        _loggerMock = new Mock<ILogger<AuditLogService>>();
+        _service = new AuditLogService(_repositoryMock.Object, _userRepositoryMock.Object, _loggerMock.Object);
     }
 
     [Fact]

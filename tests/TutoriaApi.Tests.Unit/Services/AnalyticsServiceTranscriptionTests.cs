@@ -49,6 +49,7 @@ public class AnalyticsServiceTranscriptionTests
             new Mock<IStudentCourseRepository>().Object,
             new Mock<IUserRepository>().Object,
             new Mock<IDailyAISummaryRepository>().Object,
+            new Mock<IGamificationStatsRepository>().Object,
             _loggerMock.Object
         );
     }
