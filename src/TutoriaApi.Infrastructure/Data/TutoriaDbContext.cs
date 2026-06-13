@@ -112,6 +112,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<StudentGoal> StudentGoals { get; set; }
     public DbSet<FlashcardReview> FlashcardReviews { get; set; }
     public DbSet<EnemQuestion> EnemQuestions { get; set; }
+    public DbSet<Semester> Semesters { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1253,6 +1254,23 @@ public class TutoriaDbContext : DbContext
 
             entity.HasIndex(e => new { e.Area, e.IsActive });
             entity.HasIndex(e => e.DedupeKey).IsUnique();
+        });
+
+        // Semester configuration (uni-set term ranges; drives "The One" champion)
+        modelBuilder.Entity<Semester>(entity =>
+        {
+            entity.ToTable("Semesters");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Label).HasColumnName("Label").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.StartsAtUtc).HasColumnName("StartsAtUtc");
+            entity.Property(e => e.EndsAtUtc).HasColumnName("EndsAtUtc");
+            entity.Property(e => e.ChampionsAwarded).HasColumnName("ChampionsAwarded").HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.UniversityId);
+            entity.HasOne(e => e.University).WithMany().HasForeignKey(e => e.UniversityId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // QuizAnalytic configuration
