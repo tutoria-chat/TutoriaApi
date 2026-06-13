@@ -1241,10 +1241,18 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Explanation).HasColumnName("Explanation");
             entity.Property(e => e.Difficulty).HasColumnName("Difficulty").HasMaxLength(20);
             entity.Property(e => e.IsActive).HasColumnName("IsActive");
+            entity.Property(e => e.Source).HasColumnName("Source").HasMaxLength(20).HasDefaultValue("generated");
+            entity.Property(e => e.Year).HasColumnName("Year");
+            entity.Property(e => e.ExamLabel).HasColumnName("ExamLabel").HasMaxLength(50);
+            entity.Property(e => e.SupportingText).HasColumnName("SupportingText");
+            entity.Property(e => e.FiguresJson).HasColumnName("FiguresJson");
+            entity.Property(e => e.HasImage).HasColumnName("HasImage").HasDefaultValue(false);
+            entity.Property(e => e.DedupeKey).HasColumnName("DedupeKey").HasMaxLength(100);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
             entity.HasIndex(e => new { e.Area, e.IsActive });
+            entity.HasIndex(e => e.DedupeKey).IsUnique();
         });
 
         // QuizAnalytic configuration
