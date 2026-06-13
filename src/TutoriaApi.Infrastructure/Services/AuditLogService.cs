@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
@@ -9,10 +10,17 @@ namespace TutoriaApi.Infrastructure.Services;
 public class AuditLogService : IAuditLogService
 {
     private readonly IAuditLogRepository _auditLogRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly ILogger<AuditLogService> _logger;
 
-    public AuditLogService(IAuditLogRepository auditLogRepository)
+    public AuditLogService(
+        IAuditLogRepository auditLogRepository,
+        IUserRepository userRepository,
+        ILogger<AuditLogService> logger)
     {
         _auditLogRepository = auditLogRepository;
+        _userRepository = userRepository;
+        _logger = logger;
     }
 
     public async Task<(List<AuditLog> Items, int Total)> GetPagedAsync(
@@ -94,10 +102,22 @@ public class AuditLogService : IAuditLogService
                 kvp => new { Old = kvp.Value.OldValue, New = kvp.Value.NewValue }))
             : null;
 
+        // Username is NOT NULL in the DB. Callers sometimes only have the userId,
+        // so resolve it here (and fall back) — a null would otherwise blow up the
+        // whole request the audit log was attached to.
+        var resolvedUsername = username;
+        if (string.IsNullOrWhiteSpace(resolvedUsername))
+        {
+            try { resolvedUsername = (await _userRepository.GetByIdAsync(userId))?.Username; }
+            catch { /* best-effort */ }
+        }
+        if (string.IsNullOrWhiteSpace(resolvedUsername))
+            resolvedUsername = userId > 0 ? $"user#{userId}" : "system";
+
         var auditLog = new AuditLog
         {
             UserId = userId,
-            Username = username,
+            Username = resolvedUsername,
             UniversityId = universityId,
             Action = action,
             EntityType = entityType,
@@ -106,7 +126,16 @@ public class AuditLogService : IAuditLogService
             Changes = changesJson
         };
 
-        await _auditLogRepository.AddAsync(auditLog);
+        // Audit logging must never break the operation it records.
+        try
+        {
+            await _auditLogRepository.AddAsync(auditLog);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log ({Action} {EntityType} {EntityId})",
+                action, entityType, entityId);
+        }
     }
 
     private string ParseChangesForDisplay(string? changesJson)
