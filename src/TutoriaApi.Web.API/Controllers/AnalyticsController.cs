@@ -24,15 +24,18 @@ public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
     private readonly IDynamoDbAnalyticsService _dynamoDbService;
+    private readonly IQuizAnalyticsAdminService _quizAnalyticsAdminService;
     private readonly ILogger<AnalyticsController> _logger;
 
     public AnalyticsController(
         IAnalyticsService analyticsService,
         IDynamoDbAnalyticsService dynamoDbService,
+        IQuizAnalyticsAdminService quizAnalyticsAdminService,
         ILogger<AnalyticsController> logger)
     {
         _analyticsService = analyticsService;
         _dynamoDbService = dynamoDbService;
+        _quizAnalyticsAdminService = quizAnalyticsAdminService;
         _logger = logger;
     }
 
@@ -925,6 +928,32 @@ public class AnalyticsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting rankings");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Rebuild the pre-computed QuizAnalytics now (instead of waiting for the nightly
+    /// job), by triggering the aggregation on tutoria-worker.
+    /// </summary>
+    [HttpPost("recompute-quiz")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult> RecomputeQuizAnalytics([FromQuery] int? windowDays = null)
+    {
+        try
+        {
+            var modules = await _quizAnalyticsAdminService.RecomputeAsync(windowDays);
+            return Ok(new { status = "ok", modulesAggregated = modules });
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Quiz analytics recompute unavailable (not configured)");
+            return StatusCode(503, new { message = "Quiz analytics recompute is not available right now." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recomputing quiz analytics");
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
