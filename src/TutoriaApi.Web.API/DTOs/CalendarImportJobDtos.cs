@@ -40,6 +40,16 @@ public class CreateCalendarImportJobRequest
     public IFormFile File { get; set; } = null!;
 }
 
+public class CreateCalendarImportFromUrlRequest
+{
+    [Required]
+    public int CourseId { get; set; }
+
+    [Required]
+    [MaxLength(2000)]
+    public string SourceUrl { get; set; } = string.Empty;
+}
+
 public class ConfirmCalendarImportRequest
 {
     [Required]

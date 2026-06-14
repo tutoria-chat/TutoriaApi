@@ -15,6 +15,12 @@ public interface ICalendarImportJobService
     /// </summary>
     Task<CalendarImportJob> CreateJobAsync(int courseId, Stream fileStream, string fileName, string contentType, User currentUser);
 
+    /// <summary>
+    /// Same as <see cref="CreateJobAsync"/> but the source is an external calendar's
+    /// iCal feed URL (Google/Outlook/Apple "secret address") instead of an upload.
+    /// </summary>
+    Task<CalendarImportJob> CreateJobFromUrlAsync(int courseId, string icsUrl, User currentUser);
+
     Task<List<CalendarImportJob>> GetJobsForCourseAsync(int courseId, User currentUser);
 
     Task<CalendarImportJob?> GetJobAsync(int jobId, User currentUser);

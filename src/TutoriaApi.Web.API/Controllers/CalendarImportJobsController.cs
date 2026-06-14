@@ -68,6 +68,28 @@ public class CalendarImportJobsController : ControllerBase
         }
     }
 
+    /// <summary>Import from an external calendar's iCal feed URL (Google/Outlook/Apple).</summary>
+    [HttpPost("from-url")]
+    [ProducesResponseType(typeof(CalendarImportJobDto), StatusCodes.Status200OK)]
+    public async Task<ActionResult<CalendarImportJobDto>> CreateFromUrl([FromBody] CreateCalendarImportFromUrlRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            var job = await _service.CreateJobFromUrlAsync(request.CourseId, request.SourceUrl, currentUser);
+            return Ok(MapToDto(job));
+        }
+        catch (KeyNotFoundException ex) { return NotFound(new { message = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { message = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating calendar import (url) for course {CourseId}", request.CourseId);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     /// <summary>List import jobs for a course, newest first.</summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<CalendarImportJobDto>), StatusCodes.Status200OK)]

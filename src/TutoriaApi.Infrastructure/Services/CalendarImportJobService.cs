@@ -80,7 +80,7 @@ public class CalendarImportJobService : ICalendarImportJobService
         // result. The worker writes status/ExtractedEventsJson back to this row.
         try
         {
-            await TriggerWorkerExtractionAsync(created.Id, courseId, s3Key, fileName);
+            await TriggerWorkerExtractionAsync(created.Id, courseId, s3Key: s3Key, fileName: fileName);
         }
         catch (Exception ex)
         {
@@ -93,6 +93,41 @@ public class CalendarImportJobService : ICalendarImportJobService
         }
 
         // Reload the row the worker just updated.
+        return await _jobRepository.GetWithCourseAsync(created.Id) ?? created;
+    }
+
+    public async Task<CalendarImportJob> CreateJobFromUrlAsync(int courseId, string icsUrl, User currentUser)
+    {
+        await EnsureCourseAccessAsync(courseId, currentUser);
+
+        icsUrl = (icsUrl ?? "").Trim();
+        var lower = icsUrl.ToLowerInvariant();
+        if (!lower.StartsWith("https://") && !lower.StartsWith("webcal://"))
+            throw new InvalidOperationException("Calendar URL must be an https:// (or webcal://) link");
+
+        var job = new CalendarImportJob
+        {
+            CourseId = courseId,
+            Status = "pending",
+            OriginalFilename = "iCal feed",
+            CreatedByUserId = currentUser.UserId,
+        };
+        var created = await _jobRepository.AddAsync(job);
+
+        try
+        {
+            await TriggerWorkerExtractionAsync(created.Id, courseId, s3Key: null, fileName: null, icsUrl: icsUrl);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Worker calendar-URL extraction failed for job {JobId}", created.Id);
+            created.Status = "failed";
+            created.ErrorMessage = "Could not read that calendar URL. Check the link and try again.";
+            created.ProcessedAt = DateTime.UtcNow;
+            await _jobRepository.UpdateAsync(created);
+            return created;
+        }
+
         return await _jobRepository.GetWithCourseAsync(created.Id) ?? created;
     }
 
@@ -135,7 +170,8 @@ public class CalendarImportJobService : ICalendarImportJobService
         return created;
     }
 
-    private async Task TriggerWorkerExtractionAsync(int jobId, int courseId, string s3Key, string fileName)
+    private async Task TriggerWorkerExtractionAsync(
+        int jobId, int courseId, string? s3Key = null, string? fileName = null, string? icsUrl = null)
     {
         var baseUrl = _configuration["WorkerApi:BaseUrl"]?.TrimEnd('/');
         var apiKey = _configuration["WorkerApi:InternalApiKey"] ?? _configuration["AiApi:InternalApiKey"];
@@ -155,6 +191,7 @@ public class CalendarImportJobService : ICalendarImportJobService
             course_id = courseId,
             s3_key = s3Key,
             filename = fileName,
+            ics_url = icsUrl,
         });
 
         var resp = await http.SendAsync(req);
