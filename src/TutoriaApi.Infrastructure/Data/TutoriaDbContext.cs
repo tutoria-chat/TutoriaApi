@@ -87,6 +87,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<Plan> Plans { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
     public DbSet<QuizUploadJob> QuizUploadJobs { get; set; }
+    public DbSet<CalendarImportJob> CalendarImportJobs { get; set; }
     public DbSet<StudentImportJob> StudentImportJobs { get; set; }
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
@@ -676,6 +677,35 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Module)
                 .WithMany()
                 .HasForeignKey(e => e.ModuleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CalendarImportJob configuration
+        modelBuilder.Entity<CalendarImportJob>(entity =>
+        {
+            entity.ToTable("CalendarImportJobs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ExtractedCount).HasColumnName("ExtractedCount").HasDefaultValue(0);
+            entity.Property(e => e.ConfirmedCount).HasColumnName("ConfirmedCount").HasDefaultValue(0);
+            entity.Property(e => e.ErrorMessage).HasColumnName("ErrorMessage");
+            entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
+            entity.Property(e => e.ConfirmedAt).HasColumnName("ConfirmedAt");
+            entity.Property(e => e.InputS3Key).HasColumnName("InputS3Key");
+            entity.Property(e => e.OriginalFilename).HasColumnName("OriginalFilename");
+            entity.Property(e => e.ExtractedEventsJson).HasColumnName("ExtractedEventsJson");
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
