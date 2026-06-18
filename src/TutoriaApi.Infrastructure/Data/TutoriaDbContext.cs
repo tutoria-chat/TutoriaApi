@@ -166,6 +166,9 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
+            // Looked up by external (LMS) course id + university from the external grading API.
+            entity.HasIndex(e => new { e.UniversityId, e.ExternalCourseId });
+
             entity.HasOne(e => e.University)
                 .WithMany(u => u.Courses)
                 .HasForeignKey(e => e.UniversityId)
@@ -1338,6 +1341,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Id).HasColumnName("Id");
             entity.Property(e => e.CourseId).HasColumnName("CourseId");
             entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.Source).HasColumnName("Source").HasMaxLength(30);
             entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
             entity.Property(e => e.InputS3Key).HasColumnName("InputS3Key").HasMaxLength(500);
             entity.Property(e => e.ResultS3Key).HasColumnName("ResultS3Key").HasMaxLength(500);
@@ -1364,6 +1368,7 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CreatedByUserId)
                 .HasPrincipalKey(u => u.UserId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.NoAction);
         });
 

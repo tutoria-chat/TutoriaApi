@@ -67,6 +67,13 @@ public class CourseRepository : Repository<Course>, ICourseRepository
         return await _dbSet.AnyAsync(c => c.Code == code && c.UniversityId == universityId);
     }
 
+    public async Task<Course?> GetByExternalCourseIdAsync(int externalCourseId, int universityId)
+    {
+        return await _dbSet
+            .Include(c => c.University)
+            .FirstOrDefaultAsync(c => c.ExternalCourseId == externalCourseId && c.UniversityId == universityId);
+    }
+
     public async Task<Course?> GetWithFullDetailsAsync(int id)
     {
         return await _dbSet

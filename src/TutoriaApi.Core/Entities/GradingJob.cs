@@ -3,7 +3,13 @@ namespace TutoriaApi.Core.Entities;
 public class GradingJob : BaseEntity
 {
     public int CourseId { get; set; }
-    public int CreatedByUserId { get; set; }
+
+    /// <summary>Staff user who created the job. Null for jobs started via the
+    /// external automation API (authenticated by API key, no user).</summary>
+    public int? CreatedByUserId { get; set; }
+
+    /// <summary>How the job was created: "dashboard" (default) or "external_api".</summary>
+    public string? Source { get; set; }
 
     /// <summary>pending | processing | completed | failed</summary>
     public required string Status { get; set; }
@@ -30,5 +36,5 @@ public class GradingJob : BaseEntity
 
     // Navigation properties
     public Course Course { get; set; } = null!;
-    public User CreatedBy { get; set; } = null!;
+    public User? CreatedBy { get; set; }
 }

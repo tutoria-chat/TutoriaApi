@@ -145,4 +145,84 @@ public class GradingJobService : IGradingJobService
         // 24-hour pre-signed URL so professors can return later to download
         return _blobStorageService.GetDownloadUrl(job.ResultS3Key, expiresInHours: 24);
     }
+
+    // ── External automation API ────────────────────────────────────────────────
+
+    public async Task<GradingJob> CreateExternalJobAsync(
+        int universityId, int externalCourseId, Stream jsonStream, string? fileName, string? gradingCriteria)
+    {
+        var course = await _courseRepository.GetByExternalCourseIdAsync(externalCourseId, universityId)
+            ?? throw new KeyNotFoundException(
+                $"No course with external id {externalCourseId} in university {universityId}");
+
+        var university = course.University
+            ?? throw new InvalidOperationException("Course is not linked to a university");
+        if (!university.HasAssignments)
+            throw new UnauthorizedAccessException("Grading feature is not enabled for this university");
+
+        if (jsonStream.Length == 0)
+            throw new InvalidOperationException("Request body (submissions JSON) is empty");
+        if (jsonStream.Length > MaxFileSizeBytes)
+            throw new InvalidOperationException("Submissions JSON exceeds the 10 MB limit");
+
+        var job = new GradingJob
+        {
+            CourseId = course.Id,
+            CreatedByUserId = null,          // external API — no user
+            Source = "external_api",
+            Status = "pending",
+            TotalSubmissions = 0,
+            ProcessedSubmissions = 0,
+            OriginalFilename = Path.GetFileName(fileName ?? "external-submissions.json"),
+            GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim(),
+        };
+
+        var created = await _gradingJobRepository.AddAsync(job);
+
+        var s3Key = $"grading-jobs/{course.Id}/{created.Id}/input.json";
+        try
+        {
+            await _blobStorageService.UploadFileAsync(jsonStream, s3Key, "application/json");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload external grading input to S3 for job {JobId}", created.Id);
+            created.Status = "failed";
+            created.ErrorMessage = "Failed to store submissions";
+            await _gradingJobRepository.UpdateAsync(created);
+            throw;
+        }
+
+        created.InputS3Key = s3Key;
+        await _gradingJobRepository.UpdateAsync(created);
+
+        var sent = await _sqsMessagingService.SendGradingJobAsync(created.Id, course.Id);
+        if (!sent)
+            _logger.LogWarning("SQS message not sent for external grading job {JobId}", created.Id);
+
+        _logger.LogInformation(
+            "Created external grading job {JobId} for course {CourseId} (external {ExternalId}, university {UniversityId})",
+            created.Id, course.Id, externalCourseId, universityId);
+
+        return created;
+    }
+
+    public async Task<GradingJob?> GetExternalJobAsync(int universityId, int externalCourseId, int jobId)
+    {
+        var course = await _courseRepository.GetByExternalCourseIdAsync(externalCourseId, universityId);
+        if (course == null) return null;
+
+        var job = await _gradingJobRepository.GetByIdWithCourseAsync(jobId);
+        // The job must belong to exactly this course — prevents cross-course/tenant access.
+        if (job == null || job.CourseId != course.Id) return null;
+
+        return job;
+    }
+
+    public async Task<byte[]?> GetResultBytesAsync(GradingJob job)
+    {
+        if (job.Status != "completed" || string.IsNullOrEmpty(job.ResultS3Key))
+            return null;
+        return await _blobStorageService.GetFileContentAsync(job.ResultS3Key);
+    }
 }

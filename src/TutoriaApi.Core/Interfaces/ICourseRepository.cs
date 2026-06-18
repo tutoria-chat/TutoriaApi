@@ -10,6 +10,10 @@ public interface ICourseRepository : IRepository<Course>
     Task<(IEnumerable<Course> Items, int Total)> SearchAsync(int? universityId, int? professorId, string? search, int page, int pageSize);
     Task<bool> ExistsByCodeAndUniversityAsync(string code, int universityId);
 
+    /// <summary>Find a course by its external (LMS/Moodle) course id within a university,
+    /// with University loaded. Used by the external automation API.</summary>
+    Task<Course?> GetByExternalCourseIdAsync(int externalCourseId, int universityId);
+
     // Count methods
     Task<int> GetModulesCountAsync(int courseId);
     Task<int> GetProfessorsCountAsync(int courseId);
