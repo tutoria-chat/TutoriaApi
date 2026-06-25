@@ -82,14 +82,14 @@ public class UniversityPersonalizationServiceTests
     public async Task UpsertAsync_ProfessorRole_ThrowsUnauthorizedAccessException()
     {
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _service.UpsertAsync(5, "#7C3AED", null, "auto", 1, UserTypes.Professor, 5));
+            _service.UpsertAsync(5, "#7C3AED", null, "auto", null, 1, UserTypes.Professor, 5));
     }
 
     [Fact]
     public async Task UpsertAsync_ManagerForDifferentUniversity_ThrowsUnauthorizedAccessException()
     {
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            _service.UpsertAsync(5, "#7C3AED", null, "auto", 1, UserTypes.Manager, 99));
+            _service.UpsertAsync(5, "#7C3AED", null, "auto", null, 1, UserTypes.Manager, 99));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public class UniversityPersonalizationServiceTests
         _universityRepoMock.Setup(r => r.GetByIdAsync(5)).ReturnsAsync((University?)null);
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            _service.UpsertAsync(5, "#7C3AED", null, "auto", 1, UserTypes.SuperAdmin, null));
+            _service.UpsertAsync(5, "#7C3AED", null, "auto", null, 1, UserTypes.SuperAdmin, null));
     }
 
     // ── UpsertAsync — create path ──────────────────────────────────────────────
@@ -117,7 +117,7 @@ public class UniversityPersonalizationServiceTests
         };
         _repoMock.Setup(r => r.AddAsync(It.IsAny<UniversityPersonalization>())).ReturnsAsync(created);
 
-        var result = await _service.UpsertAsync(5, "#7C3AED", "#F3F4F6", "dark", 1, UserTypes.SuperAdmin, null);
+        var result = await _service.UpsertAsync(5, "#7C3AED", "#F3F4F6", "dark", 80, 1, UserTypes.SuperAdmin, null);
 
         Assert.NotNull(result);
         Assert.Equal("#7C3AED", result.PrimaryColor);
@@ -140,11 +140,12 @@ public class UniversityPersonalizationServiceTests
         _repoMock.Setup(r => r.GetByUniversityIdAsync(5)).ReturnsAsync(existing);
         _repoMock.Setup(r => r.UpdateAsync(It.IsAny<UniversityPersonalization>())).Returns(Task.CompletedTask);
 
-        var result = await _service.UpsertAsync(5, "#7C3AED", null, "light", 2, UserTypes.Manager, 5);
+        var result = await _service.UpsertAsync(5, "#7C3AED", null, "light", 70, 2, UserTypes.Manager, 5);
 
         Assert.Equal("#7C3AED", result.PrimaryColor);
         Assert.Null(result.SecondaryColor);
         Assert.Equal("light", result.DefaultTheme);
+        Assert.Equal(70, result.BubbleOpacity);
         _repoMock.Verify(r => r.UpdateAsync(It.IsAny<UniversityPersonalization>()), Times.Once);
         _repoMock.Verify(r => r.AddAsync(It.IsAny<UniversityPersonalization>()), Times.Never);
     }
@@ -160,7 +161,7 @@ public class UniversityPersonalizationServiceTests
         _repoMock.Setup(r => r.GetByUniversityIdAsync(7)).ReturnsAsync(existing);
         _repoMock.Setup(r => r.UpdateAsync(It.IsAny<UniversityPersonalization>())).Returns(Task.CompletedTask);
 
-        var result = await _service.UpsertAsync(7, "#2563EB", "#F3F4F6", "dark", 3, UserTypes.PlatformCoordinator, 7);
+        var result = await _service.UpsertAsync(7, "#2563EB", "#F3F4F6", "dark", null, 3, UserTypes.PlatformCoordinator, 7);
 
         Assert.Equal("#2563EB", result.PrimaryColor);
         _repoMock.Verify(r => r.UpdateAsync(It.IsAny<UniversityPersonalization>()), Times.Once);
@@ -177,7 +178,7 @@ public class UniversityPersonalizationServiceTests
         _repoMock.Setup(r => r.AddAsync(It.IsAny<UniversityPersonalization>()))
             .ReturnsAsync(new UniversityPersonalization { Id = 1, UniversityId = 5, DefaultTheme = "auto" });
 
-        await _service.UpsertAsync(5, null, null, "auto", 1, UserTypes.SuperAdmin, null);
+        await _service.UpsertAsync(5, null, null, "auto", null, 1, UserTypes.SuperAdmin, null);
 
         _auditLogMock.Verify(a => a.LogAsync(
             1, It.IsAny<string>(), 5, "Create", "UniversityPersonalization",
@@ -194,7 +195,7 @@ public class UniversityPersonalizationServiceTests
         _repoMock.Setup(r => r.GetByUniversityIdAsync(5)).ReturnsAsync(existing);
         _repoMock.Setup(r => r.UpdateAsync(It.IsAny<UniversityPersonalization>())).Returns(Task.CompletedTask);
 
-        await _service.UpsertAsync(5, "#7C3AED", null, "dark", 1, UserTypes.SuperAdmin, null);
+        await _service.UpsertAsync(5, "#7C3AED", null, "dark", null, 1, UserTypes.SuperAdmin, null);
 
         _auditLogMock.Verify(a => a.LogAsync(
             1, It.IsAny<string>(), 5, "Update", "UniversityPersonalization",

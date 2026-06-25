@@ -42,6 +42,7 @@ public class UniversityDto
     public string? WidgetPrimaryColor { get; set; }
     public string? WidgetSecondaryColor { get; set; }
     public string? WidgetDefaultTheme { get; set; }
+    public int? WidgetBubbleOpacity { get; set; }
 }
 
 public class UniversityCreateRequest
@@ -188,6 +189,9 @@ public class UniversityAppearanceUpdateRequest
 
     [RegularExpression(@"^(light|dark|auto)$", ErrorMessage = "Default theme must be 'light', 'dark', or 'auto'")]
     public string WidgetDefaultTheme { get; set; } = "auto";
+
+    [Range(0, 100, ErrorMessage = "Bubble opacity must be between 0 and 100")]
+    public int? WidgetBubbleOpacity { get; set; }
 }
 
 public class UniversityWithCoursesDto

@@ -15,6 +15,9 @@ public class UniversityPersonalization : BaseEntity
     // Widget theme default: "light" | "dark" | "auto"
     public string DefaultTheme { get; set; } = "auto";
 
+    // Chat bubble background opacity, 0–100 (%). Null = 100 (fully opaque).
+    public int? BubbleOpacity { get; set; }
+
     // Navigation
     public University University { get; set; } = null!;
 }

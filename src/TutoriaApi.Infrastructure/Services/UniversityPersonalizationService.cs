@@ -30,6 +30,7 @@ public class UniversityPersonalizationService : IUniversityPersonalizationServic
         string? primaryColor,
         string? secondaryColor,
         string defaultTheme,
+        int? bubbleOpacity,
         int currentUserId,
         string currentUserType,
         int? currentUserUniversityId)
@@ -56,7 +57,8 @@ public class UniversityPersonalizationService : IUniversityPersonalizationServic
                 UniversityId = universityId,
                 PrimaryColor = primaryColor,
                 SecondaryColor = secondaryColor,
-                DefaultTheme = defaultTheme
+                DefaultTheme = defaultTheme,
+                BubbleOpacity = bubbleOpacity
             };
             var saved = await _repository.AddAsync(created);
 
@@ -77,6 +79,7 @@ public class UniversityPersonalizationService : IUniversityPersonalizationServic
             existing.PrimaryColor = primaryColor;
             existing.SecondaryColor = secondaryColor;
             existing.DefaultTheme = defaultTheme;
+            existing.BubbleOpacity = bubbleOpacity;
             existing.UpdatedAt = DateTime.UtcNow;
             await _repository.UpdateAsync(existing);
 

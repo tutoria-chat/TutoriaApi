@@ -1381,6 +1381,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.PrimaryColor).HasColumnName("PrimaryColor").HasMaxLength(7);
             entity.Property(e => e.SecondaryColor).HasColumnName("SecondaryColor").HasMaxLength(7);
             entity.Property(e => e.DefaultTheme).HasColumnName("DefaultTheme").HasMaxLength(10).HasDefaultValue("auto");
+            entity.Property(e => e.BubbleOpacity).HasColumnName("BubbleOpacity");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

@@ -147,7 +147,7 @@ public class UniversityPersonalizationControllerTests
             UpdatedAt = DateTime.UtcNow
         };
         _personalizationServiceMock.Setup(s => s.UpsertAsync(
-                5, "#7C3AED", "#F3F4F6", "light", 1, "super_admin", null))
+                5, "#7C3AED", "#F3F4F6", "light", null, 1, "super_admin", null))
             .ReturnsAsync(saved);
 
         var request = new UniversityAppearanceUpdateRequest
@@ -173,7 +173,7 @@ public class UniversityPersonalizationControllerTests
 
         _personalizationServiceMock.Setup(s => s.UpsertAsync(
                 It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(),
-                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
+                It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new KeyNotFoundException("University not found"));
 
         var result = await _controller.UpsertPersonalization(99,
@@ -190,7 +190,7 @@ public class UniversityPersonalizationControllerTests
 
         _personalizationServiceMock.Setup(s => s.UpsertAsync(
                 It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(),
-                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
+                It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new UnauthorizedAccessException("Insufficient permissions"));
 
         var result = await _controller.UpsertPersonalization(5,
@@ -207,7 +207,7 @@ public class UniversityPersonalizationControllerTests
 
         _personalizationServiceMock.Setup(s => s.UpsertAsync(
                 It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(),
-                It.IsAny<string>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
+                It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>()))
             .ThrowsAsync(new Exception("Unexpected error"));
 
         var result = await _controller.UpsertPersonalization(5,

@@ -290,13 +290,14 @@ public class UniversitiesController : ControllerBase
         {
             var p = await _personalizationService.GetByUniversityIdAsync(id);
             if (p == null)
-                return Ok(new { primaryColor = (string?)null, secondaryColor = (string?)null, defaultTheme = "auto" });
+                return Ok(new { primaryColor = (string?)null, secondaryColor = (string?)null, defaultTheme = "auto", bubbleOpacity = (int?)null });
 
             return Ok(new
             {
                 primaryColor = p.PrimaryColor,
                 secondaryColor = p.SecondaryColor,
-                defaultTheme = p.DefaultTheme
+                defaultTheme = p.DefaultTheme,
+                bubbleOpacity = p.BubbleOpacity
             });
         }
         catch (Exception ex)
@@ -319,6 +320,7 @@ public class UniversitiesController : ControllerBase
                 request.WidgetPrimaryColor,
                 request.WidgetSecondaryColor,
                 request.WidgetDefaultTheme,
+                request.WidgetBubbleOpacity,
                 currentUser.UserId,
                 currentUser.UserType,
                 currentUser.UniversityId);
@@ -328,6 +330,7 @@ public class UniversitiesController : ControllerBase
                 primaryColor = result.PrimaryColor,
                 secondaryColor = result.SecondaryColor,
                 defaultTheme = result.DefaultTheme,
+                bubbleOpacity = result.BubbleOpacity,
                 updatedAt = result.UpdatedAt
             });
         }
@@ -389,6 +392,7 @@ public class UniversitiesController : ControllerBase
             WidgetPrimaryColor = p?.PrimaryColor,
             WidgetSecondaryColor = p?.SecondaryColor,
             WidgetDefaultTheme = p?.DefaultTheme,
+            WidgetBubbleOpacity = p?.BubbleOpacity,
         };
     }
 }
