@@ -256,7 +256,9 @@ builder.Services.AddCors(options =>
                 "https://app.tutoria.tec.br",           // Production frontend
                 "https://app-dev.tutoria.tec.br",       // Dev frontend
                 "http://localhost:3000",                // Local development
-                "https://localhost:3000"                // Local development HTTPS
+                "https://localhost:3000",               // Local development HTTPS
+                "http://localhost",                     // Local development (port 80)
+                "https://localhost"                     // Local development HTTPS (port 80)
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
