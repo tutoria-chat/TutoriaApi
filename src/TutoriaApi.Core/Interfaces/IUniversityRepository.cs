@@ -5,6 +5,9 @@ namespace TutoriaApi.Core.Interfaces;
 public interface IUniversityRepository : IRepository<University>
 {
     Task<University?> GetByNameAsync(string name);
+
+    /// <summary>Raw AllowedOrigins values across all institutions (for the CORS allowlist).</summary>
+    Task<List<string>> GetAllAllowedOriginsAsync();
     Task<University?> GetByCodeAsync(string code);
     Task<University?> GetByIdWithCoursesAsync(int id);
     Task<List<University>> GetByIdsAsync(List<int> ids);

@@ -16,6 +16,14 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
         return await _dbSet.FirstOrDefaultAsync(u => u.Name == name);
     }
 
+    public async Task<List<string>> GetAllAllowedOriginsAsync()
+    {
+        return await _dbSet
+            .Where(u => u.AllowedOrigins != null && u.AllowedOrigins != "")
+            .Select(u => u.AllowedOrigins!)
+            .ToListAsync();
+    }
+
     public async Task<University?> GetByCodeAsync(string code)
     {
         return await _dbSet.FirstOrDefaultAsync(u => u.Code == code);

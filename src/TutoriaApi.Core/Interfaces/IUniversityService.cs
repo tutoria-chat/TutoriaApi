@@ -26,6 +26,12 @@ public interface IUniversityService
     Task<(IEnumerable<University> Items, int Total)> GetPagedAsync(string? search, int page, int pageSize);
     Task<University> CreateAsync(University university, User currentUser);
     Task<University> UpdateAsync(int id, University university, User currentUser);
+
+    /// <summary>Normalized trusted browser origins for an institution (CORS allowlist).</summary>
+    Task<List<string>> GetAllowedOriginsAsync(int id, User currentUser);
+
+    /// <summary>Replace an institution's trusted origins (normalized + de-duplicated). Returns the saved set.</summary>
+    Task<List<string>> UpdateAllowedOriginsAsync(int id, IEnumerable<string> origins, User currentUser);
     Task DeleteAsync(int id, User currentUser);
     Task<int> GetProfessorsCountAsync(int universityId);
     Task<int> GetModulesCountByCourseAsync(int courseId);

@@ -281,6 +281,46 @@ public class UniversitiesController : ControllerBase
         }
     }
 
+    /// <summary>Get the institution's trusted web addresses (CORS allowlist).</summary>
+    [HttpGet("{id}/trusted-origins")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult> GetTrustedOrigins(int id)
+    {
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            var origins = await _universityService.GetAllowedOriginsAsync(id, currentUser);
+            return Ok(new { origins });
+        }
+        catch (KeyNotFoundException) { return NotFound(new { message = "University not found" }); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting trusted origins for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>Replace the institution's trusted web addresses (manager or super_admin).</summary>
+    [HttpPut("{id}/trusted-origins")]
+    [Authorize(Policy = "AdminOrAbove")]
+    public async Task<ActionResult> UpdateTrustedOrigins(int id, [FromBody] TrustedOriginsUpdateRequest request)
+    {
+        try
+        {
+            var currentUser = _currentUserService.GetCurrentUser();
+            var origins = await _universityService.UpdateAllowedOriginsAsync(id, request.Origins ?? new(), currentUser);
+            return Ok(new { origins });
+        }
+        catch (KeyNotFoundException) { return NotFound(new { message = "University not found" }); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating trusted origins for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     /// <summary>Get widget personalization for a university (public — used by widget)</summary>
     [HttpGet("{id}/personalization")]
     [AllowAnonymous]

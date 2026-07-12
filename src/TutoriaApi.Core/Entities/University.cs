@@ -36,6 +36,13 @@ public class University : BaseEntity
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
 
+    /// <summary>
+    /// Trusted web origins (scheme://host[:port], one per line) that may call the API
+    /// from a browser — the institution's LMS/Moodle etc. Powers the dynamic CORS
+    /// allowlist (see ITrustedOriginsProvider). Null/empty = none beyond our defaults.
+    /// </summary>
+    public string? AllowedOrigins { get; set; }
+
     // Navigation properties
     public UniversityPersonalization? Personalization { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();

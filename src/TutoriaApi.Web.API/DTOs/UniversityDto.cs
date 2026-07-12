@@ -177,6 +177,13 @@ public class UniversityUpdateRequest
     public int? MaxStudents { get; set; }
 }
 
+public class TrustedOriginsUpdateRequest
+{
+    /// <summary>Web addresses the institution's systems (LMS/Moodle) will connect from.
+    /// Full URLs or bare hosts are accepted; the server normalizes them.</summary>
+    public List<string> Origins { get; set; } = new();
+}
+
 public class UniversityAppearanceUpdateRequest
 {
     [MaxLength(7, ErrorMessage = "Primary color must be a hex value (e.g. #7C3AED)")]

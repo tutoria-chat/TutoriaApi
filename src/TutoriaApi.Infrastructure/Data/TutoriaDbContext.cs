@@ -142,6 +142,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.MaxCourses).HasColumnName("MaxCourses");
             entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
             entity.Property(e => e.MaxStudents).HasColumnName("MaxStudents");
+            entity.Property(e => e.AllowedOrigins).HasColumnName("AllowedOrigins");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 

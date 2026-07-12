@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
+using TutoriaApi.Core.Utilities;
 
 namespace TutoriaApi.Infrastructure.Services;
 
@@ -26,6 +28,50 @@ public class UniversityService : IUniversityService
     public async Task<University?> GetByIdAsync(int id)
     {
         return await _universityRepository.GetByIdAsync(id);
+    }
+
+    public async Task<List<string>> GetAllowedOriginsAsync(int id, User currentUser)
+    {
+        EnsureCanManageOrigins(id, currentUser);
+        var university = await _universityRepository.GetByIdAsync(id)
+            ?? throw new KeyNotFoundException("University not found");
+        return OriginNormalizer.NormalizeMany(university.AllowedOrigins);
+    }
+
+    public async Task<List<string>> UpdateAllowedOriginsAsync(int id, IEnumerable<string> origins, User currentUser)
+    {
+        EnsureCanManageOrigins(id, currentUser);
+        var university = await _universityRepository.GetByIdAsync(id)
+            ?? throw new KeyNotFoundException("University not found");
+
+        var normalized = new List<string>();
+        foreach (var raw in origins ?? Enumerable.Empty<string>())
+        {
+            var n = OriginNormalizer.Normalize(raw);
+            if (n != null && !normalized.Contains(n)) normalized.Add(n);
+        }
+
+        university.AllowedOrigins = normalized.Count > 0 ? string.Join("\n", normalized) : null;
+        university.UpdatedAt = DateTime.UtcNow;
+        await _universityRepository.UpdateAsync(university);
+
+        await _auditLogService.LogAsync(
+            userId: currentUser.UserId, username: null, universityId: id,
+            action: "Update", entityType: "University.TrustedOrigins", entityId: id,
+            entityName: university.Name, changes: null);
+
+        _logger.LogInformation("Updated {Count} trusted origins for university {Id}", normalized.Count, id);
+        return normalized;
+    }
+
+    // super_admin: any; manager / platform_coordinator: their own institution only.
+    private static void EnsureCanManageOrigins(int universityId, User currentUser)
+    {
+        if (currentUser.UserType == UserTypes.SuperAdmin) return;
+        if (currentUser.UniversityId == universityId
+            && (currentUser.UserType == UserTypes.Manager || currentUser.UserType == UserTypes.PlatformCoordinator))
+            return;
+        throw new UnauthorizedAccessException("You can only manage trusted addresses for your own institution");
     }
 
     public async Task<University?> GetWithCoursesAsync(int id)

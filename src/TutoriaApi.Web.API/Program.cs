@@ -247,24 +247,14 @@ else
     Console.WriteLine("[Hangfire] ⚠️ Skipped — ConnectionStrings:TutoriaDb is not configured");
 }
 
-// Add CORS
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.WithOrigins(
-                "https://app.tutoria.tec.br",           // Production frontend
-                "https://app-dev.tutoria.tec.br",       // Dev frontend
-                "http://localhost:3000",                // Local development
-                "https://localhost:3000",               // Local development HTTPS
-                "http://localhost",                     // Local development (port 80)
-                "https://localhost"                     // Local development HTTPS (port 80)
-            )
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
-    });
-});
+// CORS: the allowlist is dynamic — platform defaults + each institution's configured
+// trusted origins (managed in the dashboard, cached in the DB). See
+// TrustedOriginsProvider + DynamicCorsPolicyProvider.
+builder.Services.AddCors();
+builder.Services.AddSingleton<TutoriaApi.Core.Interfaces.ITrustedOriginsProvider,
+    TutoriaApi.Infrastructure.Services.TrustedOriginsProvider>();
+builder.Services.AddSingleton<Microsoft.AspNetCore.Cors.Infrastructure.ICorsPolicyProvider,
+    TutoriaApi.Web.API.Auth.DynamicCorsPolicyProvider>();
 
 var app = builder.Build();
 
