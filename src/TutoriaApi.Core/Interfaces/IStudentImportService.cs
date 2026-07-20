@@ -19,7 +19,10 @@ public class StudentImportError
     public int Row { get; set; }
     public string Matricula { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    /// <summary>Human-readable fallback message (English).</summary>
     public string Reason { get; set; } = string.Empty;
+    /// <summary>Stable code the frontend localizes (see StudentImportErrorCodes). Optional.</summary>
+    public string? ReasonCode { get; set; }
 }
 
 public class StudentMassUnenrollResult

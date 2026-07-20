@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TutoriaApi.Core.Exceptions;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
 using TutoriaApi.Web.API.DTOs;
@@ -470,14 +471,18 @@ public class StudentsController : ControllerBase
     {
         if (file == null || file.Length == 0)
         {
-            return BadRequest(new { message = "File is required" });
+            return BadRequest(new { code = "FILE_REQUIRED", message = "File is required" });
         }
 
-        var allowedExtensions = new[] { ".csv", ".xlsx" };
+        var allowedExtensions = new[] { ".csv", ".xlsx", ".xls" };
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension))
         {
-            return BadRequest(new { message = "Only .csv and .xlsx files are supported" });
+            return BadRequest(new
+            {
+                code = StudentImportErrorCodes.UnsupportedFormat,
+                message = "Only .csv, .xlsx and .xls files are supported"
+            });
         }
 
         try
@@ -506,13 +511,20 @@ public class StudentsController : ControllerBase
                     Row = e.Row,
                     Matricula = e.Matricula,
                     Email = e.Email,
-                    Reason = e.Reason
+                    Reason = e.Reason,
+                    ReasonCode = e.ReasonCode
                 }).ToList()
             });
         }
         catch (KeyNotFoundException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (StudentImportException ex)
+        {
+            // User-actionable import failure — return a stable code + context so
+            // the frontend can show a localized message instead of raw English.
+            return BadRequest(new { code = ex.Code, message = ex.Message, context = ex.Context });
         }
         catch (InvalidOperationException ex)
         {

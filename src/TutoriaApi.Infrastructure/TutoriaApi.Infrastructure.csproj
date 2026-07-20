@@ -10,6 +10,10 @@
     <PackageReference Include="AWSSDK.SQS" Version="4.0.*" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="EPPlus" Version="7.5.2" />
+    <!-- Legacy .xls (BIFF) parsing — EPPlus only reads .xlsx (OOXML).
+         CodePagesEncodingProvider (needed to decode old .xls) ships in the net10
+         shared framework, so no extra encoding package is required. -->
+    <PackageReference Include="ExcelDataReader" Version="3.7.0" />
     <PackageReference Include="FuzzySharp" Version="2.0.2" />
     <PackageReference Include="Hangfire.Core" Version="1.8.17" />
     <PackageReference Include="Hangfire.PostgreSql" Version="1.20.9" />

@@ -2,12 +2,14 @@ using System.Globalization;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using ExcelDataReader;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OfficeOpenXml;
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Exceptions;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
 
@@ -15,6 +17,13 @@ namespace TutoriaApi.Infrastructure.Services;
 
 public class StudentImportService : IStudentImportService
 {
+    static StudentImportService()
+    {
+        // ExcelDataReader needs legacy code pages (Windows-1252 etc.) to decode
+        // strings in old .xls (BIFF) files on .NET Core. Register once.
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
     private readonly TutoriaDbContext _context;
     private readonly ICourseRepository _courseRepository;
     private readonly IStudentCourseRepository _studentCourseRepository;
@@ -56,7 +65,9 @@ public class StudentImportService : IStudentImportService
         // 2. Parse file
         var rows = await ParseFileAsync(file);
         if (rows.Count == 0)
-            throw new InvalidOperationException("The file contains no data rows");
+            throw new StudentImportException(
+                StudentImportErrorCodes.NoDataRows,
+                "The file contains no data rows");
 
         // 3. Check MaxStudents limit
         var currentStudentCount = await GetUniversityStudentCountAsync(university.Id);
@@ -104,9 +115,16 @@ public class StudentImportService : IStudentImportService
 
             if (currentStudentCount + newEnrollmentsNeeded > maxStudents.Value)
             {
-                throw new InvalidOperationException(
+                throw new StudentImportException(
+                    StudentImportErrorCodes.StudentLimitExceeded,
                     $"Student limit would be exceeded. Current: {currentStudentCount}, " +
-                    $"New enrollments in file: {newEnrollmentsNeeded}, Limit: {maxStudents.Value}");
+                    $"New enrollments in file: {newEnrollmentsNeeded}, Limit: {maxStudents.Value}",
+                    new Dictionary<string, object?>
+                    {
+                        ["current"] = currentStudentCount,
+                        ["newEnrollments"] = newEnrollmentsNeeded,
+                        ["limit"] = maxStudents.Value,
+                    });
             }
         }
 
@@ -309,7 +327,8 @@ public class StudentImportService : IStudentImportService
                 Row = rowNumber,
                 Matricula = row.Matricula,
                 Email = row.Email,
-                Reason = "Email is required"
+                Reason = "Email is required",
+                ReasonCode = StudentImportErrorCodes.EmailRequired
             });
             return;
         }
@@ -322,7 +341,8 @@ public class StudentImportService : IStudentImportService
                 Row = rowNumber,
                 Matricula = row.Matricula,
                 Email = row.Email,
-                Reason = "Matricula is required"
+                Reason = "Matricula is required",
+                ReasonCode = StudentImportErrorCodes.MatriculaRequired
             });
             return;
         }
@@ -370,7 +390,8 @@ public class StudentImportService : IStudentImportService
                 Row = rowNumber,
                 Matricula = matricula,
                 Email = row.Email,
-                Reason = $"Email belongs to an existing {nonStudentUser.UserType} account. Cannot enroll as student."
+                Reason = $"Email belongs to an existing {nonStudentUser.UserType} account. Cannot enroll as student.",
+                ReasonCode = StudentImportErrorCodes.EmailBelongsToNonStudent
             });
             return;
         }
@@ -509,7 +530,10 @@ public class StudentImportService : IStudentImportService
         {
             ".csv" => await ParseCsvAsync(file, requireEmail),
             ".xlsx" => await ParseXlsxAsync(file, requireEmail),
-            _ => throw new InvalidOperationException("Unsupported file format. Use .csv or .xlsx")
+            ".xls" => await ParseXlsAsync(file, requireEmail),
+            _ => throw new StudentImportException(
+                StudentImportErrorCodes.UnsupportedFormat,
+                "Unsupported file format. Use .csv, .xlsx or .xls")
         };
     }
 
@@ -522,7 +546,9 @@ public class StudentImportService : IStudentImportService
         // Read header line
         var headerLine = await reader.ReadLineAsync();
         if (string.IsNullOrWhiteSpace(headerLine))
-            throw new InvalidOperationException("CSV file is empty or has no header row");
+            throw new StudentImportException(
+                StudentImportErrorCodes.EmptyFile,
+                "CSV file is empty or has no header row");
 
         // Detect delimiter (comma or semicolon)
         var delimiter = headerLine.Contains(';') ? ';' : ',';
@@ -562,8 +588,6 @@ public class StudentImportService : IStudentImportService
 
     private async Task<List<StudentImportRow>> ParseXlsxAsync(IFormFile file, bool requireEmail = true)
     {
-        var rows = new List<StudentImportRow>();
-
         // Set EPPlus license context for non-commercial use
         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
@@ -573,51 +597,86 @@ public class StudentImportService : IStudentImportService
 
         using var package = new ExcelPackage(stream);
         var worksheet = package.Workbook.Worksheets.FirstOrDefault();
-        if (worksheet == null)
-            throw new InvalidOperationException("XLSX file contains no worksheets");
-
-        if (worksheet.Dimension == null)
-            throw new InvalidOperationException("XLSX worksheet is empty");
+        if (worksheet == null || worksheet.Dimension == null)
+            throw new StudentImportException(
+                StudentImportErrorCodes.EmptyFile,
+                "XLSX file contains no worksheets or is empty");
 
         var rowCount = worksheet.Dimension.Rows;
         var colCount = worksheet.Dimension.Columns;
 
-        // Read headers from first row
-        var headers = new List<string>();
-        for (int col = 1; col <= colCount; col++)
+        // Read the sheet into a plain string grid, then share the mapping/row logic
+        // with the .xls and (indirectly) CSV paths.
+        var grid = new List<List<string>>();
+        for (int row = 1; row <= rowCount; row++)
         {
-            var headerValue = worksheet.Cells[1, col].Text?.Trim().ToLower() ?? string.Empty;
-            headers.Add(headerValue);
-        }
-
-        // Collect up to 3 sample rows to help AI fallback if needed
-        var sampleValues = new List<List<string>>();
-        for (int sampleRow = 2; sampleRow <= Math.Min(4, rowCount); sampleRow++)
-        {
-            var rowValues = new List<string>();
+            var rowValues = new List<string>(colCount);
             for (int col = 1; col <= colCount; col++)
-                rowValues.Add(worksheet.Cells[sampleRow, col].Text?.Trim() ?? string.Empty);
-            sampleValues.Add(rowValues);
+                rowValues.Add(worksheet.Cells[row, col].Text?.Trim() ?? string.Empty);
+            grid.Add(rowValues);
         }
 
+        return await BuildRowsFromGridAsync(grid, requireEmail);
+    }
+
+    private async Task<List<StudentImportRow>> ParseXlsAsync(IFormFile file, bool requireEmail = true)
+    {
+        // Legacy .xls (BIFF) — EPPlus can't read these, so use ExcelDataReader.
+        using var stream = new MemoryStream();
+        await file.CopyToAsync(stream);
+        stream.Position = 0;
+
+        using var excelReader = ExcelReaderFactory.CreateReader(stream);
+
+        // Read the first worksheet row-by-row into a plain string grid (avoids the
+        // extra ExcelDataReader.DataSet package).
+        var grid = new List<List<string>>();
+        while (excelReader.Read())
+        {
+            var rowValues = new List<string>(excelReader.FieldCount);
+            for (int col = 0; col < excelReader.FieldCount; col++)
+                rowValues.Add(excelReader.GetValue(col)?.ToString()?.Trim() ?? string.Empty);
+            grid.Add(rowValues);
+        }
+
+        if (grid.Count == 0)
+            throw new StudentImportException(
+                StudentImportErrorCodes.EmptyFile,
+                "XLS file contains no worksheets or is empty");
+
+        return await BuildRowsFromGridAsync(grid, requireEmail);
+    }
+
+    /// <summary>
+    /// Shared spreadsheet handling: first row = headers, remaining rows = data.
+    /// Maps columns and builds import rows, skipping blank rows. Used by both the
+    /// .xlsx (EPPlus) and .xls (ExcelDataReader) parsers so they behave identically.
+    /// </summary>
+    private async Task<List<StudentImportRow>> BuildRowsFromGridAsync(List<List<string>> grid, bool requireEmail = true)
+    {
+        var rows = new List<StudentImportRow>();
+        if (grid.Count == 0)
+            return rows;
+
+        var headers = grid[0].Select(h => h.Trim().ToLower()).ToList();
+        var dataRows = grid.Skip(1).ToList();
+
+        // Up to 3 sample rows to help the AI column-mapping fallback if needed.
+        var sampleValues = dataRows.Take(3).ToList();
         var columnMap = await MapColumnsAsync(headers, sampleValues, requireEmail);
 
-        // Read data rows
-        for (int row = 2; row <= rowCount; row++)
+        string Value(List<string> values, int index) =>
+            index >= 0 && index < values.Count ? values[index].Trim() : string.Empty;
+
+        foreach (var values in dataRows)
         {
-            var importRow = new StudentImportRow();
-
-            if (columnMap.MatriculaIndex >= 0 && columnMap.MatriculaIndex < colCount)
-                importRow.Matricula = worksheet.Cells[row, columnMap.MatriculaIndex + 1].Text?.Trim() ?? string.Empty;
-
-            if (columnMap.EmailIndex >= 0 && columnMap.EmailIndex < colCount)
-                importRow.Email = worksheet.Cells[row, columnMap.EmailIndex + 1].Text?.Trim() ?? string.Empty;
-
-            if (columnMap.FirstNameIndex >= 0 && columnMap.FirstNameIndex < colCount)
-                importRow.FirstName = worksheet.Cells[row, columnMap.FirstNameIndex + 1].Text?.Trim() ?? string.Empty;
-
-            if (columnMap.LastNameIndex >= 0 && columnMap.LastNameIndex < colCount)
-                importRow.LastName = worksheet.Cells[row, columnMap.LastNameIndex + 1].Text?.Trim() ?? string.Empty;
+            var importRow = new StudentImportRow
+            {
+                Matricula = Value(values, columnMap.MatriculaIndex),
+                Email     = Value(values, columnMap.EmailIndex),
+                FirstName = Value(values, columnMap.FirstNameIndex),
+                LastName  = Value(values, columnMap.LastNameIndex),
+            };
 
             // Skip completely empty rows
             if (string.IsNullOrWhiteSpace(importRow.Email) && string.IsNullOrWhiteSpace(importRow.Matricula))
@@ -707,10 +766,16 @@ public class StudentImportService : IStudentImportService
 
         if (map.EmailIndex < 0 && requireEmail)
         {
-            throw new InvalidOperationException(
+            var foundHeaders = headers.Where(h => !string.IsNullOrWhiteSpace(h)).ToList();
+            throw new StudentImportException(
+                StudentImportErrorCodes.MissingEmailColumn,
                 $"Could not identify the email column. " +
-                $"Headers found: [{string.Join(", ", headers)}]. " +
-                "Please ensure your file has a column for email addresses.");
+                $"Headers found: [{string.Join(", ", foundHeaders)}]. " +
+                "Please ensure your file has a column for email addresses.",
+                new Dictionary<string, object?>
+                {
+                    ["headers"] = foundHeaders,
+                });
         }
 
         // Unenroll files may identify students by matricula alone
