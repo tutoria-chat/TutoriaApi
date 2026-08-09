@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TutoriaApi.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TutoriaApi.Infrastructure.Data;
 namespace TutoriaApi.Infrastructure.Migrations
 {
     [DbContext(typeof(TutoriaDbContext))]
-    partial class TutoriaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809174318_LtiAdvantageTool")]
+    partial class LtiAdvantageTool
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -287,10 +290,6 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("ContentType");
 
-                    b.Property<int>("CourseId")
-                        .HasColumnType("integer")
-                        .HasColumnName("CourseId");
-
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
@@ -333,6 +332,10 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("ModuleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ModuleId");
+
                     b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -372,11 +375,11 @@ namespace TutoriaApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
-
                     b.HasIndex("CreatedByUserId");
 
-                    b.HasIndex("CourseId", "IsPublished", "IsActive");
+                    b.HasIndex("ModuleId");
+
+                    b.HasIndex("ModuleId", "IsPublished", "IsActive");
 
                     b.ToTable("Assignments", (string)null);
                 });
@@ -2504,10 +2507,6 @@ namespace TutoriaApi.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CourseId")
-                        .HasColumnType("integer")
-                        .HasColumnName("CourseId");
-
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
@@ -2532,6 +2531,10 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.Property<string>("InputS3Key")
                         .HasColumnType("text");
 
+                    b.Property<int>("ModuleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ModuleId");
+
                     b.Property<string>("OriginalFilename")
                         .HasColumnType("text");
 
@@ -2551,7 +2554,7 @@ namespace TutoriaApi.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CourseId");
+                    b.HasIndex("ModuleId");
 
                     b.HasIndex("Status");
 
@@ -3674,21 +3677,21 @@ namespace TutoriaApi.Infrastructure.Migrations
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.Assignment", b =>
                 {
-                    b.HasOne("TutoriaApi.Core.Entities.Course", "Course")
-                        .WithMany()
-                        .HasForeignKey("CourseId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("TutoriaApi.Core.Entities.User", "CreatedBy")
                         .WithMany()
                         .HasForeignKey("CreatedByUserId")
                         .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
-                    b.Navigation("Course");
+                    b.HasOne("TutoriaApi.Core.Entities.Module", "Module")
+                        .WithMany()
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("CreatedBy");
+
+                    b.Navigation("Module");
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.AssignmentContextFile", b =>
@@ -4039,13 +4042,13 @@ namespace TutoriaApi.Infrastructure.Migrations
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.QuizUploadJob", b =>
                 {
-                    b.HasOne("TutoriaApi.Core.Entities.Course", "Course")
+                    b.HasOne("TutoriaApi.Core.Entities.Module", "Module")
                         .WithMany()
-                        .HasForeignKey("CourseId")
+                        .HasForeignKey("ModuleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Course");
+                    b.Navigation("Module");
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.RolePermission", b =>

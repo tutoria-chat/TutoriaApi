@@ -115,6 +115,13 @@ public class TutoriaDbContext : DbContext
     public DbSet<EnemQuestion> EnemQuestions { get; set; }
     public DbSet<Semester> Semesters { get; set; }
 
+    // LTI 1.3 (Tutoria acting as an LTI Advantage tool)
+    public DbSet<LtiRegistration> LtiRegistrations { get; set; }
+    public DbSet<LtiDeployment> LtiDeployments { get; set; }
+    public DbSet<LtiToolKey> LtiToolKeys { get; set; }
+    public DbSet<LtiNonce> LtiNonces { get; set; }
+    public DbSet<LtiContextMapping> LtiContextMappings { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1392,6 +1399,125 @@ public class TutoriaDbContext : DbContext
                 .WithOne(u => u.Personalization)
                 .HasForeignKey<UniversityPersonalization>(e => e.UniversityId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        ConfigureLtiEntities(modelBuilder);
+    }
+
+    /// <summary>
+    /// Schema for the LTI 1.3 tool tables. Kept in its own method so the LTI feature
+    /// stays reviewable as a unit.
+    /// </summary>
+    private static void ConfigureLtiEntities(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LtiRegistration>(entity =>
+        {
+            entity.ToTable("LtiRegistrations");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Issuer).HasColumnName("Issuer").HasMaxLength(512).IsRequired();
+            entity.Property(e => e.ClientId).HasColumnName("ClientId").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.AuthLoginUrl).HasColumnName("AuthLoginUrl").HasMaxLength(512).IsRequired();
+            entity.Property(e => e.AuthTokenUrl).HasColumnName("AuthTokenUrl").HasMaxLength(512).IsRequired();
+            entity.Property(e => e.KeySetUrl).HasColumnName("KeySetUrl").HasMaxLength(512).IsRequired();
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(255);
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            // A platform is identified by (iss, client_id) — the pair must be unique.
+            entity.HasIndex(e => new { e.Issuer, e.ClientId }).IsUnique();
+            entity.HasIndex(e => e.UniversityId);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LtiDeployment>(entity =>
+        {
+            entity.ToTable("LtiDeployments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.DeploymentId).HasColumnName("DeploymentId").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.LtiRegistrationId).HasColumnName("LtiRegistrationId");
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.LtiRegistrationId, e.DeploymentId }).IsUnique();
+
+            entity.HasOne(e => e.LtiRegistration)
+                .WithMany(r => r.Deployments)
+                .HasForeignKey(e => e.LtiRegistrationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<LtiToolKey>(entity =>
+        {
+            entity.ToTable("LtiToolKeys");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Kid).HasColumnName("Kid").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.PrivateKeyPem).HasColumnName("PrivateKeyPem").IsRequired();
+            entity.Property(e => e.PublicKeyPem).HasColumnName("PublicKeyPem").IsRequired();
+            entity.Property(e => e.IsActive).HasColumnName("IsActive").HasDefaultValue(true);
+            entity.Property(e => e.RetiredAt).HasColumnName("RetiredAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Kid).IsUnique();
+        });
+
+        modelBuilder.Entity<LtiNonce>(entity =>
+        {
+            entity.ToTable("LtiNonces");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.Nonce).HasColumnName("Nonce").HasMaxLength(128).IsRequired();
+            entity.Property(e => e.State).HasColumnName("State").HasMaxLength(128).IsRequired();
+            entity.Property(e => e.LtiRegistrationId).HasColumnName("LtiRegistrationId");
+            entity.Property(e => e.TargetLinkUri).HasColumnName("TargetLinkUri").HasMaxLength(512);
+            entity.Property(e => e.ConsumedAt).HasColumnName("ConsumedAt");
+            entity.Property(e => e.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => e.Nonce).IsUnique();
+            entity.HasIndex(e => e.State);
+            // Supports the periodic sweep of expired handshakes.
+            entity.HasIndex(e => e.ExpiresAt);
+        });
+
+        modelBuilder.Entity<LtiContextMapping>(entity =>
+        {
+            entity.ToTable("LtiContextMappings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.LtiRegistrationId).HasColumnName("LtiRegistrationId");
+            entity.Property(e => e.ContextId).HasColumnName("ContextId").HasMaxLength(255).IsRequired();
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.ContextTitle).HasColumnName("ContextTitle").HasMaxLength(255);
+            entity.Property(e => e.ContextLabel).HasColumnName("ContextLabel").HasMaxLength(255);
+            entity.Property(e => e.LastSeenAt).HasColumnName("LastSeenAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.LtiRegistrationId, e.ContextId }).IsUnique();
+
+            entity.HasOne(e => e.LtiRegistration)
+                .WithMany(r => r.ContextMappings)
+                .HasForeignKey(e => e.LtiRegistrationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unmapped contexts are allowed (CourseId is nullable); never cascade a
+            // course deletion into losing the record that the LMS course was seen.
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }
