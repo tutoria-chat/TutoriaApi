@@ -1,5 +1,22 @@
 # Tutoria API - TODO List
 
+## 🚨 Blocking - tutoria-worker follow-up (course-scoped activities)
+**Status**: Pending | **Priority**: HIGH
+
+Assignments and the question bank moved from module scope to course scope
+(migration `MoveActivitiesToCourseScope`). `tutoria-worker` is a separate repo and
+still speaks the old contract — it must ship with this change:
+
+- [ ] Quiz-upload SQS payload is now `{ job_id, course_id }` (was `{ job_id, module_id }`)
+  - Producer: `SqsMessagingService.SendQuizUploadJobAsync`
+- [ ] `QuizUploadJobs.ModuleId` no longer exists — read `CourseId`
+- [ ] `QuizExtractorService` now takes a `Course` (was `Module`) and writes
+      `Quiz.course_id` with `module_id = NULL` (tutoria-api `app/services/quiz_extractor.py`)
+- [ ] Quiz *generation* stays module-triggered; `quiz_generator.py` already fills
+      `course_id` from the module's course, so no worker change is expected there —
+      verify the worker doesn't set `module_id`/numbering itself
+
+
 ## 🔐 High Priority - Security & Compliance
 
 ### Secrets Management Migration

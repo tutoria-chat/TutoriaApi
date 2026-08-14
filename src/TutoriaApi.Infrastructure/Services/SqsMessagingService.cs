@@ -109,7 +109,7 @@ public class SqsMessagingService : ISqsMessagingService
     }
 
     /// <inheritdoc />
-    public async Task<bool> SendQuizUploadJobAsync(int jobId, int moduleId)
+    public async Task<bool> SendQuizUploadJobAsync(int jobId, int courseId)
     {
         if (string.IsNullOrEmpty(_quizUploadQueueUrl))
         {
@@ -119,7 +119,7 @@ public class SqsMessagingService : ISqsMessagingService
             return false;
         }
 
-        var body = JsonSerializer.Serialize(new { job_id = jobId, module_id = moduleId });
+        var body = JsonSerializer.Serialize(new { job_id = jobId, course_id = courseId });
         return await SendMessageAsync(_quizUploadQueueUrl, body, $"quiz-upload:job:{jobId}");
     }
 

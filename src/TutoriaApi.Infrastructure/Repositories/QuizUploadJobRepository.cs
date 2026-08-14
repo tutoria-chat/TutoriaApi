@@ -11,11 +11,11 @@ public class QuizUploadJobRepository : Repository<QuizUploadJob>, IQuizUploadJob
     {
     }
 
-    public async Task<IEnumerable<QuizUploadJob>> GetByModuleIdAsync(int moduleId)
+    public async Task<IEnumerable<QuizUploadJob>> GetByCourseIdAsync(int courseId)
     {
         return await _dbSet
-            .Include(q => q.Module)
-            .Where(q => q.ModuleId == moduleId)
+            .Include(q => q.Course)
+            .Where(q => q.CourseId == courseId)
             .OrderByDescending(q => q.CreatedAt)
             .ToListAsync();
     }
@@ -23,16 +23,16 @@ public class QuizUploadJobRepository : Repository<QuizUploadJob>, IQuizUploadJob
     public async Task<IEnumerable<QuizUploadJob>> GetByStatusAsync(string status)
     {
         return await _dbSet
-            .Include(q => q.Module)
+            .Include(q => q.Course)
             .Where(q => q.Status == status)
             .OrderByDescending(q => q.CreatedAt)
             .ToListAsync();
     }
 
-    public async Task<QuizUploadJob?> GetWithModuleAsync(int id)
+    public async Task<QuizUploadJob?> GetWithCourseAsync(int id)
     {
         return await _dbSet
-            .Include(q => q.Module)
+            .Include(q => q.Course)
             .FirstOrDefaultAsync(q => q.Id == id);
     }
 }

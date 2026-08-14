@@ -666,7 +666,7 @@ public class TutoriaDbContext : DbContext
             entity.ToTable("QuizUploadJobs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
             entity.Property(e => e.FileId).HasColumnName("FileId");
             entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(50).IsRequired();
             entity.Property(e => e.ExtractedCount).HasColumnName("ExtractedCount").HasDefaultValue(0);
@@ -675,12 +675,12 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
-            entity.HasIndex(e => e.ModuleId);
+            entity.HasIndex(e => e.CourseId);
             entity.HasIndex(e => e.Status);
 
-            entity.HasOne(e => e.Module)
+            entity.HasOne(e => e.Course)
                 .WithMany()
-                .HasForeignKey(e => e.ModuleId)
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -947,7 +947,7 @@ public class TutoriaDbContext : DbContext
             entity.ToTable("Assignments");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("Id");
-            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
             entity.Property(e => e.Title).HasColumnName("Title").HasMaxLength(255).IsRequired();
             entity.Property(e => e.Description).HasColumnName("Description");
             entity.Property(e => e.DueDate).HasColumnName("DueDate").IsRequired();
@@ -966,12 +966,12 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
-            entity.HasIndex(e => e.ModuleId);
-            entity.HasIndex(e => new { e.ModuleId, e.IsPublished, e.IsActive });
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => new { e.CourseId, e.IsPublished, e.IsActive });
 
-            entity.HasOne(e => e.Module)
+            entity.HasOne(e => e.Course)
                 .WithMany()
-                .HasForeignKey(e => e.ModuleId)
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(e => e.CreatedBy)

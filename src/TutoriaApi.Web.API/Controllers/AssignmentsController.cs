@@ -27,13 +27,13 @@ public class AssignmentsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<PaginatedResponse<AssignmentListDto>>> GetAssignments(
-        [FromQuery] int moduleId = 0,
         [FromQuery] int courseId = 0,
+        [FromQuery] bool publishedOnly = false,
         [FromQuery] int page = 1,
         [FromQuery] int size = 20)
     {
-        if (moduleId <= 0 && courseId <= 0)
-            return BadRequest(new { message = "Either moduleId or courseId is required" });
+        if (courseId <= 0)
+            return BadRequest(new { message = "courseId is required" });
 
         if (page < 1) page = 1;
         if (size < 1) size = 20;
@@ -43,23 +43,23 @@ public class AssignmentsController : ControllerBase
 
         try
         {
-            // Course-level query: published assignments from all modules in the course
-            if (courseId > 0)
+            // Read-only consumers (e.g. the module page) ask for the published set only
+            if (publishedOnly)
             {
-                var courseItems = await _assignmentService.GetPublishedByCourseAsync(courseId, currentUser);
-                var courseDtos = courseItems.Select(a => MapToListDto(a, includeModuleName: true)).ToList();
+                var publishedItems = await _assignmentService.GetPublishedByCourseAsync(courseId, currentUser);
+                var publishedDtos = publishedItems.Select(a => MapToListDto(a)).ToList();
                 return Ok(new PaginatedResponse<AssignmentListDto>
                 {
-                    Items = courseDtos,
-                    Total = courseDtos.Count,
+                    Items = publishedDtos,
+                    Total = publishedDtos.Count,
                     Page = 1,
-                    Size = courseDtos.Count,
+                    Size = publishedDtos.Count,
                     Pages = 1,
                 });
             }
 
-            // Module-level query: all assignments (incl. unpublished) for the owning module
-            var (items, total) = await _assignmentService.GetPagedAsync(moduleId, page, size, currentUser);
+            // Management view: all assignments (incl. unpublished) for the course
+            var (items, total) = await _assignmentService.GetPagedAsync(courseId, page, size, currentUser);
             var dtos = items.Select(a => MapToListDto(a)).ToList();
 
             return Ok(new PaginatedResponse<AssignmentListDto>
@@ -71,22 +71,26 @@ public class AssignmentsController : ControllerBase
                 Pages = (int)Math.Ceiling(total / (double)size),
             });
         }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
         catch (UnauthorizedAccessException)
         {
             return Forbid();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving assignments (moduleId={ModuleId}, courseId={CourseId})", moduleId, courseId);
+            _logger.LogError(ex, "Error retrieving assignments (courseId={CourseId})", courseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
 
-    private static AssignmentListDto MapToListDto(Assignment a, bool includeModuleName = false) => new()
+    private static AssignmentListDto MapToListDto(Assignment a) => new()
     {
         Id = a.Id,
-        ModuleId = a.ModuleId,
-        ModuleName = includeModuleName ? a.Module?.Name : null,
+        CourseId = a.CourseId,
+        CourseName = a.Course?.Name,
         Title = a.Title,
         Description = a.Description,
         DueDate = a.DueDate,
@@ -122,7 +126,7 @@ public class AssignmentsController : ControllerBase
             return Ok(new AssignmentDetailDto
             {
                 Id = a.Id,
-                ModuleId = a.ModuleId,
+                CourseId = a.CourseId,
                 Title = a.Title,
                 Description = a.Description,
                 DueDate = a.DueDate,
@@ -199,7 +203,7 @@ public class AssignmentsController : ControllerBase
             }
 
             var assignment = await _assignmentService.CreateAsync(
-                request.ModuleId,
+                request.CourseId,
                 request.Title,
                 request.Description,
                 request.DueDate,
@@ -223,7 +227,7 @@ public class AssignmentsController : ControllerBase
             return CreatedAtAction(nameof(GetAssignment), new { id = assignment.Id }, new AssignmentDetailDto
             {
                 Id = assignment.Id,
-                ModuleId = assignment.ModuleId,
+                CourseId = assignment.CourseId,
                 Title = assignment.Title,
                 Description = assignment.Description,
                 DueDate = assignment.DueDate,
@@ -255,7 +259,7 @@ public class AssignmentsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating assignment for module {ModuleId}", request.ModuleId);
+            _logger.LogError(ex, "Error creating assignment for course {CourseId}", request.CourseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
@@ -274,7 +278,7 @@ public class AssignmentsController : ControllerBase
             return Ok(new AssignmentDetailDto
             {
                 Id = assignment.Id,
-                ModuleId = assignment.ModuleId,
+                CourseId = assignment.CourseId,
                 Title = assignment.Title,
                 Description = assignment.Description,
                 DueDate = assignment.DueDate,
@@ -338,7 +342,7 @@ public class AssignmentsController : ControllerBase
             return Ok(new AssignmentDetailDto
             {
                 Id = assignment.Id,
-                ModuleId = assignment.ModuleId,
+                CourseId = assignment.CourseId,
                 Title = assignment.Title,
                 Description = assignment.Description,
                 DueDate = assignment.DueDate,

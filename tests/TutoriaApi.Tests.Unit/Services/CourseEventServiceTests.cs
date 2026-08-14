@@ -121,12 +121,12 @@ public class CourseEventServiceTests
         {
             new()
             {
-                Id = 1, ModuleId = 9, Title = "Linked", DueDate = DateTime.UtcNow.AddDays(1),
+                Id = 1, CourseId = 5, Title = "Linked", DueDate = DateTime.UtcNow.AddDays(1),
                 S3Key = "k", OriginalFileName = "f.pdf", ContentType = "application/pdf",
             },
             new()
             {
-                Id = 2, ModuleId = 9, Title = "Unlinked", DueDate = DateTime.UtcNow.AddDays(2),
+                Id = 2, CourseId = 5, Title = "Unlinked", DueDate = DateTime.UtcNow.AddDays(2),
                 S3Key = "k2", OriginalFileName = "f2.pdf", ContentType = "application/pdf",
             },
         });

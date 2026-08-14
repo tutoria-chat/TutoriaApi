@@ -11,13 +11,13 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
     {
     }
 
-    public async Task<(List<Assignment> Items, int Total)> GetPagedByModuleIdAsync(
-        int moduleId, int page, int pageSize, bool includeUnpublished = true)
+    public async Task<(List<Assignment> Items, int Total)> GetPagedByCourseIdAsync(
+        int courseId, int page, int pageSize, bool includeUnpublished = true)
     {
         var query = _dbSet
             .Include(a => a.CreatedBy)
             .Include(a => a.ContextFiles)
-            .Where(a => a.ModuleId == moduleId && a.IsActive);
+            .Where(a => a.CourseId == courseId && a.IsActive);
 
         if (!includeUnpublished)
             query = query.Where(a => a.IsPublished);
@@ -32,12 +32,11 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
         return (items, total);
     }
 
-    public async Task<Assignment?> GetByIdWithModuleAsync(int id)
+    public async Task<Assignment?> GetByIdWithCourseAsync(int id)
     {
         return await _dbSet
-            .Include(a => a.Module)
-                .ThenInclude(m => m.Course)
-                    .ThenInclude(c => c.University)
+            .Include(a => a.Course)
+                .ThenInclude(c => c.University)
             .Include(a => a.CreatedBy)
             .Include(a => a.ContextFiles)
             .FirstOrDefaultAsync(a => a.Id == id);
@@ -49,20 +48,11 @@ public class AssignmentRepository : Repository<Assignment>, IAssignmentRepositor
         await _context.SaveChangesAsync();
     }
 
-    public async Task<List<Assignment>> GetPublishedByModuleIdAsync(int moduleId)
-    {
-        return await _dbSet
-            .Where(a => a.ModuleId == moduleId && a.IsActive && a.IsPublished)
-            .OrderBy(a => a.DueDate)
-            .ToListAsync();
-    }
-
     public async Task<List<Assignment>> GetPublishedByCourseIdAsync(int courseId)
     {
         return await _dbSet
-            .Include(a => a.Module)
             .Include(a => a.ContextFiles)
-            .Where(a => a.Module.CourseId == courseId && a.IsActive && a.IsPublished)
+            .Where(a => a.CourseId == courseId && a.IsActive && a.IsPublished)
             .OrderBy(a => a.DueDate)
             .ToListAsync();
     }

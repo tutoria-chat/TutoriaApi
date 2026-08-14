@@ -8,61 +8,43 @@ namespace TutoriaApi.Infrastructure.Services;
 public class AssignmentService : IAssignmentService
 {
     private readonly IAssignmentRepository _assignmentRepository;
-    private readonly IModuleRepository _moduleRepository;
+    private readonly ICourseRepository _courseRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ILogger<AssignmentService> _logger;
 
     public AssignmentService(
         IAssignmentRepository assignmentRepository,
-        IModuleRepository moduleRepository,
+        ICourseRepository courseRepository,
         IBlobStorageService blobStorageService,
         ILogger<AssignmentService> logger)
     {
         _assignmentRepository = assignmentRepository;
-        _moduleRepository = moduleRepository;
+        _courseRepository = courseRepository;
         _blobStorageService = blobStorageService;
         _logger = logger;
     }
 
     public async Task<(List<Assignment> Items, int Total)> GetPagedAsync(
-        int moduleId, int page, int pageSize, User currentUser)
+        int courseId, int page, int pageSize, User currentUser)
     {
-        var module = await _moduleRepository.GetWithDetailsAsync(moduleId)
-            ?? throw new KeyNotFoundException($"Module {moduleId} not found");
-
-        var university = module.Course?.University
-            ?? throw new InvalidOperationException("Module is not linked to a university");
-
-        if (!university.HasAssignments)
-            throw new UnauthorizedAccessException("Assignments feature is not enabled for this university");
-
-        await EnsureModuleAccessAsync(moduleId, currentUser, module);
-        return await _assignmentRepository.GetPagedByModuleIdAsync(moduleId, page, pageSize);
+        var course = await EnsureCourseAccessAsync(courseId, currentUser);
+        RequireAssignmentsFeature(course);
+        return await _assignmentRepository.GetPagedByCourseIdAsync(courseId, page, pageSize);
     }
 
     public async Task<List<Assignment>> GetPublishedByCourseAsync(int courseId, User currentUser)
     {
-        // Verify access by loading any module from this course with its university info
-        var courseModules = await _moduleRepository.GetByCourseIdAsync(courseId);
-        var sampleModule = courseModules.FirstOrDefault();
-        if (sampleModule == null)
-            return []; // No modules → no assignments to return
-
-        var moduleWithDetails = await _moduleRepository.GetWithDetailsAsync(sampleModule.Id);
-        var university = moduleWithDetails?.Course?.University;
-        if (university == null || !university.HasAssignments)
-            throw new UnauthorizedAccessException("Assignments feature is not enabled for this university");
-
-        await EnsureModuleAccessAsync(sampleModule.Id, currentUser, moduleWithDetails);
+        var course = await EnsureCourseAccessAsync(courseId, currentUser);
+        RequireAssignmentsFeature(course);
         return await _assignmentRepository.GetPublishedByCourseIdAsync(courseId);
     }
 
     public async Task<AssignmentWithDownloadUrl?> GetByIdAsync(int id, User currentUser)
     {
-        var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id);
+        var assignment = await _assignmentRepository.GetByIdWithCourseAsync(id);
         if (assignment == null) return null;
 
-        await EnsureModuleAccessAsync(assignment.ModuleId, currentUser);
+        await EnsureCourseAccessAsync(assignment.CourseId, currentUser, assignment.Course);
 
         var downloadUrl = _blobStorageService.GetDownloadUrl(assignment.S3Key, expiresInHours: 1);
         var rubricDownloadUrl = assignment.RubricS3Key != null
@@ -83,40 +65,34 @@ public class AssignmentService : IAssignmentService
     }
 
     public async Task<Assignment> CreateAsync(
-        int moduleId, string title, string? description, DateTime dueDate,
+        int courseId, string title, string? description, DateTime dueDate,
         string? keywords, string? gradingCriteria,
         Stream fileStream, string originalFileName, string contentType, long fileSize,
         Stream? rubricStream, string? rubricFileName, string? rubricContentType, long? rubricSize,
         User currentUser,
         List<ContextFileUpload>? contextFiles = null)
     {
-        var module = await _moduleRepository.GetWithDetailsAsync(moduleId)
-            ?? throw new KeyNotFoundException($"Module {moduleId} not found");
+        var course = await EnsureCourseAccessAsync(courseId, currentUser);
 
-        var university = module.Course?.University
-            ?? throw new InvalidOperationException("Module is not linked to a university");
-
-        if (!university.HasAssignments)
+        if (course.University is not { HasAssignments: true })
             throw new InvalidOperationException(
                 "Assignments feature is not enabled for this university");
 
-        await EnsureModuleAccessAsync(moduleId, currentUser, module);
-
         var extension = Path.GetExtension(originalFileName);
-        var s3Key = $"assignments/{moduleId}/{Guid.NewGuid()}{extension}";
+        var s3Key = $"assignments/courses/{courseId}/{Guid.NewGuid()}{extension}";
         await _blobStorageService.UploadFileAsync(fileStream, s3Key, contentType);
 
         string? rubricS3Key = null;
         if (rubricStream != null && rubricFileName != null && rubricContentType != null)
         {
             var rubricExtension = Path.GetExtension(rubricFileName);
-            rubricS3Key = $"assignments/{moduleId}/rubric_{Guid.NewGuid()}{rubricExtension}";
+            rubricS3Key = $"assignments/courses/{courseId}/rubric_{Guid.NewGuid()}{rubricExtension}";
             await _blobStorageService.UploadFileAsync(rubricStream, rubricS3Key, rubricContentType);
         }
 
         var assignment = new Assignment
         {
-            ModuleId = moduleId,
+            CourseId = courseId,
             Title = title,
             Description = description,
             DueDate = DateTime.SpecifyKind(dueDate, DateTimeKind.Utc),
@@ -141,7 +117,7 @@ public class AssignmentService : IAssignmentService
             foreach (var cf in contextFiles)
             {
                 var ext = Path.GetExtension(cf.FileName);
-                var cfKey = $"assignments/{moduleId}/context_{Guid.NewGuid()}{ext}";
+                var cfKey = $"assignments/courses/{courseId}/context_{Guid.NewGuid()}{ext}";
                 await _blobStorageService.UploadFileAsync(cf.Stream, cfKey, cf.ContentType);
                 contextEntities.Add(new AssignmentContextFile
                 {
@@ -155,8 +131,8 @@ public class AssignmentService : IAssignmentService
             await _assignmentRepository.AddContextFilesAsync(contextEntities);
         }
 
-        _logger.LogInformation("Created assignment '{Title}' for module {ModuleId} with {ContextCount} context files",
-            title, moduleId, contextFiles?.Count ?? 0);
+        _logger.LogInformation("Created assignment '{Title}' for course {CourseId} with {ContextCount} context files",
+            title, courseId, contextFiles?.Count ?? 0);
         return assignment;
     }
 
@@ -164,10 +140,10 @@ public class AssignmentService : IAssignmentService
         int id, string title, string? description, DateTime dueDate,
         string? keywords, string? gradingCriteria, User currentUser)
     {
-        var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id)
+        var assignment = await _assignmentRepository.GetByIdWithCourseAsync(id)
             ?? throw new KeyNotFoundException($"Assignment {id} not found");
 
-        await EnsureModuleAccessAsync(assignment.ModuleId, currentUser);
+        await EnsureCourseAccessAsync(assignment.CourseId, currentUser, assignment.Course);
 
         assignment.Title = title;
         assignment.Description = description;
@@ -181,10 +157,10 @@ public class AssignmentService : IAssignmentService
 
     public async Task DeleteAsync(int id, User currentUser)
     {
-        var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id)
+        var assignment = await _assignmentRepository.GetByIdWithCourseAsync(id)
             ?? throw new KeyNotFoundException($"Assignment {id} not found");
 
-        await EnsureModuleAccessAsync(assignment.ModuleId, currentUser);
+        await EnsureCourseAccessAsync(assignment.CourseId, currentUser, assignment.Course);
 
         assignment.IsActive = false;
         await _assignmentRepository.UpdateAsync(assignment);
@@ -193,35 +169,41 @@ public class AssignmentService : IAssignmentService
 
     public async Task<Assignment> TogglePublishAsync(int id, User currentUser)
     {
-        var assignment = await _assignmentRepository.GetByIdWithModuleAsync(id)
+        var assignment = await _assignmentRepository.GetByIdWithCourseAsync(id)
             ?? throw new KeyNotFoundException($"Assignment {id} not found");
 
-        await EnsureModuleAccessAsync(assignment.ModuleId, currentUser);
+        await EnsureCourseAccessAsync(assignment.CourseId, currentUser, assignment.Course);
 
         assignment.IsPublished = !assignment.IsPublished;
         await _assignmentRepository.UpdateAsync(assignment);
         return assignment;
     }
 
-    private async Task EnsureModuleAccessAsync(int moduleId, User currentUser, Module? cachedModule = null)
+    private static void RequireAssignmentsFeature(Course course)
     {
-        if (currentUser.UserType == UserTypes.SuperAdmin) return;
+        if (course.University is not { HasAssignments: true })
+            throw new UnauthorizedAccessException("Assignments feature is not enabled for this university");
+    }
 
-        var module = cachedModule ?? await _moduleRepository.GetWithDetailsAsync(moduleId)
-            ?? throw new KeyNotFoundException($"Module {moduleId} not found");
+    private async Task<Course> EnsureCourseAccessAsync(int courseId, User currentUser, Course? cachedCourse = null)
+    {
+        var course = cachedCourse?.University != null
+            ? cachedCourse
+            : await _courseRepository.GetWithDetailsAsync(courseId)
+                ?? throw new KeyNotFoundException($"Course {courseId} not found");
 
-        var moduleUniversityId = module.Course?.UniversityId;
+        if (currentUser.UserType == UserTypes.SuperAdmin) return course;
 
-        // All university-scoped staff roles require only that the module belongs to their
-        // university — the same rule the module detail page uses. Professors are not further
-        // restricted to courses they are assigned to; if they can open the module page they
+        // All university-scoped staff roles require only that the course belongs to their
+        // university — the same rule the course detail page uses. Professors are not further
+        // restricted to courses they are assigned to; if they can open the course page they
         // should also be able to see its assignments.
         if (currentUser.UserType is UserTypes.Manager or UserTypes.Tutor
             or UserTypes.PlatformCoordinator or UserTypes.Professor)
         {
-            if (moduleUniversityId != currentUser.UniversityId)
-                throw new UnauthorizedAccessException("Access denied: module belongs to a different university");
-            return;
+            if (course.UniversityId != currentUser.UniversityId)
+                throw new UnauthorizedAccessException("Access denied: course belongs to a different university");
+            return course;
         }
 
         throw new UnauthorizedAccessException("Access denied");

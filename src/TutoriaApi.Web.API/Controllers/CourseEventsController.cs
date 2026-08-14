@@ -53,8 +53,9 @@ public class CourseEventsController : ControllerBase
     {
         Id = null,
         CourseId = courseId,
-        ModuleId = a.ModuleId,
-        ModuleName = a.Module?.Name,
+        // Assignments are course-wide — they no longer belong to a single module
+        ModuleId = null,
+        ModuleName = null,
         AssignmentId = a.Id,
         Title = a.Title,
         Description = a.Description,

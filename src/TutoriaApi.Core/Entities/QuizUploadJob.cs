@@ -2,7 +2,9 @@ namespace TutoriaApi.Core.Entities;
 
 public class QuizUploadJob : BaseEntity
 {
-    public int ModuleId { get; set; }
+    // Uploaded question banks land in the course-wide bank, so the job that
+    // produces them is scoped to the course too.
+    public int CourseId { get; set; }
     public int? FileId { get; set; }
     public required string Status { get; set; }
     public int ExtractedCount { get; set; }
@@ -19,5 +21,5 @@ public class QuizUploadJob : BaseEntity
     public string? ExtractedQuestionsJson { get; set; }
 
     // Navigation properties
-    public Module Module { get; set; } = null!;
+    public Course Course { get; set; } = null!;
 }

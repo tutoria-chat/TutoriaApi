@@ -14,8 +14,8 @@ public class AssignmentContextFileDto
 public class AssignmentListDto
 {
     public int Id { get; set; }
-    public int ModuleId { get; set; }
-    public string? ModuleName { get; set; }
+    public int CourseId { get; set; }
+    public string? CourseName { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public DateTime DueDate { get; set; }
@@ -41,7 +41,7 @@ public class AssignmentDetailDto : AssignmentListDto
 
 public class AssignmentCreateRequest
 {
-    public int ModuleId { get; set; }
+    public int CourseId { get; set; }
 
     [Required(ErrorMessage = "Title is required")]
     [MaxLength(255, ErrorMessage = "Title cannot exceed 255 characters")]

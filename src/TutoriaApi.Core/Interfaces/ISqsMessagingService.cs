@@ -33,5 +33,5 @@ public interface ISqsMessagingService
     /// Enqueue a quiz upload extraction job.
     /// tutoria-worker picks it up, extracts questions from the file, and stores them in QuizUploadJob.ExtractedQuestionsJson.
     /// </summary>
-    Task<bool> SendQuizUploadJobAsync(int jobId, int moduleId);
+    Task<bool> SendQuizUploadJobAsync(int jobId, int courseId);
 }

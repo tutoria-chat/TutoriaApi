@@ -2,8 +2,10 @@ namespace TutoriaApi.Core.Entities;
 
 public class Assignment : BaseEntity
 {
-    public int ModuleId { get; set; }
-    public Module Module { get; set; } = null!;
+    // Assignments belong to the whole course, not a single module — every student
+    // in the course sees the same list regardless of which module they entered from.
+    public int CourseId { get; set; }
+    public Course Course { get; set; } = null!;
 
     public required string Title { get; set; }
     public string? Description { get; set; }

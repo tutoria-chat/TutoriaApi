@@ -32,7 +32,7 @@ public class QuizUploadJobsController : ControllerBase
     /// <summary>
     /// Upload a quiz question file and queue it for async extraction.
     /// </summary>
-    /// <remarks>Returns 202 immediately. Poll GET /api/quiz-upload-jobs?moduleId={id} for status.</remarks>
+    /// <remarks>Returns 202 immediately. Poll GET /api/quiz-upload-jobs?courseId={id} for status.</remarks>
     [HttpPost]
     [ProducesResponseType(typeof(QuizUploadJobDto), StatusCodes.Status202Accepted)]
     public async Task<ActionResult<QuizUploadJobDto>> CreateQuizUploadJob([FromForm] CreateQuizUploadJobRequest request)
@@ -51,7 +51,7 @@ public class QuizUploadJobsController : ControllerBase
             var currentUser = _currentUserService.GetCurrentUser();
             await using var stream = request.File.OpenReadStream();
             var job = await _service.CreateJobAsync(
-                request.ModuleId,
+                request.CourseId,
                 stream,
                 request.File.FileName,
                 request.File.ContentType ?? "application/octet-stream",
@@ -73,25 +73,25 @@ public class QuizUploadJobsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating quiz upload job for module {ModuleId}", request.ModuleId);
+            _logger.LogError(ex, "Error creating quiz upload job for course {CourseId}", request.CourseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
 
     /// <summary>
-    /// List quiz upload jobs for a module, newest first.
+    /// List quiz upload jobs for a course, newest first.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(List<QuizUploadJobDto>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<List<QuizUploadJobDto>>> GetJobs([FromQuery] int moduleId)
+    public async Task<ActionResult<List<QuizUploadJobDto>>> GetJobs([FromQuery] int courseId)
     {
-        if (moduleId <= 0)
-            return BadRequest(new { message = "moduleId is required" });
+        if (courseId <= 0)
+            return BadRequest(new { message = "courseId is required" });
 
         try
         {
             var currentUser = _currentUserService.GetCurrentUser();
-            var jobs = await _service.GetJobsForModuleAsync(moduleId, currentUser);
+            var jobs = await _service.GetJobsForCourseAsync(courseId, currentUser);
             return Ok(jobs.Select(MapToDto).ToList());
         }
         catch (KeyNotFoundException ex)
@@ -104,7 +104,7 @@ public class QuizUploadJobsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error listing quiz upload jobs for module {ModuleId}", moduleId);
+            _logger.LogError(ex, "Error listing quiz upload jobs for course {CourseId}", courseId);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
@@ -137,7 +137,7 @@ public class QuizUploadJobsController : ControllerBase
             return Ok(new
             {
                 jobId = job.Id,
-                moduleId = job.ModuleId,
+                courseId = job.CourseId,
                 status = job.Status,
                 extractedCount = job.ExtractedCount,
                 questions = questions ?? Array.Empty<object>()
@@ -157,7 +157,7 @@ public class QuizUploadJobsController : ControllerBase
     private static QuizUploadJobDto MapToDto(Core.Entities.QuizUploadJob job) => new()
     {
         Id = job.Id,
-        ModuleId = job.ModuleId,
+        CourseId = job.CourseId,
         Status = job.Status,
         ExtractedCount = job.ExtractedCount,
         ErrorMessage = job.ErrorMessage,
