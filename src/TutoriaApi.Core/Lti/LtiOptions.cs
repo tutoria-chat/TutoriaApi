@@ -43,6 +43,10 @@ public class FeatureToggles
     /// <summary>
     /// Enables the LTI 1.3 tool endpoints. When false the endpoints return 404 so a
     /// half-configured deployment cannot be probed.
+    ///
+    /// Default OFF: the launch flow currently lands a student in the chat widget,
+    /// which is not the intended use of LTI here. Leave it off until the launch is
+    /// repointed at a professor-facing flow.
     /// </summary>
-    public bool LtiEnabled { get; set; } = true;
+    public bool LtiEnabled { get; set; } = false;
 }
