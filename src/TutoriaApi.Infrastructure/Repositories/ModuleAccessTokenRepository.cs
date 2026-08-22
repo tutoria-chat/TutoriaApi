@@ -68,10 +68,16 @@ public class ModuleAccessTokenRepository : Repository<ModuleAccessToken>, IModul
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            // ILIKE rather than Contains: on PostgreSQL, Contains translates to a
+            // case-sensitive LIKE, so "MOD1" would not match a key named "mod1".
+            // Wildcards in the term are escaped so a literal % or _ is searched for
+            // rather than acting as a pattern.
+            var pattern = $"%{EscapeLikePattern(search.Trim())}%";
+
             query = query.Where(t =>
-                t.Name.Contains(search) ||
-                (t.Description != null && t.Description.Contains(search)) ||
-                t.Module.Name.Contains(search));
+                EF.Functions.ILike(t.Name, pattern) ||
+                (t.Description != null && EF.Functions.ILike(t.Description, pattern)) ||
+                EF.Functions.ILike(t.Module.Name, pattern));
         }
 
         var total = await query.CountAsync();
@@ -95,4 +101,17 @@ public class ModuleAccessTokenRepository : Repository<ModuleAccessToken>, IModul
     {
         return await _dbSet.AnyAsync(t => t.Token == token);
     }
+
+    /// <summary>
+    /// Escapes LIKE/ILIKE wildcards so a search term is matched literally.
+    /// Without this, a term containing % or _ silently becomes a pattern.
+    /// </summary>
+    private static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\")
+            .Replace("%", "\\%")
+            .Replace("_", "\\_");
+    }
+
 }
