@@ -9,9 +9,10 @@ public class LtiOptions
     public const string SectionName = "Lti";
 
     /// <summary>
-    /// Public base URL of this API, used to build the redirect_uri registered with
-    /// each platform. Must be the externally reachable origin, not localhost, in any
-    /// deployed environment.
+    /// OPTIONAL. Public base URL of this API, used to build the redirect_uri
+    /// registered with each platform. Leave empty and it is derived from the
+    /// incoming request; only set it when the public URL differs from what the app
+    /// sees (for example behind a proxy that does not forward the original host).
     /// </summary>
     public string? ToolBaseUrl { get; set; }
 

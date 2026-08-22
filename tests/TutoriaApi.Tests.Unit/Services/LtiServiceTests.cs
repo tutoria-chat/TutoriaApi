@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -43,6 +44,8 @@ public class LtiServiceTests
     private readonly Mock<IHttpClientFactory> _httpClientFactory = new();
     private readonly Mock<ILogger<LtiService>> _logger = new();
     private readonly IMemoryCache _cache = new MemoryCache(new MemoryCacheOptions());
+    private readonly IHttpContextAccessor _httpContextAccessor =
+        new HttpContextAccessor { HttpContext = new DefaultHttpContext() };
     private readonly RSA _platformKey = RSA.Create(2048);
 
     private readonly LtiService _service;
@@ -65,6 +68,7 @@ public class LtiServiceTests
             _moduleTokens.Object,
             _httpClientFactory.Object,
             _cache,
+            _httpContextAccessor,
             options,
             _logger.Object);
     }

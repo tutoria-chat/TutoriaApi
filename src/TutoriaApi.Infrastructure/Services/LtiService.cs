@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -46,6 +47,7 @@ public class LtiService : ILtiService
     private readonly IModuleAccessTokenRepository _moduleTokens;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IMemoryCache _cache;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly LtiOptions _options;
     private readonly ILogger<LtiService> _logger;
 
@@ -58,6 +60,7 @@ public class LtiService : ILtiService
         IModuleAccessTokenRepository moduleTokens,
         IHttpClientFactory httpClientFactory,
         IMemoryCache cache,
+        IHttpContextAccessor httpContextAccessor,
         IOptions<LtiOptions> options,
         ILogger<LtiService> logger)
     {
@@ -69,6 +72,7 @@ public class LtiService : ILtiService
         _moduleTokens = moduleTokens;
         _httpClientFactory = httpClientFactory;
         _cache = cache;
+        _httpContextAccessor = httpContextAccessor;
         _options = options.Value;
         _logger = logger;
     }
@@ -492,13 +496,29 @@ public class LtiService : ILtiService
     /// </summary>
     private string GetLaunchUri()
     {
-        if (string.IsNullOrWhiteSpace(_options.ToolBaseUrl))
+        // Configuration wins when present, but fall back to the origin the request
+        // arrived on so a normal deployment needs no LTI-specific settings. Only
+        // set Lti:ToolBaseUrl when the public URL differs from what the app sees
+        // (for example behind a proxy that does not forward the original host).
+        var baseUrl = _options.ToolBaseUrl;
+
+        if (string.IsNullOrWhiteSpace(baseUrl))
         {
-            throw new InvalidOperationException(
-                "Lti:ToolBaseUrl is not configured — required to build the LTI redirect_uri.");
+            var request = _httpContextAccessor.HttpContext?.Request;
+            if (request != null)
+            {
+                baseUrl = $"{request.Scheme}://{request.Host}";
+            }
         }
 
-        return $"{_options.ToolBaseUrl.TrimEnd('/')}/api/lti/launch";
+        if (string.IsNullOrWhiteSpace(baseUrl))
+        {
+            throw new InvalidOperationException(
+                "Cannot determine the public base URL for the LTI redirect_uri. " +
+                "Set Lti:ToolBaseUrl when there is no incoming request context.");
+        }
+
+        return $"{baseUrl.TrimEnd('/')}/api/lti/launch";
     }
 
     private static string GenerateSecureToken(int bytes = 32)
