@@ -9,6 +9,7 @@ public class GradingJobService : IGradingJobService
 {
     private readonly IGradingJobRepository _gradingJobRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly IUniversityRepository _universityRepository;
     private readonly IBlobStorageService _blobStorageService;
     private readonly ISqsMessagingService _sqsMessagingService;
     private readonly ILogger<GradingJobService> _logger;
@@ -18,12 +19,14 @@ public class GradingJobService : IGradingJobService
     public GradingJobService(
         IGradingJobRepository gradingJobRepository,
         ICourseRepository courseRepository,
+        IUniversityRepository universityRepository,
         IBlobStorageService blobStorageService,
         ISqsMessagingService sqsMessagingService,
         ILogger<GradingJobService> logger)
     {
         _gradingJobRepository = gradingJobRepository;
         _courseRepository = courseRepository;
+        _universityRepository = universityRepository;
         _blobStorageService = blobStorageService;
         _sqsMessagingService = sqsMessagingService;
         _logger = logger;
@@ -149,13 +152,42 @@ public class GradingJobService : IGradingJobService
     // ── External automation API ────────────────────────────────────────────────
 
     public async Task<GradingJob> CreateExternalJobAsync(
-        int universityId, int externalCourseId, Stream jsonStream, string? fileName, string? gradingCriteria)
+        int universityId, int externalCourseId, Stream jsonStream, string? fileName, string? gradingCriteria,
+        string? courseName = null)
     {
-        var course = await _courseRepository.GetByExternalCourseIdAsync(externalCourseId, universityId)
-            ?? throw new KeyNotFoundException(
-                $"No course with external id {externalCourseId} in university {universityId}");
+        // Resolve the Tutoria course that mirrors this LMS course. Historically this
+        // required an admin to hand-create a course and set its ExternalCourseId,
+        // which was the main setup friction — so when it does not exist yet we
+        // provision it automatically. The grading feature flag still gates it, so
+        // only universities that have grading enabled ever get an auto-created
+        // course, and the operation is idempotent per (university, externalCourseId).
+        var course = await _courseRepository.GetByExternalCourseIdAsync(externalCourseId, universityId);
+
+        if (course == null)
+        {
+            var owner = await _universityRepository.GetByIdAsync(universityId)
+                ?? throw new KeyNotFoundException($"University {universityId} not found");
+            if (!owner.HasAssignments)
+                throw new UnauthorizedAccessException("Grading feature is not enabled for this university");
+
+            course = await _courseRepository.AddAsync(new Course
+            {
+                Name = string.IsNullOrWhiteSpace(courseName)
+                    ? $"Curso {externalCourseId} (Moodle)"
+                    : courseName.Trim(),
+                Code = $"MOODLE-{externalCourseId}",
+                UniversityId = universityId,
+                ExternalCourseId = externalCourseId,
+            });
+            course.University = owner;
+
+            _logger.LogInformation(
+                "Auto-provisioned Tutoria course {CourseId} for LMS course {ExternalId} (university {UniversityId})",
+                course.Id, externalCourseId, universityId);
+        }
 
         var university = course.University
+            ?? await _universityRepository.GetByIdAsync(universityId)
             ?? throw new InvalidOperationException("Course is not linked to a university");
         if (!university.HasAssignments)
             throw new UnauthorizedAccessException("Grading feature is not enabled for this university");

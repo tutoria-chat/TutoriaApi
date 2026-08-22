@@ -13,6 +13,7 @@ public class ExternalGradingServiceTests
 {
     private readonly Mock<IGradingJobRepository> _jobRepo = new();
     private readonly Mock<ICourseRepository> _courseRepo = new();
+    private readonly Mock<IUniversityRepository> _universityRepo = new();
     private readonly Mock<IBlobStorageService> _blob = new();
     private readonly Mock<ISqsMessagingService> _sqs = new();
     private readonly GradingJobService _service;
@@ -20,8 +21,17 @@ public class ExternalGradingServiceTests
     public ExternalGradingServiceTests()
     {
         _service = new GradingJobService(
-            _jobRepo.Object, _courseRepo.Object, _blob.Object, _sqs.Object,
+            _jobRepo.Object, _courseRepo.Object, _universityRepo.Object, _blob.Object, _sqs.Object,
             new Mock<ILogger<GradingJobService>>().Object);
+    }
+
+    /// <summary>Sets up the job/blob/sqs mocks needed for a successful create.</summary>
+    private void ArrangeJobPlumbing()
+    {
+        _jobRepo.Setup(r => r.AddAsync(It.IsAny<GradingJob>())).ReturnsAsync((GradingJob j) => { if (j.Id == 0) j.Id = 42; return j; });
+        _jobRepo.Setup(r => r.UpdateAsync(It.IsAny<GradingJob>())).Returns(Task.CompletedTask);
+        _blob.Setup(b => b.UploadFileAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync("key");
+        _sqs.Setup(s => s.SendGradingJobAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(true);
     }
 
     private static Course CourseWithAssignments(bool enabled) => new()
@@ -33,11 +43,67 @@ public class ExternalGradingServiceTests
     private static MemoryStream Body() => new(Encoding.UTF8.GetBytes("[{\"name\":\"x\"}]"));
 
     [Fact]
-    public async Task CreateExternalJobAsync_CourseNotFound_Throws()
+    public async Task CreateExternalJobAsync_CourseNotFound_UniversityMissing_Throws()
     {
         _courseRepo.Setup(r => r.GetByExternalCourseIdAsync(999, 1)).ReturnsAsync((Course?)null);
+        _universityRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync((University?)null);
         await Assert.ThrowsAsync<KeyNotFoundException>(
             () => _service.CreateExternalJobAsync(1, 999, Body(), null, null));
+    }
+
+    [Fact]
+    public async Task CreateExternalJobAsync_CourseNotFound_AssignmentsDisabled_Throws()
+    {
+        // No course yet, and the university has grading off — must not auto-provision.
+        _courseRepo.Setup(r => r.GetByExternalCourseIdAsync(999, 1)).ReturnsAsync((Course?)null);
+        _universityRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new University { Id = 1, Name = "U", Code = "U", HasAssignments = false });
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            () => _service.CreateExternalJobAsync(1, 999, Body(), null, null));
+        _courseRepo.Verify(r => r.AddAsync(It.IsAny<Course>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateExternalJobAsync_CourseNotFound_AutoProvisionsAndGrades()
+    {
+        // First grading for a Moodle course the university never registered in
+        // Tutoria: the course is created automatically so there is no manual setup.
+        _courseRepo.Setup(r => r.GetByExternalCourseIdAsync(999, 1)).ReturnsAsync((Course?)null);
+        _universityRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new University { Id = 1, Name = "U", Code = "U", HasAssignments = true });
+
+        Course? created = null;
+        _courseRepo.Setup(r => r.AddAsync(It.IsAny<Course>()))
+            .Callback<Course>(c => { c.Id = 77; created = c; })
+            .ReturnsAsync((Course c) => c);
+        ArrangeJobPlumbing();
+
+        var job = await _service.CreateExternalJobAsync(1, 999, Body(), null, null, "Cálculo I");
+
+        Assert.NotNull(created);
+        Assert.Equal(999, created!.ExternalCourseId);
+        Assert.Equal(1, created.UniversityId);
+        Assert.Equal("Cálculo I", created.Name);          // name forwarded from the LMS
+        Assert.Equal("MOODLE-999", created.Code);
+        Assert.Equal(77, job.CourseId);                   // job keyed on the new course
+        _sqs.Verify(s => s.SendGradingJobAsync(job.Id, 77), Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateExternalJobAsync_CourseNotFound_NoName_UsesFallbackName()
+    {
+        _courseRepo.Setup(r => r.GetByExternalCourseIdAsync(999, 1)).ReturnsAsync((Course?)null);
+        _universityRepo.Setup(r => r.GetByIdAsync(1))
+            .ReturnsAsync(new University { Id = 1, Name = "U", Code = "U", HasAssignments = true });
+        Course? created = null;
+        _courseRepo.Setup(r => r.AddAsync(It.IsAny<Course>()))
+            .Callback<Course>(c => { c.Id = 77; created = c; }).ReturnsAsync((Course c) => c);
+        ArrangeJobPlumbing();
+
+        await _service.CreateExternalJobAsync(1, 999, Body(), null, null);
+
+        Assert.Equal("Curso 999 (Moodle)", created!.Name);
     }
 
     [Fact]

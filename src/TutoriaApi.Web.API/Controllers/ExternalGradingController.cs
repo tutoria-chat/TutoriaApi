@@ -36,7 +36,8 @@ public class ExternalGradingController : ControllerBase
         int universityId,
         int externalCourseId,
         [FromQuery] string? criteria = null,
-        [FromQuery] string? filename = null)
+        [FromQuery] string? filename = null,
+        [FromQuery] string? coursename = null)
     {
         try
         {
@@ -49,7 +50,7 @@ public class ExternalGradingController : ControllerBase
             ms.Position = 0;
 
             var job = await _gradingService.CreateExternalJobAsync(
-                universityId, externalCourseId, ms, filename, criteria);
+                universityId, externalCourseId, ms, filename, criteria, coursename);
 
             return Accepted(new
             {

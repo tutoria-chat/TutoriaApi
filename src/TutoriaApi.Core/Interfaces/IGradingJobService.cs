@@ -26,7 +26,13 @@ public interface IGradingJobService
     /// (LMS) id + university, validates the feature is enabled, stores the submissions
     /// JSON and enqueues processing. Throws KeyNotFoundException if no matching course.
     /// </summary>
-    Task<GradingJob> CreateExternalJobAsync(int universityId, int externalCourseId, Stream jsonStream, string? fileName, string? gradingCriteria);
+    Task<GradingJob> CreateExternalJobAsync(
+        int universityId,
+        int externalCourseId,
+        Stream jsonStream,
+        string? fileName,
+        string? gradingCriteria,
+        string? courseName = null);
 
     /// <summary>
     /// Fetch a grading job for the external API, verifying it belongs to the course
