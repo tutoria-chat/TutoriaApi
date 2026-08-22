@@ -65,6 +65,13 @@ builder.Services.Configure<IpRateLimitPolicies>(builder.Configuration.GetSection
 builder.Services.AddInMemoryRateLimiting();
 builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
 
+// LTI 1.3 tool: options, release toggle, and the client used to fetch platform JWKS.
+builder.Services.Configure<TutoriaApi.Core.Lti.LtiOptions>(
+    builder.Configuration.GetSection(TutoriaApi.Core.Lti.LtiOptions.SectionName));
+builder.Services.Configure<TutoriaApi.Core.Lti.FeatureToggles>(
+    builder.Configuration.GetSection(TutoriaApi.Core.Lti.FeatureToggles.SectionName));
+builder.Services.AddHttpClient(nameof(TutoriaApi.Infrastructure.Services.LtiService));
+
 // Configure form options to allow large file uploads
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
