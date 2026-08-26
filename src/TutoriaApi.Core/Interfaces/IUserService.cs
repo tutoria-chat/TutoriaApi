@@ -45,7 +45,8 @@ public interface IUserService
         string? themePreference,
         string? languagePreference,
         string? userType,
-        User currentUser);
+        User currentUser,
+        string? externalId = null);
     Task<UserListViewModel> ActivateAsync(int id, User currentUser);
     Task<UserListViewModel> DeactivateAsync(int id, User currentUser);
     Task DeleteAsync(int id, User currentUser);

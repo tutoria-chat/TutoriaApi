@@ -32,6 +32,9 @@ public interface IUserUniversityRepository
     /// Add a user to a university (no-op if already exists)
     /// </summary>
     Task AddAsync(int userId, int universityId);
+    Task AddAsync(int userId, int universityId, string? externalId);
+    /// <summary>Set the matricula (ExternalId) on an existing membership row; no-op if none.</summary>
+    Task SetExternalIdAsync(int userId, int universityId, string? externalId);
 
     /// <summary>
     /// Remove a user from a university

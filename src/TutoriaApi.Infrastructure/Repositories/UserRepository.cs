@@ -170,6 +170,23 @@ public class UserRepository : IUserRepository
             u.ExternalId == externalId && u.UserType == "student" && u.UniversityId == universityId);
     }
 
+    public async Task<bool> MatriculaTakenInUniversityAsync(string externalId, int universityId, int excludeUserId)
+    {
+        var takenOnUser = await _context.Users.AnyAsync(u =>
+            u.UserId != excludeUserId
+            && u.UniversityId == universityId
+            && u.ExternalId == externalId);
+        if (takenOnUser)
+        {
+            return true;
+        }
+
+        return await _context.UserUniversities.AnyAsync(uu =>
+            uu.UserId != excludeUserId
+            && uu.UniversityId == universityId
+            && uu.ExternalId == externalId);
+    }
+
     public async Task<List<User>> GetActiveStudentsByIdsAsync(List<int> studentIds)
     {
         return await _context.Users

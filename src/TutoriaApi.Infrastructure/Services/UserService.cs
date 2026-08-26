@@ -296,7 +296,8 @@ public class UserService : IUserService
         string? themePreference,
         string? languagePreference,
         string? userType,
-        User currentUser)
+        User currentUser,
+        string? externalId = null)
     {
         var user = await _userRepository.GetByIdAsync(id);
 
@@ -455,6 +456,35 @@ public class UserService : IUserService
 
             changes["UserType"] = (user.UserType, userType);
             user.UserType = userType;
+        }
+
+        // Matricula (ExternalId): an upper role setting a lower role's matricula
+        // so they can test the student widget. Null = leave as-is; empty = clear.
+        // Enforce per-university uniqueness across all users, and keep the
+        // per-university junction row in sync so the widget can resolve it.
+        if (externalId != null)
+        {
+            var matricula = externalId.Trim();
+            var newValue = matricula.Length == 0 ? null : matricula;
+            if (user.ExternalId != newValue)
+            {
+                if (newValue != null && user.UniversityId is int uniId)
+                {
+                    var taken = await _userRepository.MatriculaTakenInUniversityAsync(newValue, uniId, id);
+                    if (taken)
+                    {
+                        throw new InvalidOperationException("This matricula is already in use at this university");
+                    }
+                }
+
+                changes["ExternalId"] = (user.ExternalId, newValue);
+                user.ExternalId = newValue;
+
+                if (user.UniversityId is int syncUniId)
+                {
+                    await _userUniversityRepository.SetExternalIdAsync(id, syncUniId, newValue);
+                }
+            }
         }
 
         user.UpdatedAt = DateTime.UtcNow;

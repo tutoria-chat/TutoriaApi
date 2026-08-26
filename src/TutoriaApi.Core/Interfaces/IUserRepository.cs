@@ -28,6 +28,13 @@ public interface IUserRepository
     Task<bool> ExistsByUsernameAsync(string username);
     Task<bool> ExistsByEmailAsync(string email);
     Task<bool> StudentExistsByExternalIdAsync(string externalId, int universityId);
+    /// <summary>
+    /// Whether a matricula (ExternalId) is already used by ANY user in the
+    /// university — checking both Users.ExternalId and the per-university
+    /// UserUniversities.ExternalId — excluding one user. Used to keep staff
+    /// matriculas from colliding with students' (or each other's).
+    /// </summary>
+    Task<bool> MatriculaTakenInUniversityAsync(string externalId, int universityId, int excludeUserId);
     Task<bool> ExistsByUsernameExcludingUserAsync(string username, int excludeUserId);
     Task<bool> ExistsByEmailExcludingUserAsync(string email, int excludeUserId);
     Task SaveChangesAsync();

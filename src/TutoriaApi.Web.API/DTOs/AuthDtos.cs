@@ -231,6 +231,14 @@ public class UserUpdateRequest
 
     [MaxLength(50)]
     public string? UserType { get; set; }
+
+    /// <summary>
+    /// Matricula (registration/employee ID). An upper role editing a lower one
+    /// can set/change it here — the same place they change the user's role. Null
+    /// leaves it untouched; empty string clears it. Must be unique per university.
+    /// </summary>
+    [MaxLength(100)]
+    public string? ExternalId { get; set; }
 }
 
 public class ChangeUserPasswordRequest
@@ -418,4 +426,13 @@ public class AcceptInvitationRequest
     [Required]
     [MinLength(8)]
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional matricula (staff registration/employee ID). Staff set this at
+    /// sign-up so they can log into the student widget to test it; it can also
+    /// be added/edited later from the profile page. Must be unique within the
+    /// university.
+    /// </summary>
+    [MaxLength(100)]
+    public string? ExternalId { get; set; }
 }

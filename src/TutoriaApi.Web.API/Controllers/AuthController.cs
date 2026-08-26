@@ -1297,6 +1297,38 @@ public class AuthController : ControllerBase
             user.LanguagePreference = request.LanguagePreference;
         }
 
+        // Matricula (ExternalId): staff set this so they can log into the student
+        // widget to test it. An empty string clears it; a value must be unique
+        // within the university (across students AND staff) so widget logins
+        // never become ambiguous. Kept in sync with the per-university row.
+        if (request.ExternalId != null)
+        {
+            var matricula = request.ExternalId.Trim();
+            if (matricula.Length == 0)
+            {
+                user.ExternalId = null;
+            }
+            else
+            {
+                if (user.UniversityId is int universityId)
+                {
+                    if (await _userRepository.MatriculaTakenInUniversityAsync(matricula, universityId, userId))
+                    {
+                        return BadRequest(new { message = "This matricula is already in use at your university" });
+                    }
+
+                    var membership = await _context.UserUniversities
+                        .FirstOrDefaultAsync(uu => uu.UserId == userId && uu.UniversityId == universityId);
+                    if (membership != null)
+                    {
+                        membership.ExternalId = matricula;
+                    }
+                }
+
+                user.ExternalId = matricula;
+            }
+        }
+
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
 
@@ -1660,7 +1692,7 @@ public class AuthController : ControllerBase
         try
         {
             var result = await _userInvitationService.AcceptInvitationAsync(
-                request.Token, request.Username, request.FirstName, request.LastName, request.Password);
+                request.Token, request.Username, request.FirstName, request.LastName, request.Password, request.ExternalId);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

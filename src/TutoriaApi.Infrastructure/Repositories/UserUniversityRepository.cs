@@ -43,7 +43,9 @@ public class UserUniversityRepository : IUserUniversityRepository
             .AnyAsync(uu => uu.UserId == userId && uu.UniversityId == universityId);
     }
 
-    public async Task AddAsync(int userId, int universityId)
+    public Task AddAsync(int userId, int universityId) => AddAsync(userId, universityId, null);
+
+    public async Task AddAsync(int userId, int universityId, string? externalId)
     {
         var exists = await ExistsAsync(userId, universityId);
         if (exists)
@@ -55,10 +57,24 @@ public class UserUniversityRepository : IUserUniversityRepository
         {
             UserId = userId,
             UniversityId = universityId,
-            JoinedAt = DateTime.UtcNow
+            JoinedAt = DateTime.UtcNow,
+            ExternalId = string.IsNullOrWhiteSpace(externalId) ? null : externalId.Trim()
         };
 
         await _context.UserUniversities.AddAsync(userUniversity);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task SetExternalIdAsync(int userId, int universityId, string? externalId)
+    {
+        var membership = await _context.UserUniversities
+            .FirstOrDefaultAsync(uu => uu.UserId == userId && uu.UniversityId == universityId);
+        if (membership == null)
+        {
+            return; // No membership row to update
+        }
+
+        membership.ExternalId = string.IsNullOrWhiteSpace(externalId) ? null : externalId.Trim();
         await _context.SaveChangesAsync();
     }
 

@@ -243,7 +243,8 @@ public class UsersController : ControllerBase
                 request.ThemePreference,
                 request.LanguagePreference,
                 request.UserType,
-                currentUser);
+                currentUser,
+                request.ExternalId);
 
             var user = viewModel.User;
 
@@ -262,6 +263,7 @@ public class UsersController : ControllerBase
                 IsAdmin = user.IsAdmin,
                 UniversityId = user.UniversityId,
                 UniversityName = viewModel.UniversityName,
+                ExternalId = user.ExternalId,
                 ThemePreference = user.ThemePreference ?? "system",
                 LanguagePreference = user.LanguagePreference ?? "pt-br",
                 LastLoginAt = user.LastLoginAt,

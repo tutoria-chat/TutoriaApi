@@ -265,7 +265,8 @@ public class UserInvitationService : IUserInvitationService
         string username,
         string firstName,
         string lastName,
-        string password)
+        string password,
+        string? matricula = null)
     {
         var invitation = await _userInvitationRepository.GetByTokenAsync(token);
         if (invitation == null)
@@ -299,6 +300,19 @@ public class UserInvitationService : IUserInvitationService
             throw new InvalidOperationException("Email is already registered");
         }
 
+        // Normalise the optional matricula and enforce per-university uniqueness
+        // (across students AND staff) so widget logins can never be ambiguous.
+        var normalizedMatricula = string.IsNullOrWhiteSpace(matricula) ? null : matricula.Trim();
+        if (normalizedMatricula != null && invitation.UniversityId.HasValue)
+        {
+            var taken = await _userRepository.MatriculaTakenInUniversityAsync(
+                normalizedMatricula, invitation.UniversityId.Value, excludeUserId: 0);
+            if (taken)
+            {
+                throw new InvalidOperationException("This matricula is already in use at this university");
+            }
+        }
+
         // Create new user
         var user = new User
         {
@@ -312,7 +326,8 @@ public class UserInvitationService : IUserInvitationService
             UniversityId = invitation.UniversityId,
             IsAdmin = invitation.IsAdmin,
             LanguagePreference = invitation.LanguagePreference,
-            ThemePreference = "system"
+            ThemePreference = "system",
+            ExternalId = normalizedMatricula
         };
 
         user = await _userRepository.AddAsync(user);
@@ -320,7 +335,7 @@ public class UserInvitationService : IUserInvitationService
         // Create UserUniversity junction entry if university-scoped
         if (invitation.UniversityId.HasValue)
         {
-            await _userUniversityRepository.AddAsync(user.UserId, invitation.UniversityId.Value);
+            await _userUniversityRepository.AddAsync(user.UserId, invitation.UniversityId.Value, normalizedMatricula);
         }
 
         // Update invitation status
