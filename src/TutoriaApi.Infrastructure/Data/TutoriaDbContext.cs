@@ -67,6 +67,8 @@ public class TutoriaDbContext : DbContext
     public DbSet<UniversityPersonalization> UniversityPersonalizations { get; set; }
     public DbSet<Course> Courses { get; set; }
     public DbSet<Module> Modules { get; set; }
+    public DbSet<Major> Majors { get; set; }
+    public DbSet<CourseMajor> CourseMajors { get; set; }
     public DbSet<AIModel> AIModels { get; set; }
     // Legacy tables removed - using unified Users table instead
     // public DbSet<Professor> Professors { get; set; }
@@ -1312,6 +1314,36 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
             entity.HasIndex(e => e.UniversityId);
             entity.HasOne(e => e.University).WithMany().HasForeignKey(e => e.UniversityId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Major configuration (university-scoped degree programs / graduações)
+        modelBuilder.Entity<Major>(entity =>
+        {
+            entity.ToTable("Majors");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            // A major name is unique within a university.
+            entity.HasIndex(e => new { e.UniversityId, e.Name }).IsUnique();
+            entity.HasOne(e => e.University).WithMany(u => u.Majors)
+                .HasForeignKey(e => e.UniversityId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CourseMajor configuration (many-to-many between Courses and Majors)
+        modelBuilder.Entity<CourseMajor>(entity =>
+        {
+            entity.ToTable("CourseMajors");
+            entity.HasKey(cm => new { cm.CourseId, cm.MajorId });
+            entity.Property(cm => cm.CourseId).HasColumnName("CourseId");
+            entity.Property(cm => cm.MajorId).HasColumnName("MajorId");
+            entity.Property(cm => cm.CreatedAt).HasColumnName("CreatedAt");
+            entity.HasOne<Course>().WithMany(c => c.CourseMajors)
+                .HasForeignKey(cm => cm.CourseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Major>().WithMany(m => m.CourseMajors)
+                .HasForeignKey(cm => cm.MajorId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // QuizAnalytic configuration

@@ -40,6 +40,7 @@ public class AuthController : ControllerBase
     private readonly IUserUniversityService _userUniversityService;
     private readonly IUserUniversityRepository _userUniversityRepository;
     private readonly IUserInvitationService _userInvitationService;
+    private readonly IMajorService _majorService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -55,6 +56,7 @@ public class AuthController : ControllerBase
         IUserUniversityService userUniversityService,
         IUserUniversityRepository userUniversityRepository,
         IUserInvitationService userInvitationService,
+        IMajorService majorService,
         ILogger<AuthController> logger)
     {
         _apiClientRepository = apiClientRepository;
@@ -69,6 +71,7 @@ public class AuthController : ControllerBase
         _userUniversityService = userUniversityService;
         _userUniversityRepository = userUniversityRepository;
         _userInvitationService = userInvitationService;
+        _majorService = majorService;
         _logger = logger;
     }
 
@@ -756,6 +759,10 @@ public class AuthController : ControllerBase
 
         // Create junction table entry for multi-tenancy
         await _userUniversityRepository.AddAsync(adminUser.UserId, university.Id);
+
+        // Seed the standard Majors list so the new institution starts with defaults.
+        try { await _majorService.SeedDefaultsAsync(university.Id); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to seed default majors for university {Id}", university.Id); }
 
         // Create subscription with trial
         var trialDays = plan.TrialDays > 0 ? plan.TrialDays : 30;

@@ -240,6 +240,7 @@ public class UniversityWithCoursesDto
     public int CoursesCount { get; set; }
     public int StudentsCount { get; set; }
     public List<CourseDetailDto> Courses { get; set; } = new();
+    public List<MajorDto> Majors { get; set; } = new();
 }
 
 public class CourseDto

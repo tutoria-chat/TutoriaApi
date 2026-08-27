@@ -17,6 +17,7 @@ public class CourseDetailDto
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
+    public List<MajorDto> Majors { get; set; } = new();
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }
@@ -45,6 +46,9 @@ public class CourseCreateRequest
 
     [MaxLength(20)]
     public string? EnemArea { get; set; }
+
+    /// <summary>Ids of the Majors (graduações) this course belongs to.</summary>
+    public List<int>? MajorIds { get; set; }
 }
 
 public class CourseUpdateRequest
@@ -66,6 +70,9 @@ public class CourseUpdateRequest
 
     [MaxLength(20)]
     public string? EnemArea { get; set; }
+
+    /// <summary>Ids of the Majors this course belongs to. Null = leave unchanged.</summary>
+    public List<int>? MajorIds { get; set; }
 }
 
 public class CourseWithDetailsDto
@@ -83,6 +90,7 @@ public class CourseWithDetailsDto
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();
+    public List<MajorDto> Majors { get; set; } = new();
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 }

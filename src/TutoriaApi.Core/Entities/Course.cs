@@ -33,4 +33,5 @@ public class Course : BaseEntity
     public ICollection<Module> Modules { get; set; } = new List<Module>();
     public ICollection<StudentCourse> StudentCourses { get; set; } = new List<StudentCourse>();
     public ICollection<ProfessorCourse> ProfessorCourses { get; set; } = new List<ProfessorCourse>();
+    public ICollection<CourseMajor> CourseMajors { get; set; } = new List<CourseMajor>();
 }

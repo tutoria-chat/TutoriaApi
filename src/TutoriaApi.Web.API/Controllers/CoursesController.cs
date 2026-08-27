@@ -33,6 +33,7 @@ public class CoursesController : ControllerBase
     private readonly ISubscriptionRepository _subscriptionRepository;
     private readonly IUniversityRepository _universityRepository;
     private readonly IGamificationStatsRepository _gamificationStatsRepository;
+    private readonly IMajorService _majorService;
     private readonly ILogger<CoursesController> _logger;
 
     public CoursesController(
@@ -42,6 +43,7 @@ public class CoursesController : ControllerBase
         ISubscriptionRepository subscriptionRepository,
         IUniversityRepository universityRepository,
         IGamificationStatsRepository gamificationStatsRepository,
+        IMajorService majorService,
         ILogger<CoursesController> logger)
     {
         _courseService = courseService;
@@ -50,8 +52,17 @@ public class CoursesController : ControllerBase
         _subscriptionRepository = subscriptionRepository;
         _universityRepository = universityRepository;
         _gamificationStatsRepository = gamificationStatsRepository;
+        _majorService = majorService;
         _logger = logger;
     }
+
+    private static MajorDto ToMajorDto(TutoriaApi.Core.Entities.Major m) => new()
+    {
+        Id = m.Id,
+        UniversityId = m.UniversityId,
+        Name = m.Name,
+        CreatedAt = m.CreatedAt,
+    };
 
     // ────────────────────────────────────────────────────────────────
     //  Tenant isolation helpers
@@ -183,6 +194,7 @@ public class CoursesController : ControllerBase
             // Equipped titles for the roster (gamification rollup) — batch lookup.
             var rosterIds = viewModel.Students.Select(s => s.UserId).ToList();
             var titleKeys = await _gamificationStatsRepository.GetDisplayedTitleKeysByStudentIdsAsync(rosterIds);
+            var courseMajors = await _majorService.GetForCourseAsync(id);
 
             var dto = new CourseWithDetailsDto
             {
@@ -227,6 +239,7 @@ public class CoursesController : ControllerBase
                     LastName = s.LastName,
                     EquippedTitle = titleKeys.TryGetValue(s.UserId, out var tk) ? TitleCatalog.Resolve(tk) : null
                 }).ToList(),
+                Majors = courseMajors.Select(ToMajorDto).ToList(),
                 CreatedAt = viewModel.Course.CreatedAt,
                 UpdatedAt = viewModel.Course.UpdatedAt
             };
@@ -301,8 +314,15 @@ public class CoursesController : ControllerBase
 
             _logger.LogInformation("Created course {Name} with ID {Id}", created.Name, created.Id);
 
+            // Tag the course with the selected Majors (ignores ids from other universities).
+            if (request.MajorIds != null)
+            {
+                await _majorService.SetCourseMajorsAsync(created.Id, created.UniversityId, request.MajorIds);
+            }
+
             // Get full details for response
             var viewModel = await _courseService.GetCourseWithCountsAsync(created.Id);
+            var majors = await _majorService.GetForCourseAsync(created.Id);
 
             var dto = new CourseDetailDto
             {
@@ -319,6 +339,7 @@ public class CoursesController : ControllerBase
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
+                Majors = majors.Select(ToMajorDto).ToList(),
                 CreatedAt = viewModel.Course.CreatedAt,
                 UpdatedAt = viewModel.Course.UpdatedAt
             };
@@ -373,6 +394,13 @@ public class CoursesController : ControllerBase
 
             _logger.LogInformation("Updated course {Name} with ID {Id}", viewModel.Course.Name, viewModel.Course.Id);
 
+            // Majors: null = leave unchanged; a list (even empty) = replace with exactly that set.
+            if (request.MajorIds != null)
+            {
+                await _majorService.SetCourseMajorsAsync(id, viewModel.Course.UniversityId, request.MajorIds);
+            }
+            var majors = await _majorService.GetForCourseAsync(id);
+
             var dto = new CourseDetailDto
             {
                 Id = viewModel.Course.Id,
@@ -388,6 +416,7 @@ public class CoursesController : ControllerBase
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
+                Majors = majors.Select(ToMajorDto).ToList(),
                 CreatedAt = viewModel.Course.CreatedAt,
                 UpdatedAt = viewModel.Course.UpdatedAt
             };

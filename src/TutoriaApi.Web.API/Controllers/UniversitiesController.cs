@@ -15,6 +15,7 @@ public class UniversitiesController : ControllerBase
     private readonly IStudentService _studentService;
     private readonly ICurrentUserService _currentUserService;
     private readonly IUniversityPersonalizationService _personalizationService;
+    private readonly IMajorService _majorService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
@@ -22,12 +23,14 @@ public class UniversitiesController : ControllerBase
         IStudentService studentService,
         ICurrentUserService currentUserService,
         IUniversityPersonalizationService personalizationService,
+        IMajorService majorService,
         ILogger<UniversitiesController> logger)
     {
         _universityService = universityService;
         _studentService = studentService;
         _currentUserService = currentUserService;
         _personalizationService = personalizationService;
+        _majorService = majorService;
         _logger = logger;
     }
 
@@ -99,6 +102,7 @@ public class UniversitiesController : ControllerBase
 
         // Get student count for this university
         var studentsCount = await _studentService.GetStudentCountByUniversityAsync(viewModel.University.Id);
+        var majors = await _majorService.GetByUniversityAsync(viewModel.University.Id);
 
         // Map view model to DTO
         var dto = new UniversityWithCoursesDto
@@ -147,6 +151,13 @@ public class UniversitiesController : ControllerBase
                 StudentsCount = c.StudentsCount,
                 CreatedAt = c.Course.CreatedAt,
                 UpdatedAt = c.Course.UpdatedAt
+            }).ToList(),
+            Majors = majors.Select(m => new MajorDto
+            {
+                Id = m.Id,
+                UniversityId = m.UniversityId,
+                Name = m.Name,
+                CreatedAt = m.CreatedAt,
             }).ToList()
         };
 
@@ -190,6 +201,10 @@ public class UniversitiesController : ControllerBase
 
             var created = await _universityService.CreateAsync(university, _currentUserService.GetCurrentUser());
             _logger.LogInformation("Created university {Name} with ID {Id}", created.Name, created.Id);
+
+            // Seed the standard Majors list so the institution starts with sensible defaults.
+            try { await _majorService.SeedDefaultsAsync(created.Id); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Failed to seed default majors for university {Id}", created.Id); }
 
             return CreatedAtAction(nameof(GetUniversity), new { id = created.Id }, MapToDto(created));
         }

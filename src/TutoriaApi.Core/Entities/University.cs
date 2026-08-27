@@ -47,4 +47,5 @@ public class University : BaseEntity
     public UniversityPersonalization? Personalization { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();
     public ICollection<Professor> Professors { get; set; } = new List<Professor>();
+    public ICollection<Major> Majors { get; set; } = new List<Major>();
 }
