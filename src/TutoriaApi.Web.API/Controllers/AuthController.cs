@@ -1196,6 +1196,9 @@ public class AuthController : ControllerBase
             UniversityId = user.UniversityId,
             UniversityName = user.University?.Name,
             IsAdmin = user.IsAdmin,
+            GovernmentId = user.GovernmentId,
+            ExternalId = user.ExternalId,
+            Birthdate = user.Birthdate,
             StudentCourseIds = studentCourseIds,
             ProfessorCourseIds = professorCourseIds,
             LastLoginAt = user.LastLoginAt,
@@ -1336,6 +1339,16 @@ public class AuthController : ControllerBase
             }
         }
 
+        // Birthdate is a plain calendar date from a date picker. Store it as midnight
+        // UTC — Npgsql requires a UTC Kind for the "timestamp with time zone" column —
+        // and drop any time component so it round-trips as the same day in every
+        // timezone (an unset birthdate arrives as null via the JSON converter and is
+        // left untouched, consistent with the other optional fields above).
+        if (request.Birthdate.HasValue)
+        {
+            user.Birthdate = DateTime.SpecifyKind(request.Birthdate.Value.Date, DateTimeKind.Utc);
+        }
+
         user.UpdatedAt = DateTime.UtcNow;
         await _userRepository.SaveChangesAsync();
 
@@ -1376,6 +1389,9 @@ public class AuthController : ControllerBase
             UniversityId = updatedUser.UniversityId,
             UniversityName = updatedUser.University?.Name,
             IsAdmin = updatedUser.IsAdmin,
+            GovernmentId = updatedUser.GovernmentId,
+            ExternalId = updatedUser.ExternalId,
+            Birthdate = updatedUser.Birthdate,
             StudentCourseIds = studentCourseIds,
             ProfessorCourseIds = professorCourseIds,
             LastLoginAt = updatedUser.LastLoginAt,
