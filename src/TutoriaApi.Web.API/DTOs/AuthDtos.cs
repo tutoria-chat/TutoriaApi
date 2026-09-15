@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using TutoriaApi.Core.Attributes;
+using TutoriaApi.Web.API.Json;
 
 namespace TutoriaApi.Web.API.DTOs;
 
@@ -131,6 +132,9 @@ public class UpdateProfileRequest
     [MaxLength(100, ErrorMessage = "External ID cannot exceed 100 characters")]
     public string? ExternalId { get; set; }
 
+    // Tolerate an empty string from date pickers (an unset birthdate) so it binds as
+    // null instead of failing the whole request with a 400 validation error.
+    [JsonConverter(typeof(EmptyStringToNullDateTimeConverter))]
     public DateTime? Birthdate { get; set; }
 
     [MaxLength(20)]
