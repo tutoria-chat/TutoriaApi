@@ -117,6 +117,9 @@ public class TutoriaDbContext : DbContext
     public DbSet<EnemQuestion> EnemQuestions { get; set; }
     public DbSet<Semester> Semesters { get; set; }
 
+    // Per-institution keys for the external API (Moodle grading assistant plugin)
+    public DbSet<UniversityApiKey> UniversityApiKeys { get; set; }
+
     // LTI 1.3 (Tutoria acting as an LTI Advantage tool)
     public DbSet<LtiRegistration> LtiRegistrations { get; set; }
     public DbSet<LtiDeployment> LtiDeployments { get; set; }
@@ -1460,6 +1463,31 @@ public class TutoriaDbContext : DbContext
 
             // A platform is identified by (iss, client_id) — the pair must be unique.
             entity.HasIndex(e => new { e.Issuer, e.ClientId }).IsUnique();
+            entity.HasIndex(e => e.UniversityId);
+
+            entity.HasOne(e => e.University)
+                .WithMany()
+                .HasForeignKey(e => e.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UniversityApiKey>(entity =>
+        {
+            entity.ToTable("UniversityApiKeys");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UniversityId).HasColumnName("UniversityId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.KeyHash).HasColumnName("KeyHash").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.KeyPrefix).HasColumnName("KeyPrefix").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.CreatedByUserId).HasColumnName("CreatedByUserId");
+            entity.Property(e => e.LastUsedAt).HasColumnName("LastUsedAt");
+            entity.Property(e => e.RevokedAt).HasColumnName("RevokedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            // Keys are looked up by hash on every external API call.
+            entity.HasIndex(e => e.KeyHash).IsUnique();
             entity.HasIndex(e => e.UniversityId);
 
             entity.HasOne(e => e.University)
