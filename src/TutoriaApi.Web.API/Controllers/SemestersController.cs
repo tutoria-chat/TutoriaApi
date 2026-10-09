@@ -39,7 +39,7 @@ public class SemestersController : ControllerBase
     private bool CallerOwns(Semester s)
     {
         var caller = GetCallerUniversityId();
-        return caller == null || s.UniversityId == caller.Value;
+        return caller == null ? _currentUserService.GetCurrentUser().UserType == "super_admin" : s.UniversityId == caller.Value;
     }
 
     private static SemesterDto ToDto(Semester s) => new()

@@ -41,7 +41,7 @@ public class MajorsController : ControllerBase
     private bool CallerOwns(int universityId)
     {
         var caller = GetCallerUniversityId();
-        return caller == null || caller.Value == universityId;
+        return caller == null ? _currentUserService.GetCurrentUser().UserType == "super_admin" : caller.Value == universityId;
     }
 
     private static MajorDto ToDto(Major m) => new()

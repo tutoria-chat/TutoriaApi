@@ -68,7 +68,7 @@ public class StudentsController : ControllerBase
     private async Task<bool> CallerOwnsStudentAsync(int studentId)
     {
         var callerUniversityId = GetCallerUniversityId();
-        if (callerUniversityId == null) return true; // super admin
+        if (callerUniversityId == null) return _currentUserService.GetCurrentUser().UserType == "super_admin"; // only super admins are unscoped
 
         // Check 1: Does the student's UniversityId match?
         var student = await _dbContext.Users
@@ -95,7 +95,7 @@ public class StudentsController : ControllerBase
     private async Task<bool> CallerOwnsCourseAsync(int courseId)
     {
         var callerUniversityId = GetCallerUniversityId();
-        if (callerUniversityId == null) return true; // super admin
+        if (callerUniversityId == null) return _currentUserService.GetCurrentUser().UserType == "super_admin"; // only super admins are unscoped
 
         var course = await _courseRepository.GetByIdAsync(courseId);
         return course != null && course.UniversityId == callerUniversityId.Value;

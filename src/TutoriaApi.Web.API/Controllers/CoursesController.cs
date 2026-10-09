@@ -79,7 +79,7 @@ public class CoursesController : ControllerBase
     private async Task<bool> CallerOwnsCourseAsync(int courseId)
     {
         var callerUniversityId = GetCallerUniversityId();
-        if (callerUniversityId == null) return true;
+        if (callerUniversityId == null) return _currentUserService.GetCurrentUser().UserType == "super_admin";
 
         var course = await _courseRepository.GetByIdAsync(courseId);
         return course != null && course.UniversityId == callerUniversityId.Value;

@@ -58,7 +58,7 @@ public class ModulesController : ControllerBase
     private async Task<bool> CallerOwnsCourseAsync(int courseId)
     {
         var callerUniversityId = GetCallerUniversityId();
-        if (callerUniversityId == null) return true;
+        if (callerUniversityId == null) return _currentUserService.GetCurrentUser().UserType == "super_admin";
 
         var course = await _courseRepository.GetByIdAsync(courseId);
         return course != null && course.UniversityId == callerUniversityId.Value;
@@ -67,7 +67,7 @@ public class ModulesController : ControllerBase
     private async Task<bool> CallerOwnsModuleAsync(int moduleId)
     {
         var callerUniversityId = GetCallerUniversityId();
-        if (callerUniversityId == null) return true;
+        if (callerUniversityId == null) return _currentUserService.GetCurrentUser().UserType == "super_admin";
 
         var module = await _moduleRepository.GetByIdAsync(moduleId);
         if (module == null) return false;

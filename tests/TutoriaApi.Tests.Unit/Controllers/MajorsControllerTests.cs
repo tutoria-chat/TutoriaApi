@@ -29,6 +29,16 @@ public class MajorsControllerTests
             });
 
     [Fact]
+    public async Task GetMajors_UserWithoutUniversity_ReturnsNotFound()
+    {
+        // Self-registered users have no university; "unscoped" must only ever mean super admin.
+        SignInAs("professor", universityId: null);
+        var result = await _controller.GetMajors(universityId: 1);
+        Assert.IsType<NotFoundObjectResult>(result.Result);
+        _service.Verify(s => s.GetByUniversityAsync(It.IsAny<int>()), Times.Never);
+    }
+
+    [Fact]
     public async Task GetMajors_ManagerOfOtherUniversity_ReturnsNotFound()
     {
         SignInAs("manager", universityId: 2);
