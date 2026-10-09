@@ -45,6 +45,7 @@ public class AuthControllerUpdateProfileTests : IDisposable
             Mock.Of<IUserUniversityRepository>(),
             Mock.Of<IUserInvitationService>(),
             Mock.Of<IMajorService>(),
+            Mock.Of<IUserTokenService>(),
             Mock.Of<ILogger<AuthController>>());
 
         _controller.ControllerContext = new ControllerContext

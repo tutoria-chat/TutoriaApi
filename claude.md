@@ -809,6 +809,22 @@ This API handles:
 5. Chat messages are linked to Student record via `student_id`
 6. Professor sees analytics: "João Silva asked 15 questions about Chapter 3"
 
+### TutorIA Estudantes (B2C student app) — students who DO log in
+The rule above is about **institutional** students. The B2C app (mobile, repo `tutoria-student`) adds independent
+students who sign up and log in themselves:
+- They are `Users` (type `student`) of the **consumer University** (`University.IsConsumer`, code `TUTORIA-ESTUDANTES`,
+  seeded idempotently by `DbSeederService.SeedStudentAppTenantAsync`), enrolled in its `ENEM` course (one Module per
+  ENEM area) and, on the Universitário plan, in a personal Course whose Modules are their disciplines.
+- Everything lives under `api/student-app` (`StudentAppController`): register/login (token refresh = `/api/auth/refresh`),
+  profile, ENEM areas, guardian consent for minors (HTML page + `Consents` evidence), store age signal, agents
+  (`StudentAgents`), disciplines + uploads (S3 + SQS extraction, same pipeline as module files), devices, plans/billing
+  (RevenueCat → `StudentSubscriptions`), legal pages.
+- Plan rules live in `Core/Constants/StudentApp.cs` and are mirrored by the Python API (`tutoria-api`
+  `app/services/student_app/plans.py`) — keep them in sync. Errors use `StudentAppException` → `{ code, message }`.
+- Config section `StudentApp` (SSM `/tutoria/{env}/StudentApp/*`): `PublicApiUrl`, `RevenueCatSecretKey`,
+  `RevenueCatWebhookAuth`, `RevenueCatWebhookHmacSecret`, `BillingDevMode` (true only in dev), `ExpoAccessToken`,
+  `DpoEmail`, `CompanyName`, `CompanyCnpj`.
+
 ### Unified Users Table Strategy
 **Decision:** Use ONLY the `Users` table for all user types (student, professor, super_admin)
 

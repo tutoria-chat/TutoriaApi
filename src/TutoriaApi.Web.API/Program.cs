@@ -96,6 +96,13 @@ builder.Services.AddHttpClient();
 // Add HttpContextAccessor for CurrentUserService
 builder.Services.AddHttpContextAccessor();
 
+// TutorIA Estudantes (B2C student app)
+builder.Services.Configure<TutoriaApi.Core.Constants.StudentAppOptions>(
+    builder.Configuration.GetSection(TutoriaApi.Core.Constants.StudentAppOptions.SectionName));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHttpClient(nameof(TutoriaApi.Infrastructure.Services.StudentBillingService), c => c.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddHttpClient(nameof(TutoriaApi.Infrastructure.Services.StudentPushService), c => c.Timeout = TimeSpan.FromSeconds(15));
+
 builder.Services.AddEndpointsApiExplorer();
 
 // Add Health Checks
@@ -369,6 +376,11 @@ if (hangfireEnabled)
         "streak-saver-nudges",
         service => service.SendStreakSaversAsync(),
         Cron.Daily(1)); // 01:00 UTC = 22:00 America/Sao_Paulo: save streaks before midnight
+
+    RecurringJob.AddOrUpdate<IStudentPushService>(
+        "student-app-streak-reminders",
+        service => service.SendStreakRemindersAsync(),
+        Cron.Daily(22)); // 22:00 UTC = 19:00 America/Sao_Paulo: TutorIA Estudantes push nudge
 }
 
 // Log registered services on startup

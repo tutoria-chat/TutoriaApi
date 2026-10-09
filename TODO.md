@@ -316,3 +316,12 @@ Say NO to these (focus on core value):
 
 **Last Updated**: January 2026
 **Status**: Living document - update as priorities change
+
+
+## TutorIA Estudantes (B2C app) — owner config
+- [ ] SSM params for dev and prod: `StudentApp/PublicApiUrl` (public API URL, used in guardian emails),
+      `StudentApp/BillingDevMode` (dev: `true`; prod: `false`), and once RevenueCat is set up:
+      `StudentApp/RevenueCatSecretKey`, `StudentApp/RevenueCatWebhookAuth`, `StudentApp/RevenueCatWebhookHmacSecret`.
+- [ ] `StudentApp/DpoEmail`, `StudentApp/CompanyName`, `StudentApp/CompanyCnpj` (shown on the legal pages).
+- [ ] RevenueCat webhook → `https://<api>/api/student-app/billing/revenuecat/webhook`.
+- [ ] tutoria-ui: hide the consumer university (`IsConsumer`) from institutional lists/analytics if it gets noisy.

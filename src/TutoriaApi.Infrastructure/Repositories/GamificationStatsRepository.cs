@@ -112,6 +112,8 @@ public class GamificationStatsRepository : IGamificationStatsRepository
     {
         return await _context.StudentProgress
             .Where(p => p.LastActivityDate == lastActiveDate && p.CurrentStreakDays >= minStreak)
+            // TutorIA Estudantes (B2C) students get the app's push nudge instead of this email.
+            .Where(p => !_context.Users.Any(u => u.UserId == p.StudentId && u.University != null && u.University.IsConsumer))
             .Select(p => new StreakAtRiskRow { StudentId = p.StudentId, StreakDays = p.CurrentStreakDays })
             .ToListAsync();
     }

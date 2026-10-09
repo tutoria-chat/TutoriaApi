@@ -43,6 +43,12 @@ public class University : BaseEntity
     /// </summary>
     public string? AllowedOrigins { get; set; }
 
+    /// <summary>
+    /// True for the TutorIA Estudantes (B2C) tenant: independent students who sign
+    /// up in the app and pay per student. Institutional rules don't apply to it.
+    /// </summary>
+    public bool IsConsumer { get; set; }
+
     // Navigation properties
     public UniversityPersonalization? Personalization { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();

@@ -125,4 +125,10 @@ public interface IEmailService
     /// </summary>
     Task SendStreakSaverEmailAsync(
         string toEmail, string toName, int streakDays, string languageCode = "pt-br");
+
+    /// <summary>
+    /// TutorIA Estudantes: asks a minor's guardian to authorize the app (LGPD Art. 14 /
+    /// ECA Digital). <paramref name="consentLink"/> opens the API's consent page.
+    /// </summary>
+    Task SendGuardianConsentEmailAsync(string toEmail, string guardianName, string studentName, string consentLink);
 }

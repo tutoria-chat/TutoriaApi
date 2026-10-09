@@ -117,6 +117,16 @@ public class TutoriaDbContext : DbContext
     public DbSet<EnemQuestion> EnemQuestions { get; set; }
     public DbSet<Semester> Semesters { get; set; }
 
+    // TutorIA Estudantes (B2C student app)
+    public DbSet<StudentProfile> StudentProfiles { get; set; }
+    public DbSet<StudentSubscription> StudentSubscriptions { get; set; }
+    public DbSet<StudentBillingEvent> StudentBillingEvents { get; set; }
+    public DbSet<StudentAgent> StudentAgents { get; set; }
+    public DbSet<FlashcardDeck> FlashcardDecks { get; set; }
+    public DbSet<EssayReview> EssayReviews { get; set; }
+    public DbSet<DeviceToken> DeviceTokens { get; set; }
+    public DbSet<StudentDailyUsage> StudentDailyUsage { get; set; }
+
     // Per-institution keys for the external API (Moodle grading assistant plugin)
     public DbSet<UniversityApiKey> UniversityApiKeys { get; set; }
 
@@ -155,6 +165,7 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.MaxModules).HasColumnName("MaxModules");
             entity.Property(e => e.MaxStudents).HasColumnName("MaxStudents");
             entity.Property(e => e.AllowedOrigins).HasColumnName("AllowedOrigins");
+            entity.Property(e => e.IsConsumer).HasColumnName("IsConsumer").HasDefaultValue(false);
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -1171,6 +1182,13 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
+            entity.Property(e => e.DeckId).HasColumnName("DeckId");
+            entity.HasIndex(e => e.DeckId);
+            entity.HasOne<FlashcardDeck>()
+                .WithMany()
+                .HasForeignKey(e => e.DeckId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasIndex(e => new { e.ModuleId, e.IsActive });
 
             entity.HasOne(e => e.Module)
@@ -1578,6 +1596,159 @@ public class TutoriaDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        ConfigureStudentApp(modelBuilder);
+    }
+
+    /// <summary>TutorIA Estudantes (B2C student app) tables.</summary>
+    private static void ConfigureStudentApp(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<StudentProfile>(entity =>
+        {
+            entity.ToTable("StudentProfiles");
+            entity.HasKey(e => e.UserId);
+            entity.Property(e => e.UserId).HasColumnName("UserId").ValueGeneratedNever();
+            entity.Property(e => e.Track).HasColumnName("Track").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.GoalCourse).HasColumnName("GoalCourse").HasMaxLength(80);
+            entity.Property(e => e.EnemYear).HasColumnName("EnemYear");
+            entity.Property(e => e.UniversityName).HasColumnName("UniversityName").HasMaxLength(120);
+            entity.Property(e => e.Major).HasColumnName("Major").HasMaxLength(80);
+            entity.Property(e => e.Semester).HasColumnName("Semester");
+            entity.Property(e => e.PersonalCourseId).HasColumnName("PersonalCourseId");
+            entity.Property(e => e.SelectedAreas).HasColumnName("SelectedAreas").HasMaxLength(100);
+            entity.Property(e => e.AreasChangedPeriodStart).HasColumnName("AreasChangedPeriodStart");
+            entity.Property(e => e.GuardianStatus).HasColumnName("GuardianStatus").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.GuardianName).HasColumnName("GuardianName").HasMaxLength(80);
+            entity.Property(e => e.GuardianEmail).HasColumnName("GuardianEmail").HasMaxLength(254);
+            entity.Property(e => e.GuardianTokenHash).HasColumnName("GuardianTokenHash").HasMaxLength(64);
+            entity.Property(e => e.GuardianRequestedAt).HasColumnName("GuardianRequestedAt");
+            entity.Property(e => e.GuardianDecidedAt).HasColumnName("GuardianDecidedAt");
+            entity.Property(e => e.AgeSignalLower).HasColumnName("AgeSignalLower");
+            entity.Property(e => e.AgeSignalUpper).HasColumnName("AgeSignalUpper");
+            entity.Property(e => e.AgeSignalSource).HasColumnName("AgeSignalSource").HasMaxLength(30);
+            entity.Property(e => e.AgeSignalAt).HasColumnName("AgeSignalAt");
+            entity.Property(e => e.NotifyStreak).HasColumnName("NotifyStreak").HasDefaultValue(true);
+            entity.Property(e => e.NotifyUpdates).HasColumnName("NotifyUpdates").HasDefaultValue(true);
+            entity.Property(e => e.LastStreakReminder).HasColumnName("LastStreakReminder");
+            entity.Property(e => e.TermsAcceptedAt).HasColumnName("TermsAcceptedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.GuardianTokenHash);
+            entity.HasOne<User>().WithOne().HasForeignKey<StudentProfile>(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Course>().WithMany().HasForeignKey(e => e.PersonalCourseId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<StudentSubscription>(entity =>
+        {
+            entity.ToTable("StudentSubscriptions");
+            entity.HasKey(e => e.UserId);
+            entity.Property(e => e.UserId).HasColumnName("UserId").ValueGeneratedNever();
+            entity.Property(e => e.Plan).HasColumnName("Plan").HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Source).HasColumnName("Source").HasMaxLength(20);
+            entity.Property(e => e.PeriodStart).HasColumnName("PeriodStart");
+            entity.Property(e => e.PeriodEnd).HasColumnName("PeriodEnd");
+            entity.Property(e => e.WillRenew).HasColumnName("WillRenew");
+            entity.Property(e => e.BillingIssue).HasColumnName("BillingIssue").HasDefaultValue(false);
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasOne<User>().WithOne().HasForeignKey<StudentSubscription>(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StudentBillingEvent>(entity =>
+        {
+            entity.ToTable("StudentBillingEvents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.EventId).HasColumnName("EventId").HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Type).HasColumnName("Type").HasMaxLength(40);
+            entity.Property(e => e.AppUserId).HasColumnName("AppUserId").HasMaxLength(100);
+            entity.Property(e => e.Environment).HasColumnName("Environment").HasMaxLength(20);
+            entity.Property(e => e.Payload).HasColumnName("Payload");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.EventId).IsUnique();
+        });
+
+        modelBuilder.Entity<StudentAgent>(entity =>
+        {
+            entity.ToTable("StudentAgents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Name).HasColumnName("Name").HasMaxLength(40).IsRequired();
+            entity.Property(e => e.Avatar).HasColumnName("Avatar").HasMaxLength(20);
+            entity.Property(e => e.Tone).HasColumnName("Tone").HasMaxLength(20);
+            entity.Property(e => e.Instructions).HasColumnName("Instructions");
+            entity.Property(e => e.IsDefault).HasColumnName("IsDefault");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.UserId);
+            entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Module).WithMany().HasForeignKey(e => e.ModuleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FlashcardDeck>(entity =>
+        {
+            entity.ToTable("FlashcardDecks");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId");
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Title).HasColumnName("Title").HasMaxLength(80).IsRequired();
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.StudentId);
+            entity.HasOne<User>().WithMany().HasForeignKey(e => e.StudentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Module).WithMany().HasForeignKey(e => e.ModuleId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EssayReview>(entity =>
+        {
+            entity.ToTable("EssayReviews");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.Theme).HasColumnName("Theme").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Text).HasColumnName("Text");
+            entity.Property(e => e.Source).HasColumnName("Source").HasMaxLength(10);
+            entity.Property(e => e.Status).HasColumnName("Status").HasMaxLength(12);
+            entity.Property(e => e.ResultJson).HasColumnName("ResultJson");
+            entity.Property(e => e.Error).HasColumnName("Error").HasMaxLength(200);
+            entity.Property(e => e.CompletedAt).HasColumnName("CompletedAt");
+            entity.Property(e => e.DeletedAt).HasColumnName("DeletedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+            entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceToken>(entity =>
+        {
+            entity.ToTable("DeviceTokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.Token).HasColumnName("Token").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Platform).HasColumnName("Platform").HasMaxLength(10);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<StudentDailyUsage>(entity =>
+        {
+            entity.ToTable("StudentDailyUsage");
+            entity.HasKey(e => new { e.UserId, e.Day });
+            entity.Property(e => e.UserId).HasColumnName("UserId");
+            entity.Property(e => e.Day).HasColumnName("Day");
+            entity.Property(e => e.Messages).HasColumnName("Messages");
+            entity.Property(e => e.Transcriptions).HasColumnName("Transcriptions");
+            entity.Property(e => e.Decks).HasColumnName("Decks");
+            entity.Property(e => e.Uploads).HasColumnName("Uploads");
+            entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

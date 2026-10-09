@@ -41,6 +41,7 @@ public class AuthController : ControllerBase
     private readonly IUserUniversityRepository _userUniversityRepository;
     private readonly IUserInvitationService _userInvitationService;
     private readonly IMajorService _majorService;
+    private readonly IUserTokenService _userTokenService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
@@ -57,8 +58,10 @@ public class AuthController : ControllerBase
         IUserUniversityRepository userUniversityRepository,
         IUserInvitationService userInvitationService,
         IMajorService majorService,
+        IUserTokenService userTokenService,
         ILogger<AuthController> logger)
     {
+        _userTokenService = userTokenService;
         _apiClientRepository = apiClientRepository;
         _userRepository = userRepository;
         _jwtService = jwtService;
@@ -1738,48 +1741,6 @@ public class AuthController : ControllerBase
     /// Includes both .NET standard ClaimTypes (for .NET consumers) and simple-named
     /// claims (for cross-platform consumers like tutoria-app).
     /// </summary>
-    private async Task<Dictionary<string, string>> BuildUserClaims(User user)
-    {
-        var claims = new Dictionary<string, string>
-        {
-            // Simple-named claims for cross-platform JWT decoding (tutoria-app, widget)
-            ["user_id"] = user.UserId.ToString(),
-            ["username"] = user.Username,
-            ["user_type"] = user.UserType,
-        };
-
-        // Name claims — both simple and .NET standard
-        if (!string.IsNullOrEmpty(user.FirstName))
-        {
-            claims["first_name"] = user.FirstName;
-            claims[ClaimTypes.GivenName] = user.FirstName;
-        }
-        if (!string.IsNullOrEmpty(user.LastName))
-        {
-            claims["last_name"] = user.LastName;
-            claims[ClaimTypes.Surname] = user.LastName;
-        }
-        if (!string.IsNullOrEmpty(user.Email))
-        {
-            claims[ClaimTypes.Email] = user.Email;
-        }
-
-        // Role-specific claims
-        if (user.IsAdmin.HasValue)
-        {
-            claims["isAdmin"] = user.IsAdmin.Value.ToString().ToLower();
-        }
-        if (user.UniversityId.HasValue)
-        {
-            claims["UniversityId"] = user.UniversityId.Value.ToString();
-        }
-
-        // Permissions claim — effective permissions (role defaults + user extras)
-        var effectivePermissions = await _permissionService.GetUserEffectivePermissionsAsync(user.UserId, user.UserType);
-        claims["permissions"] = JsonSerializer.Serialize(
-            effectivePermissions.Select(p => p.Code).ToList()
-        );
-
-        return claims;
-    }
+    /// <summary>Claims for a user's tokens — shared with the student app via IUserTokenService.</summary>
+    private Task<Dictionary<string, string>> BuildUserClaims(User user) => _userTokenService.BuildClaimsAsync(user);
 }

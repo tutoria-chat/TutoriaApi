@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
+using TutoriaApi.Core.Enums;
 using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Services;
@@ -104,6 +106,8 @@ public class DbSeederService
                 ON CONFLICT (""ClientId"") DO NOTHING;
             ");
 
+            await SeedStudentAppTenantAsync();
+
             _logger.LogInformation("[Seed] Essential data verified.");
         }
         catch (Exception ex)
@@ -112,6 +116,84 @@ public class DbSeederService
             throw;
         }
     }
+
+    /// <summary>
+    /// TutorIA Estudantes (B2C app) tenant: one consumer University, an "ENEM"
+    /// course and one module per ENEM area. Independent students are enrolled in
+    /// it, so the regular widget pipeline (chat, ENEM, flashcards, gamification)
+    /// serves them. Idempotent — looked up by codes.
+    /// </summary>
+    public async Task SeedStudentAppTenantAsync()
+    {
+        var university = await _context.Universities.FirstOrDefaultAsync(u => u.Code == StudentApp.ConsumerUniversityCode);
+        if (university == null)
+        {
+            university = new University
+            {
+                Name = "TutorIA Estudantes",
+                Code = StudentApp.ConsumerUniversityCode,
+                Description = "Estudantes independentes do app TutorIA Estudantes (B2C).",
+                IsConsumer = true,
+                IsEnterprise = true, // no institutional plan limits
+                Country = "BR",
+            };
+            _context.Universities.Add(university);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("[Seed] Created consumer university {Id}", university.Id);
+        }
+        else if (!university.IsConsumer)
+        {
+            university.IsConsumer = true;
+            await _context.SaveChangesAsync();
+        }
+
+        var course = await _context.Courses.FirstOrDefaultAsync(c => c.UniversityId == university.Id && c.Code == StudentApp.EnemCourseCode);
+        if (course == null)
+        {
+            course = new Course
+            {
+                Name = "ENEM",
+                Code = StudentApp.EnemCourseCode,
+                Description = "Preparação para o ENEM — uma área por módulo.",
+                UniversityId = university.Id,
+                EnableEnem = true,
+            };
+            _context.Courses.Add(course);
+            await _context.SaveChangesAsync();
+        }
+
+        var existing = await _context.Modules.Where(m => m.CourseId == course.Id).Select(m => m.Code).ToListAsync();
+        foreach (var (area, code) in StudentApp.AreaModuleCodes)
+        {
+            if (existing.Contains(code)) continue;
+            _context.Modules.Add(new Module
+            {
+                Name = StudentApp.AreaLabels[area],
+                Code = code,
+                Description = EnemAreaScope[area],
+                SystemPrompt = EnemAreaPrompt(area),
+                CourseId = course.Id,
+                TutorLanguage = "pt-br",
+                CourseType = area == "matematica" ? CourseType.MathLogic : CourseType.TheoryText,
+                IsActive = true,
+            });
+        }
+        await _context.SaveChangesAsync();
+    }
+
+    private static readonly Dictionary<string, string> EnemAreaScope = new()
+    {
+        ["linguagens"] = "Língua Portuguesa, Literatura, interpretação de texto, Artes, Educação Física, TICs e língua estrangeira (Inglês/Espanhol).",
+        ["humanas"] = "História, Geografia, Filosofia e Sociologia.",
+        ["natureza"] = "Física, Química e Biologia.",
+        ["matematica"] = "Matemática: aritmética, álgebra, geometria, estatística, probabilidade e funções.",
+    };
+
+    private static string EnemAreaPrompt(string area) =>
+        $"Você ajuda estudantes a se prepararem para o ENEM na área de {StudentApp.AreaLabels[area]} ({EnemAreaScope[area]}). " +
+        "Explique conceitos com clareza, resolva questões passo a passo, mostre como o ENEM cobra cada assunto e sugira " +
+        "como praticar. Use linguagem adequada a adolescentes e jovens. Se o estudante perguntar sobre outra área, " +
+        "responda brevemente e sugira usar o agente daquela área.";
 
     public async Task SeedApiClientsAsync()
     {

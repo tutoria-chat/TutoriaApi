@@ -23,4 +23,7 @@ public class Flashcard : BaseEntity
     public string Source { get; set; } = "ai_generated";
 
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Set for cards of a student's own deck (B2C app); null = module-wide card.</summary>
+    public int? DeckId { get; set; }
 }

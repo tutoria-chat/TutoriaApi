@@ -561,6 +561,49 @@ public class ResendEmailService : IEmailService
         _ => "Evento",
     };
 
+    public async Task SendGuardianConsentEmailAsync(string toEmail, string guardianName, string studentName, string consentLink)
+    {
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+
+        if (!_isEnabled)
+        {
+            // Local/dev without Resend: the link must still be reachable for testing.
+            _logger.LogWarning("Email service is disabled. Guardian consent link for {Email}: {Link}", toEmail, consentLink);
+            return;
+        }
+
+        var g = WebUtility.HtmlEncode(guardianName);
+        var s = WebUtility.HtmlEncode(studentName);
+        var link = WebUtility.HtmlEncode(consentLink);
+        var subject = $"{studentName} pediu sua autorização para usar o TutorIA Estudantes";
+        var html = $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""UTF-8""></head>
+<body style=""margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;"">
+  <div style=""max-width:560px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;"">
+    <div style=""background:linear-gradient(90deg,#5e17eb,#5ce1e6);padding:20px 28px;"">
+      <p style=""margin:0;color:#ffffff;font-size:20px;font-weight:bold;"">TutorIA Estudantes</p>
+    </div>
+    <div style=""padding:28px;color:#1a1a1a;line-height:1.55;"">
+      <p>Olá, {g}!</p>
+      <p><b>{s}</b> criou uma conta no <b>TutorIA Estudantes</b>, um app de estudos com inteligência artificial,
+      e indicou você como responsável.</p>
+      <p>Como é menor de 18 anos, precisamos da sua autorização antes de liberar o app. Na página abaixo você vê
+      quais dados tratamos e pode autorizar ou recusar.</p>
+      <p style=""text-align:center;margin:28px 0;"">
+        <a href=""{link}"" style=""background:#5e17eb;color:#ffffff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold;"">Ver e decidir</a>
+      </p>
+      <p style=""font-size:13px;color:#666;"">O link vale por 7 dias. Se você não conhece esse pedido, ignore este e-mail.</p>
+    </div>
+  </div>
+</body>
+</html>";
+        var text = $"{studentName} pediu sua autorização para usar o TutorIA Estudantes. Decida aqui: {consentLink}";
+        await SendEmailAsync(toEmail, subject, html, text);
+    }
+
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody, string textBody)
     {
         if (_resendClient == null)
