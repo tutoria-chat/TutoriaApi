@@ -22,7 +22,7 @@ public class CourseRepository : Repository<Course>, ICourseRepository
     public async Task<IEnumerable<Course>> GetByUniversityIdAsync(int universityId)
     {
         return await _dbSet
-            .Where(c => c.UniversityId == universityId)
+            .Where(c => c.UniversityId == universityId && c.DeletedAt == null)
             .ToListAsync();
     }
 
@@ -33,7 +33,8 @@ public class CourseRepository : Repository<Course>, ICourseRepository
         int page,
         int pageSize)
     {
-        var query = _dbSet.AsQueryable();
+        // Soft-deleted courses are gone from every list; inactive ones stay (greyed out in the UI).
+        var query = _dbSet.Where(c => c.DeletedAt == null);
 
         if (universityId.HasValue)
         {
@@ -64,7 +65,8 @@ public class CourseRepository : Repository<Course>, ICourseRepository
 
     public async Task<bool> ExistsByCodeAndUniversityAsync(string code, int universityId)
     {
-        return await _dbSet.AnyAsync(c => c.Code == code && c.UniversityId == universityId);
+        // A removed (soft-deleted) course's code can be reused.
+        return await _dbSet.AnyAsync(c => c.Code == code && c.UniversityId == universityId && c.DeletedAt == null);
     }
 
     public async Task<Course?> GetByExternalCourseIdAsync(int externalCourseId, int universityId)

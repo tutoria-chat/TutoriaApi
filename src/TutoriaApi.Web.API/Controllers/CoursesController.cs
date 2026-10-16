@@ -150,6 +150,8 @@ public class CoursesController : ControllerBase
                 TitleTracks = vm.Course.TitleTracks,
                 EnableEnem = vm.Course.EnableEnem,
                 EnemArea = vm.Course.EnemArea,
+                DurationMonths = vm.Course.DurationMonths,
+                DeactivatedAt = vm.Course.DeactivatedAt,
                 ModulesCount = vm.ModulesCount,
                 ProfessorsCount = vm.ProfessorsCount,
                 StudentsCount = vm.StudentsCount,
@@ -186,7 +188,8 @@ public class CoursesController : ControllerBase
 
             var viewModel = await _courseService.GetCourseWithFullDetailsAsync(id);
 
-            if (viewModel == null)
+            // Removed from the list (soft delete) = gone for the dashboard.
+            if (viewModel == null || viewModel.Course.DeletedAt != null)
             {
                 return NotFound(new { message = "Course not found" });
             }
@@ -208,6 +211,8 @@ public class CoursesController : ControllerBase
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
                 EnemArea = viewModel.Course.EnemArea,
+                DurationMonths = viewModel.Course.DurationMonths,
+                DeactivatedAt = viewModel.Course.DeactivatedAt,
                 University = viewModel.University != null ? new UniversityDto
                 {
                     Id = viewModel.University.Id,
@@ -307,7 +312,9 @@ public class CoursesController : ControllerBase
                 ExternalCourseId = request.ExternalCourseId,
                 TitleTracks = string.IsNullOrWhiteSpace(request.TitleTracks) ? null : request.TitleTracks.Trim(),
                 EnableEnem = request.EnableEnem,
-                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim()
+                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim(),
+                DurationMonths = request.DurationMonths,
+                DurationSetAt = request.DurationMonths.HasValue ? DateTime.UtcNow : null
             };
 
             var created = await _courseService.CreateAsync(course, _currentUserService.GetCurrentUser());
@@ -336,6 +343,8 @@ public class CoursesController : ControllerBase
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
                 EnemArea = viewModel.Course.EnemArea,
+                DurationMonths = viewModel.Course.DurationMonths,
+                DeactivatedAt = viewModel.Course.DeactivatedAt,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,
@@ -387,7 +396,9 @@ public class CoursesController : ControllerBase
                 // Raw passthrough: null = leave unchanged, "" = clear (auto-detect), "math,.." = set
                 TitleTracks = request.TitleTracks,
                 EnableEnem = request.EnableEnem,
-                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim()
+                EnemArea = string.IsNullOrWhiteSpace(request.EnemArea) ? null : request.EnemArea.Trim(),
+                // null = leave unchanged
+                DurationMonths = request.DurationMonths
             };
 
             var viewModel = await _courseService.UpdateAsync(id, course, _currentUserService.GetCurrentUser());
@@ -413,6 +424,8 @@ public class CoursesController : ControllerBase
                 TitleTracks = viewModel.Course.TitleTracks,
                 EnableEnem = viewModel.Course.EnableEnem,
                 EnemArea = viewModel.Course.EnemArea,
+                DurationMonths = viewModel.Course.DurationMonths,
+                DeactivatedAt = viewModel.Course.DeactivatedAt,
                 ModulesCount = viewModel.ModulesCount,
                 ProfessorsCount = viewModel.ProfessorsCount,
                 StudentsCount = viewModel.StudentsCount,

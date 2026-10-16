@@ -14,6 +14,8 @@ public class CourseDetailDto
     public string? TitleTracks { get; set; }
     public bool EnableEnem { get; set; }
     public string? EnemArea { get; set; }
+    public int? DurationMonths { get; set; }
+    public DateTime? DeactivatedAt { get; set; }
     public int ModulesCount { get; set; }
     public int ProfessorsCount { get; set; }
     public int StudentsCount { get; set; }
@@ -49,6 +51,11 @@ public class CourseCreateRequest
 
     /// <summary>Ids of the Majors (graduações) this course belongs to.</summary>
     public List<int>? MajorIds { get; set; }
+
+    /// <summary>How long each class keeps the course (1–24 months). Counts from the first
+    /// student; students are removed 7 days after it ends. Null = no auto-removal.</summary>
+    [Range(1, 24, ErrorMessage = "Duration must be between 1 and 24 months")]
+    public int? DurationMonths { get; set; }
 }
 
 public class CourseUpdateRequest
@@ -73,6 +80,10 @@ public class CourseUpdateRequest
 
     /// <summary>Ids of the Majors this course belongs to. Null = leave unchanged.</summary>
     public List<int>? MajorIds { get; set; }
+
+    /// <summary>Course duration in months (1–24). Null = leave unchanged.</summary>
+    [Range(1, 24, ErrorMessage = "Duration must be between 1 and 24 months")]
+    public int? DurationMonths { get; set; }
 }
 
 public class CourseWithDetailsDto
@@ -87,6 +98,8 @@ public class CourseWithDetailsDto
     public string? TitleTracks { get; set; }
     public bool EnableEnem { get; set; }
     public string? EnemArea { get; set; }
+    public int? DurationMonths { get; set; }
+    public DateTime? DeactivatedAt { get; set; }
     public UniversityDto? University { get; set; }
     public List<ModuleDto> Modules { get; set; } = new();
     public List<StudentDto> Students { get; set; } = new();

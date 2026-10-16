@@ -729,6 +729,18 @@ namespace TutoriaApi.Infrastructure.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("AutoRemovalExtensionDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("AutoRemovalExtensionDays");
+
+                    b.Property<bool>("AutoRemovalPaused")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("AutoRemovalPaused");
+
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -739,9 +751,25 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("CreatedAt");
 
+                    b.Property<DateTime?>("DeactivatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DeactivatedAt");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DeletedAt");
+
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("Description");
+
+                    b.Property<int?>("DurationMonths")
+                        .HasColumnType("integer")
+                        .HasColumnName("DurationMonths");
+
+                    b.Property<DateTime?>("DurationSetAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DurationSetAt");
 
                     b.Property<bool>("EnableEnem")
                         .ValueGeneratedOnAdd()
@@ -758,11 +786,19 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ExternalCourseId");
 
+                    b.Property<DateTime?>("LifecycleStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LifecycleStartedAt");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("Name");
+
+                    b.Property<DateTime?>("StudentsRemovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("StudentsRemovedAt");
 
                     b.Property<string>("TitleTracks")
                         .HasMaxLength(200)
@@ -911,6 +947,49 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("CourseEventReminderLogs", (string)null);
+                });
+
+            modelBuilder.Entity("TutoriaApi.Core.Entities.CourseLifecycleNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("Id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseId");
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("Key");
+
+                    b.Property<int>("RecipientsCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("RecipientsCount");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("SentAt");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "Key")
+                        .IsUnique();
+
+                    b.ToTable("CourseLifecycleNotifications", (string)null);
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.CourseMajor", b =>
@@ -4395,6 +4474,17 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("CourseEvent");
+                });
+
+            modelBuilder.Entity("TutoriaApi.Core.Entities.CourseLifecycleNotification", b =>
+                {
+                    b.HasOne("TutoriaApi.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.CourseMajor", b =>

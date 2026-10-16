@@ -221,6 +221,15 @@ public class CourseService : ICourseService
             existing.EnemArea = course.EnemArea;
         }
 
+        // Duration: null = keep. Setting it for the first time starts the "never
+        // before now" floor, so an old course with students doesn't expire at once.
+        if (course.DurationMonths.HasValue && course.DurationMonths != existing.DurationMonths)
+        {
+            changes["DurationMonths"] = (existing.DurationMonths, course.DurationMonths);
+            existing.DurationSetAt ??= DateTime.UtcNow;
+            existing.DurationMonths = course.DurationMonths;
+        }
+
         await _courseRepository.UpdateAsync(existing);
 
         // Audit log: Only log if there were actual changes

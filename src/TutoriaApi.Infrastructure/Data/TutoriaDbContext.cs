@@ -106,6 +106,7 @@ public class TutoriaDbContext : DbContext
     public DbSet<GradingJob> GradingJobs { get; set; }
     public DbSet<CourseEvent> CourseEvents { get; set; }
     public DbSet<CourseEventReminderLog> CourseEventReminderLogs { get; set; }
+    public DbSet<CourseLifecycleNotification> CourseLifecycleNotifications { get; set; }
     public DbSet<DailyAISummary> DailyAISummaries { get; set; }
     public DbSet<StudyPlan> StudyPlans { get; set; }
     public DbSet<Flashcard> Flashcards { get; set; }
@@ -187,6 +188,14 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.TitleTracks).HasColumnName("TitleTracks").HasMaxLength(200);
             entity.Property(e => e.EnableEnem).HasColumnName("EnableEnem").HasDefaultValue(false);
             entity.Property(e => e.EnemArea).HasColumnName("EnemArea").HasMaxLength(20);
+            entity.Property(e => e.DurationMonths).HasColumnName("DurationMonths");
+            entity.Property(e => e.DurationSetAt).HasColumnName("DurationSetAt");
+            entity.Property(e => e.LifecycleStartedAt).HasColumnName("LifecycleStartedAt");
+            entity.Property(e => e.AutoRemovalExtensionDays).HasColumnName("AutoRemovalExtensionDays").HasDefaultValue(0);
+            entity.Property(e => e.AutoRemovalPaused).HasColumnName("AutoRemovalPaused").HasDefaultValue(false);
+            entity.Property(e => e.StudentsRemovedAt).HasColumnName("StudentsRemovedAt");
+            entity.Property(e => e.DeactivatedAt).HasColumnName("DeactivatedAt");
+            entity.Property(e => e.DeletedAt).HasColumnName("DeletedAt");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -1090,6 +1099,27 @@ public class TutoriaDbContext : DbContext
             entity.HasOne(e => e.Assignment)
                 .WithMany()
                 .HasForeignKey(e => e.AssignmentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // CourseLifecycleNotification configuration (daily lifecycle job dedupe)
+        modelBuilder.Entity<CourseLifecycleNotification>(entity =>
+        {
+            entity.ToTable("CourseLifecycleNotifications");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id");
+            entity.Property(e => e.CourseId).HasColumnName("CourseId");
+            entity.Property(e => e.Key).HasColumnName("Key").HasMaxLength(40).IsRequired();
+            entity.Property(e => e.SentAt).HasColumnName("SentAt");
+            entity.Property(e => e.RecipientsCount).HasColumnName("RecipientsCount");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
+            entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+
+            entity.HasIndex(e => new { e.CourseId, e.Key }).IsUnique();
+
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

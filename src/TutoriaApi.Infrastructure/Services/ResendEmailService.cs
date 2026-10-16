@@ -359,6 +359,134 @@ public class ResendEmailService : IEmailService
         await SendEmailAsync(toEmail, subject, html, text);
     }
 
+    public async Task SendCourseUnusedAlertEmailAsync(
+        string toEmail, string toName, int courseId, string courseName, string languageCode = "pt-br")
+    {
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping unused-course alert to {Email}", toEmail);
+            return;
+        }
+
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(toName) ? "Professor(a)" : toName);
+        var safeCourse = WebUtility.HtmlEncode(courseName);
+        var courseUrl = $"{_frontendUrl}/courses/{courseId}";
+
+        var (subject, intro, body, action, cta, footer) = languageCode.ToLower() switch
+        {
+            "en" => (
+                $"{courseName} still has no students",
+                $"Hi {safeName}! The course <strong>{safeCourse}</strong> has had an access key for more than 3 days, but no students are registered yet.",
+                "If the course is going to be used, add the students (or import the spreadsheet) on the course page.",
+                "If it isn't being used, click <strong>“Course not in use”</strong> on the course page — these alerts stop right away.",
+                "Open the course",
+                "You get this alert once a day because you are a professor of this course in TutorIA."),
+            "es" => (
+                $"{courseName} todavía no tiene estudiantes",
+                $"¡Hola {safeName}! El curso <strong>{safeCourse}</strong> tiene una clave de acceso desde hace más de 3 días, pero todavía no hay estudiantes registrados.",
+                "Si el curso se va a usar, registra a los estudiantes (o importa la planilla) en la página del curso.",
+                "Si no se está usando, haz clic en <strong>“Curso sin uso”</strong> en la página del curso — estos avisos se detienen de inmediato.",
+                "Abrir el curso",
+                "Recibes este aviso una vez al día porque eres profesor(a) de este curso en TutorIA."),
+            _ => (
+                $"A disciplina {courseName} ainda não tem estudantes",
+                $"Olá, {safeName}! A disciplina <strong>{safeCourse}</strong> tem uma chave de acesso há mais de 3 dias, mas nenhum estudante foi cadastrado ainda.",
+                "Se a disciplina vai ser usada, cadastre os estudantes (ou importe a planilha) na página da disciplina.",
+                "Se ela não está sendo usada, clique em <strong>“Disciplina não está em uso”</strong> na página da disciplina — os avisos param na hora.",
+                "Abrir a disciplina",
+                "Você recebe este aviso uma vez por dia porque é professor(a) desta disciplina na TutorIA."),
+        };
+
+        var html = LifecycleEmailHtml(intro, $"<p style=\"margin:0 0 8px 0;\">{body}</p><p style=\"margin:0;\">{action}</p>", cta, courseUrl, footer);
+        var text = $"{StripTags(intro)}\n\n{StripTags(body)}\n{StripTags(action)}\n\n{cta}: {courseUrl}\n\n{footer}";
+
+        await SendEmailAsync(toEmail, subject, html, text);
+    }
+
+    public async Task SendCourseRemovalWarningEmailAsync(
+        string toEmail, string toName, int courseId, string courseName, int studentsCount,
+        string removalDateFormatted, string languageCode = "pt-br")
+    {
+        if (string.IsNullOrWhiteSpace(toEmail))
+            throw new ArgumentException("Email address cannot be null or empty.", nameof(toEmail));
+
+        if (!_isEnabled)
+        {
+            _logger.LogWarning("Email service is disabled. Skipping removal warning to {Email}", toEmail);
+            return;
+        }
+
+        var safeName = WebUtility.HtmlEncode(string.IsNullOrWhiteSpace(toName) ? "Professor(a)" : toName);
+        var safeCourse = WebUtility.HtmlEncode(courseName);
+        var safeDate = WebUtility.HtmlEncode(removalDateFormatted);
+        var courseUrl = $"{_frontendUrl}/courses/{courseId}";
+
+        var (subject, intro, what, keep, options, cta, footer) = languageCode.ToLower() switch
+        {
+            "en" => (
+                $"In 7 days: students of {courseName} will be removed",
+                $"Hi {safeName}! The time set for <strong>{safeCourse}</strong> is over. On <strong>{safeDate}</strong>, its {studentsCount} registered student(s) will be removed from the course automatically.",
+                "What happens: the students leave this course only — their accounts and other courses stay.",
+                "The course, its modules and materials stay. The clock restarts when the next class is registered.",
+                "Need more time? On the course page you can hold removal for 7 more days or pause it.",
+                "Open the course",
+                "You get this notice because you are a professor of this course in TutorIA."),
+            "es" => (
+                $"En 7 días: los estudiantes de {courseName} serán retirados",
+                $"¡Hola {safeName}! El plazo de <strong>{safeCourse}</strong> terminó. El <strong>{safeDate}</strong>, sus {studentsCount} estudiante(s) registrado(s) serán retirados del curso automáticamente.",
+                "Qué pasa: los estudiantes salen solo de este curso — sus cuentas y otros cursos se mantienen.",
+                "El curso, sus módulos y materiales se mantienen. El plazo vuelve a contar cuando se registre el próximo grupo.",
+                "¿Necesitas más tiempo? En la página del curso puedes aplazar 7 días más o pausar la eliminación.",
+                "Abrir el curso",
+                "Recibes este aviso porque eres profesor(a) de este curso en TutorIA."),
+            _ => (
+                $"Em 7 dias: os estudantes de {courseName} serão removidos",
+                $"Olá, {safeName}! O prazo da disciplina <strong>{safeCourse}</strong> terminou. Em <strong>{safeDate}</strong>, os {studentsCount} estudante(s) cadastrado(s) serão removidos da disciplina automaticamente.",
+                "O que acontece: os estudantes saem só desta disciplina — as contas e as outras disciplinas deles continuam.",
+                "A disciplina, os módulos e os materiais continuam. O prazo recomeça quando a próxima turma for cadastrada.",
+                "Precisa de mais tempo? Na página da disciplina você pode adiar por mais 7 dias ou pausar a remoção.",
+                "Abrir a disciplina",
+                "Você recebe este aviso porque é professor(a) desta disciplina na TutorIA."),
+        };
+
+        var html = LifecycleEmailHtml(intro,
+            $"<p style=\"margin:0 0 8px 0;\">{what}</p><p style=\"margin:0 0 8px 0;\">{keep}</p><p style=\"margin:0;\"><strong>{options}</strong></p>",
+            cta, courseUrl, footer);
+        var text = $"{StripTags(intro)}\n\n{what}\n{keep}\n{options}\n\n{cta}: {courseUrl}\n\n{footer}";
+
+        await SendEmailAsync(toEmail, subject, html, text);
+    }
+
+    /// <summary>Shared layout of the course-lifecycle emails (same look as the event reminders).</summary>
+    private static string LifecycleEmailHtml(string introHtml, string boxHtml, string cta, string url, string footer) => $@"
+<!DOCTYPE html>
+<html>
+<head><meta charset=""UTF-8""></head>
+<body style=""margin:0;padding:0;background:#f4f4f4;font-family:Arial,Helvetica,sans-serif;"">
+  <div style=""max-width:560px;margin:24px auto;background:#ffffff;border-radius:12px;overflow:hidden;"">
+    <div style=""background:linear-gradient(90deg,#5e17eb,#5ce1e6);padding:20px 28px;"">
+      <p style=""margin:0;color:#ffffff;font-size:20px;font-weight:bold;"">TutorIA</p>
+    </div>
+    <div style=""padding:28px;"">
+      <p style=""font-size:15px;color:#333333;line-height:1.5;"">{introHtml}</p>
+      <div style=""border-left:4px solid #5e17eb;background:#f8f6ff;border-radius:8px;padding:16px 20px;margin:16px 0;font-size:14px;color:#333333;line-height:1.5;"">
+        {boxHtml}
+      </div>
+      <p style=""text-align:center;margin:24px 0;"">
+        <a href=""{WebUtility.HtmlEncode(url)}"" style=""display:inline-block;padding:12px 28px;background:#5e17eb;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px;"">{cta}</a>
+      </p>
+      <p style=""font-size:12px;color:#999999;margin-top:24px;"">{footer}</p>
+    </div>
+  </div>
+</body>
+</html>";
+
+    private static string StripTags(string html)
+        => WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", string.Empty));
+
     public async Task SendStudyPlanEmailAsync(
         string toEmail, string toName, string courseName,
         string bodyHtml, string bodyText, bool dailyReminderEnabled, string languageCode = "pt-br")

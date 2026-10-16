@@ -105,6 +105,23 @@ public interface IEmailService
         string courseName, string whenLocalFormatted, string timeUntil, string languageCode = "pt-br");
 
     /// <summary>
+    /// Daily alert to an assigned professor: the course has an access key but
+    /// no students for 3+ days. Links to the course page (where "course not in
+    /// use" stops the alerts).
+    /// </summary>
+    Task SendCourseUnusedAlertEmailAsync(
+        string toEmail, string toName, int courseId, string courseName, string languageCode = "pt-br");
+
+    /// <summary>
+    /// Warning to an assigned professor: the course's students will be removed
+    /// on <paramref name="removalDateFormatted"/> (7 days from now). Links to the
+    /// course page, where removal can be held for 7 more days or paused.
+    /// </summary>
+    Task SendCourseRemovalWarningEmailAsync(
+        string toEmail, string toName, int courseId, string courseName, int studentsCount,
+        string removalDateFormatted, string languageCode = "pt-br");
+
+    /// <summary>
     /// Send the student their freshly generated weekly study plan.
     /// </summary>
     /// <param name="bodyHtml">Pre-rendered plan content (overview + days) — already HTML-encoded</param>

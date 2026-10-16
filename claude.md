@@ -825,6 +825,18 @@ students who sign up and log in themselves:
   `RevenueCatWebhookAuth`, `RevenueCatWebhookHmacSecret`, `BillingDevMode` (true only in dev), `ExpoAccessToken`,
   `DpoEmail`, `CompanyName`, `CompanyCnpj`.
 
+### Course lifecycle (duration + auto-removal)
+- `Course.DurationMonths` (1–24, set at creation in the dashboard). The clock starts at the first enrollment
+  (never before `DurationSetAt`); students are unenrolled at end + 7-day leeway (+ "hold 7 days" extensions).
+  Rules live in `Core/Utilities/CourseLifecycle.cs`; the daily Hangfire job is `CourseLifecycleService.RunDailyAsync`
+  (12:00 UTC), deduped through `CourseLifecycleNotifications` (unique CourseId+Key).
+- Emails go ONLY to professors assigned to the course: daily "no students for 3+ days while an access key exists",
+  and a warning 7 days before removal. Removal never happens < 7 days after that warning actually went out.
+- Course page actions (`api/courses/{id}/lifecycle/*`): assigned professor or any higher role in the university.
+  "Not in use" = `DeactivatedAt` (listed greyed out, closed to students in the Python widget API, reversible);
+  "remove from list" = `DeletedAt` soft delete (only once inactive; hidden from lists/detail, code reusable).
+- tutoria-api (Python) reads `DeactivatedAt`/`DeletedAt` — deploy this migration before the Python side.
+
 ### Unified Users Table Strategy
 **Decision:** Use ONLY the `Users` table for all user types (student, professor, super_admin)
 

@@ -362,6 +362,11 @@ if (hangfireEnabled)
         service => service.ProcessRemindersAsync(),
         Cron.Hourly()); // Hourly: emails students about upcoming tests/assignments (deduped per event+slot)
 
+    RecurringJob.AddOrUpdate<ICourseLifecycleService>(
+        "course-lifecycle",
+        service => service.RunDailyAsync(),
+        Cron.Daily(12)); // 12:00 UTC = 09:00 America/Sao_Paulo: unused-course alerts, 7-day warnings, auto-removal
+
     RecurringJob.AddOrUpdate<IStudyPlanEmailService>(
         "study-plan-emails",
         service => service.SendPendingPlanEmailsAsync(),

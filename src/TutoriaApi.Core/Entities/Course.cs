@@ -28,6 +28,34 @@ public class Course : BaseEntity
     /// </summary>
     public string? EnemArea { get; set; }
 
+    // ── Lifecycle (see CourseLifecycle) ─────────────────────────────────────
+
+    /// <summary>How long a cohort keeps the course (1–24 months). Null = no auto-removal.</summary>
+    public int? DurationMonths { get; set; }
+
+    /// <summary>When the duration was first set. The clock never starts before this,
+    /// so giving an old course a duration doesn't instantly expire it.</summary>
+    public DateTime? DurationSetAt { get; set; }
+
+    /// <summary>When the current cohort's clock started (first enrollment, recorded by the
+    /// daily job). Reset to null after the students are removed.</summary>
+    public DateTime? LifecycleStartedAt { get; set; }
+
+    /// <summary>Extra days granted with "hold 7 more days" (reset with the cohort).</summary>
+    public int AutoRemovalExtensionDays { get; set; }
+
+    /// <summary>Auto-removal on hold until someone resumes it.</summary>
+    public bool AutoRemovalPaused { get; set; }
+
+    /// <summary>Last time the daily job removed this course's students.</summary>
+    public DateTime? StudentsRemovedAt { get; set; }
+
+    /// <summary>"Course not in use": stopped (no alerts, no widget access) but listed, greyed out.</summary>
+    public DateTime? DeactivatedAt { get; set; }
+
+    /// <summary>Soft delete: hidden from lists. Only possible once deactivated.</summary>
+    public DateTime? DeletedAt { get; set; }
+
     // Navigation properties
     public University University { get; set; } = null!;
     public ICollection<Module> Modules { get; set; } = new List<Module>();
