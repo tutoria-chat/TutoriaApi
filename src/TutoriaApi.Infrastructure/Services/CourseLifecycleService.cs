@@ -301,6 +301,7 @@ public class CourseLifecycleService : ICourseLifecycleService
             ExtensionDays = course.AutoRemovalExtensionDays,
             Paused = course.AutoRemovalPaused,
             DeactivatedAt = course.DeactivatedAt,
+            StudentsRemovedAt = course.StudentsRemovedAt,
             StudentsCount = studentsCount,
             HasActiveKey = oldestKey is not null,
             UnusedAlertActive = course.DeactivatedAt is null

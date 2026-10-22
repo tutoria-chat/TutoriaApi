@@ -15,6 +15,7 @@ public class CourseLifecycleDto
     public int ExtensionDays { get; set; }
     public bool Paused { get; set; }
     public DateTime? DeactivatedAt { get; set; }
+    public DateTime? StudentsRemovedAt { get; set; }
     public int StudentsCount { get; set; }
     public bool HasActiveKey { get; set; }
     public bool UnusedAlertActive { get; set; }
@@ -32,6 +33,7 @@ public class CourseLifecycleDto
         ExtensionDays = info.ExtensionDays,
         Paused = info.Paused,
         DeactivatedAt = info.DeactivatedAt,
+        StudentsRemovedAt = info.StudentsRemovedAt,
         StudentsCount = info.StudentsCount,
         HasActiveKey = info.HasActiveKey,
         UnusedAlertActive = info.UnusedAlertActive,

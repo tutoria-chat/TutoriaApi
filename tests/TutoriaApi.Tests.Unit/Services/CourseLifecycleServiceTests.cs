@@ -159,6 +159,7 @@ public class CourseLifecycleServiceTests : IDisposable
 
         await RunAtAsync(Removal);                       // removal day
         Assert.Equal(0, Enrolled());
+        Assert.Equal(Removal, (await _service.GetAsync(_course.Id, _assignedProf)).StudentsRemovedAt);
         var course = Reload();
         Assert.Null(course.LifecycleStartedAt);
         Assert.Equal(Removal, course.StudentsRemovedAt);

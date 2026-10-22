@@ -22,6 +22,8 @@ public class CourseLifecycleInfo
     public int ExtensionDays { get; set; }
     public bool Paused { get; set; }
     public DateTime? DeactivatedAt { get; set; }
+    /// <summary>When the last class was removed because its time ended (null if never).</summary>
+    public DateTime? StudentsRemovedAt { get; set; }
     public int StudentsCount { get; set; }
     public bool HasActiveKey { get; set; }
     /// <summary>The "no students for 3+ days" alert currently applies.</summary>
