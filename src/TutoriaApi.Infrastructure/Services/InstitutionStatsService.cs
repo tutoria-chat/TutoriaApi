@@ -13,6 +13,7 @@ public class InstitutionStatsService : IInstitutionStatsService
     private readonly IQuizAnalyticsRepository _quizAnalyticsRepository;
     private readonly IGamificationStatsRepository _gamificationStatsRepository;
     private readonly IUniversityRepository _universityRepository;
+    private readonly IAnalyticsScopeService _analyticsScopeService;
     private readonly ILogger<InstitutionStatsService> _logger;
 
     public InstitutionStatsService(
@@ -22,8 +23,10 @@ public class InstitutionStatsService : IInstitutionStatsService
         IQuizAnalyticsRepository quizAnalyticsRepository,
         IGamificationStatsRepository gamificationStatsRepository,
         IUniversityRepository universityRepository,
+        IAnalyticsScopeService analyticsScopeService,
         ILogger<InstitutionStatsService> logger)
     {
+        _analyticsScopeService = analyticsScopeService;
         _courseRepository = courseRepository;
         _moduleRepository = moduleRepository;
         _studentCourseRepository = studentCourseRepository;
@@ -88,20 +91,20 @@ public class InstitutionStatsService : IInstitutionStatsService
         }
     }
 
-    // Mirrors AnalyticsService scoping: super admins see all (or one university);
-    // everyone else is limited to their own institution's courses.
+    // Same scope as every analytics query (IAnalyticsScopeService): super admins see
+    // all (or one university), regular professors only their assigned courses,
+    // everyone else their own institution's courses.
     private async Task<List<Course>> GetScopedCoursesAsync(
-        string userRole, int? userUniversityId, int? universityId)
+        int userId, string userRole, int? userUniversityId, int? universityId)
     {
-        if (userRole.ToLower() == "super_admin")
-        {
-            if (universityId.HasValue)
-                return (await _courseRepository.GetByUniversityIdAsync(universityId.Value)).ToList();
-            return (await _courseRepository.GetAllAsync()).ToList();
-        }
-        if (userUniversityId.HasValue)
-            return (await _courseRepository.GetByUniversityIdAsync(userUniversityId.Value)).ToList();
-        return new List<Course>();
+        var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId, universityId);
+        if (scope.CourseIds.Count == 0) return new List<Course>();
+
+        var allowed = scope.CourseIds.ToHashSet();
+        var candidates = scope.UniversityId.HasValue
+            ? await _courseRepository.GetByUniversityIdAsync(scope.UniversityId.Value)
+            : await _courseRepository.GetAllAsync();
+        return candidates.Where(c => allowed.Contains(c.Id)).ToList();
     }
 
     public async Task<CourseStatsResponseDto> GetCourseStatsAsync(
@@ -112,7 +115,7 @@ public class InstitutionStatsService : IInstitutionStatsService
 
         try
         {
-            var courses = await GetScopedCoursesAsync(userRole, userUniversityId, universityId);
+            var courses = await GetScopedCoursesAsync(userId, userRole, userUniversityId, universityId);
             if (courses.Count == 0) return response;
 
             var courseIds = courses.Select(c => c.Id).ToList();
@@ -183,9 +186,10 @@ public class InstitutionStatsService : IInstitutionStatsService
             var course = await _courseRepository.GetByIdAsync(courseId);
             if (course == null) return response;
 
-            // Scope check: non-super-admins must own the course's university
-            if (userRole.ToLower() != "super_admin"
-                && (!userUniversityId.HasValue || course.UniversityId != userUniversityId.Value))
+            // Scope check: the course must be one the caller may see (a regular
+            // professor only their assigned courses).
+            var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId);
+            if (!scope.CanSeeCourse(course.Id))
             {
                 return response;
             }
@@ -227,7 +231,7 @@ public class InstitutionStatsService : IInstitutionStatsService
 
         try
         {
-            var courses = await GetScopedCoursesAsync(userRole, userUniversityId, universityId);
+            var courses = await GetScopedCoursesAsync(userId, userRole, userUniversityId, universityId);
             if (courses.Count == 0) return response;
 
             var courseIds = courses.Select(c => c.Id).ToList();

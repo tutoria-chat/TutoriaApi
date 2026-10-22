@@ -19,7 +19,7 @@ namespace TutoriaApi.Web.API.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/analytics")]
-[Authorize(Policy = "AnalyticsAccess")]
+[Authorize(Policy = "AnalyticsViewer")]
 public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
@@ -49,6 +49,7 @@ public class AnalyticsController : ControllerBase
     /// Manager: Can only see their university's data
     /// </remarks>
     [HttpGet("costs/detailed")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(CostAnalysisDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -91,6 +92,7 @@ public class AnalyticsController : ControllerBase
     /// Get today's costs with real-time updates and comparison to yesterday
     /// </summary>
     [HttpGet("costs/today")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(TodayCostDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -133,6 +135,7 @@ public class AnalyticsController : ControllerBase
     /// Get comprehensive today's usage stats with real-time updates
     /// </summary>
     [HttpGet("usage/today")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(UsageStatsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -171,6 +174,7 @@ public class AnalyticsController : ControllerBase
     /// Get usage trends over time (daily aggregation)
     /// </summary>
     [HttpGet("usage/trends")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(UsageTrendsResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -213,6 +217,7 @@ public class AnalyticsController : ControllerBase
     /// Get hourly usage breakdown for peak time analysis
     /// </summary>
     [HttpGet("usage/hourly")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(HourlyUsageResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -256,6 +261,7 @@ public class AnalyticsController : ControllerBase
     /// Get top active students by message count
     /// </summary>
     [HttpGet("students/top-active")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(TopActiveStudentsResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -302,6 +308,7 @@ public class AnalyticsController : ControllerBase
     /// Get conversation engagement metrics (avg messages per conversation, completion rate)
     /// </summary>
     [HttpGet("engagement/conversations")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(ConversationMetricsDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -344,6 +351,7 @@ public class AnalyticsController : ControllerBase
     /// Get response quality and performance metrics (response time, token efficiency)
     /// </summary>
     [HttpGet("performance/response-quality")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(ResponseQualityDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -386,6 +394,7 @@ public class AnalyticsController : ControllerBase
     /// Compare multiple modules side-by-side
     /// </summary>
     [HttpGet("modules/compare")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(ModuleComparisonResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -515,6 +524,7 @@ public class AnalyticsController : ControllerBase
     /// - Format: YYYY-MM-DD
     /// </remarks>
     [HttpGet("dashboard/unified")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(UnifiedDashboardResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -591,6 +601,7 @@ public class AnalyticsController : ControllerBase
     /// Get most frequently asked questions by students
     /// </summary>
     [HttpGet("questions/frequently-asked")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(FrequentlyAskedQuestionsResponseDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -633,6 +644,7 @@ public class AnalyticsController : ControllerBase
     /// Get conversation history for a specific conversation ID
     /// </summary>
     [HttpGet("conversations/{conversationId}")]
+    [Authorize(Policy = "SuperAdminOnly")] // raw transcripts of any conversation — not scoped by course
     public async Task<ActionResult<List<ChatMessageDto>>> GetConversationHistory(
         string conversationId,
         [FromQuery] int limit = 50)
@@ -664,6 +676,7 @@ public class AnalyticsController : ControllerBase
     /// Get aggregated analytics summary for a module
     /// </summary>
     [HttpGet("modules/{moduleId}/summary")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     public async Task<ActionResult<ModuleAnalyticsSummaryDto>> GetModuleSummary(
         int moduleId,
         [FromQuery] DateTime? startDate = null,
@@ -676,6 +689,12 @@ public class AnalyticsController : ControllerBase
 
         try
         {
+            var (userId, userRole, userUniversityId) = GetUserContext();
+            if (!await _analyticsService.CanAccessModuleAsync(userId, userRole, userUniversityId, moduleId))
+            {
+                return NotFound(new { message = "Module not found" });
+            }
+
             _logger.LogInformation("Retrieving analytics summary for module {ModuleId}", moduleId);
             var summary = await _dynamoDbService.GetModuleSummaryAsync(moduleId, startDate, endDate);
             return Ok(summary);
@@ -749,6 +768,7 @@ public class AnalyticsController : ControllerBase
     /// Recent AI-written daily briefings for the university.
     /// </summary>
     [HttpGet("daily-ai-summary")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: not for professors
     [ProducesResponseType(typeof(List<DailyAISummaryDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<List<DailyAISummaryDto>>> GetDailyAISummaries(
@@ -937,6 +957,7 @@ public class AnalyticsController : ControllerBase
     /// job), by triggering the aggregation on tutoria-worker.
     /// </summary>
     [HttpPost("recompute-quiz")]
+    [Authorize(Policy = "AnalyticsAccess")] // admin-only: rebuilds every module
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult> RecomputeQuizAnalytics([FromQuery] int? windowDays = null)
@@ -969,7 +990,9 @@ public class AnalyticsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var userRoleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
-        var universityIdClaim = User.FindFirst("university_id")?.Value;
+        // The token carries "UniversityId" (UserTokenService); "university_id" never existed,
+        // which left every non-super-admin with no university (and no data).
+        var universityIdClaim = User.FindFirst("UniversityId")?.Value ?? User.FindFirst("university_id")?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
         {

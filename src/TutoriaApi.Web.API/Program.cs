@@ -170,6 +170,15 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAssertion(context =>
             isSuperAdmin(context) || hasPermission(context, "analytics:read")));
 
+    // AnalyticsViewer: the professor-safe analytics endpoints (the dashboard's
+    // analytics page). Regular professors get in here WITHOUT analytics:read and are
+    // limited to their assigned courses by IAnalyticsScopeService; admin-only
+    // analytics (costs, usage, platform data) stay on AnalyticsAccess.
+    options.AddPolicy("AnalyticsViewer", policy =>
+        policy.RequireAssertion(context =>
+            isSuperAdmin(context) || hasPermission(context, "analytics:read")
+            || context.User.FindFirst("type")?.Value == "professor"));
+
     // ProfessorOrAbove: requires students:read permission (all staff roles have it, students do not)
     // NOTE: courses:read was previously used but students also have it, allowing them to
     // satisfy ProfessorOrAbove and hit management endpoints. students:read is the correct

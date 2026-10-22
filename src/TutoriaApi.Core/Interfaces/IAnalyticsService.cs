@@ -7,6 +7,9 @@ namespace TutoriaApi.Core.Interfaces;
 /// </summary>
 public interface IAnalyticsService
 {
+    /// <summary>Whether the caller may see this module's analytics (same scope rules as every query).</summary>
+    Task<bool> CanAccessModuleAsync(int userId, string userRole, int? userUniversityId, int moduleId);
+
     // =====================================
     // Cost Analysis
     // =====================================

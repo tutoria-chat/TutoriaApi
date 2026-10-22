@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Infrastructure.Data;
 
@@ -172,11 +173,11 @@ public class GamificationStatsRepository : IGamificationStatsRepository
         }).ToList();
     }
 
-    public async Task<List<RankingValueRow>> GetMostImprovedAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit)
+    public async Task<List<RankingValueRow>> GetMostImprovedAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit, List<int>? courseIds = null)
     {
         if (studentIds.Count == 0) return new List<RankingValueRow>();
 
-        var agg = await _context.StudentActivities
+        var agg = await InCourses(_context.StudentActivities, courseIds)
             .Where(a => studentIds.Contains(a.StudentId) && a.Xp > 0 && a.OccurredAt >= startUtc && a.OccurredAt <= endUtc)
             .GroupBy(a => a.StudentId)
             .Select(g => new { StudentId = g.Key, Value = g.Sum(a => a.Xp) })
@@ -201,11 +202,11 @@ public class GamificationStatsRepository : IGamificationStatsRepository
         return await BuildValueRowsAsync(agg.Select(a => (a.StudentId, a.Value)).ToList());
     }
 
-    public async Task<List<RankingValueRow>> GetMostActiveAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit)
+    public async Task<List<RankingValueRow>> GetMostActiveAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit, List<int>? courseIds = null)
     {
         if (studentIds.Count == 0) return new List<RankingValueRow>();
 
-        var agg = await _context.StudentActivities
+        var agg = await InCourses(_context.StudentActivities, courseIds)
             .Where(a => studentIds.Contains(a.StudentId) && a.OccurredAt >= startUtc && a.OccurredAt <= endUtc)
             .GroupBy(a => a.StudentId)
             .Select(g => new { StudentId = g.Key, Value = g.Count() })
@@ -231,11 +232,11 @@ public class GamificationStatsRepository : IGamificationStatsRepository
         return await BuildValueRowsAsync(agg.Select(a => (a.StudentId, a.Value)).ToList());
     }
 
-    public async Task<EngagementTotalsRow> GetEngagementTotalsAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc)
+    public async Task<EngagementTotalsRow> GetEngagementTotalsAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, List<int>? courseIds = null)
     {
         if (studentIds.Count == 0) return new EngagementTotalsRow();
 
-        var window = _context.StudentActivities
+        var window = InCourses(_context.StudentActivities, courseIds)
             .Where(a => studentIds.Contains(a.StudentId) && a.OccurredAt >= startUtc && a.OccurredAt <= endUtc);
 
         var totals = await window
@@ -252,6 +253,15 @@ public class GamificationStatsRepository : IGamificationStatsRepository
         totals.ActiveStudents = await window.Select(a => a.StudentId).Distinct().CountAsync();
         return totals;
     }
+
+    /// <summary>
+    /// Activity in the given courses only (null = no course filter). Rankings for a
+    /// professor must not count what their students did in someone else's course.
+    /// </summary>
+    private static IQueryable<StudentActivity> InCourses(IQueryable<StudentActivity> activities, List<int>? courseIds)
+        => courseIds == null
+            ? activities
+            : activities.Where(a => a.CourseId != null && courseIds.Contains(a.CourseId.Value));
 
     /// <summary>Map (studentId, value) pairs to named rows + equipped titles, preserving order.</summary>
     private async Task<List<RankingValueRow>> BuildValueRowsAsync(List<(int StudentId, int Value)> pairs)

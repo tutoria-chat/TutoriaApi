@@ -94,17 +94,17 @@ public interface IGamificationStatsRepository
     Task<List<RankingPerformerRow>> GetTopPerformersAsync(List<int> studentIds, int limit);
 
     /// <summary>Top students by XP gained within [startUtc, endUtc] (effort over the period).</summary>
-    Task<List<RankingValueRow>> GetMostImprovedAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit);
+    Task<List<RankingValueRow>> GetMostImprovedAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit, List<int>? courseIds = null);
 
     /// <summary>Top students by longest all-time streak (days).</summary>
     Task<List<RankingValueRow>> GetLongestStreaksAsync(List<int> studentIds, int limit);
 
     /// <summary>Top students by number of logged activities within [startUtc, endUtc].</summary>
-    Task<List<RankingValueRow>> GetMostActiveAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit);
+    Task<List<RankingValueRow>> GetMostActiveAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, int limit, List<int>? courseIds = null);
 
     /// <summary>Top students by number of badges earned (all-time).</summary>
     Task<List<RankingValueRow>> GetMostBadgesAsync(List<int> studentIds, int limit);
 
     /// <summary>Aggregate engagement counts (questions/quizzes/flashcards/plans/active) over a window.</summary>
-    Task<EngagementTotalsRow> GetEngagementTotalsAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc);
+    Task<EngagementTotalsRow> GetEngagementTotalsAsync(List<int> studentIds, DateTime startUtc, DateTime endUtc, List<int>? courseIds = null);
 }

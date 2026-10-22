@@ -35,6 +35,8 @@ public class AnalyticsService : IAnalyticsService
             @"^(LETRA\s)?[A-E][\)\.]*$",
             System.Text.RegularExpressions.RegexOptions.Compiled);
 
+    private readonly IAnalyticsScopeService _analyticsScopeService;
+
     public AnalyticsService(
         IDynamoDbAnalyticsService dynamoDbService,
         IModuleRepository moduleRepository,
@@ -49,8 +51,10 @@ public class AnalyticsService : IAnalyticsService
         IUserRepository userRepository,
         IDailyAISummaryRepository dailyAISummaryRepository,
         IGamificationStatsRepository gamificationStatsRepository,
+        IAnalyticsScopeService analyticsScopeService,
         ILogger<AnalyticsService> logger)
     {
+        _analyticsScopeService = analyticsScopeService;
         _dynamoDbService = dynamoDbService;
         _moduleRepository = moduleRepository;
         _courseRepository = courseRepository;
@@ -730,6 +734,32 @@ public class AnalyticsService : IAnalyticsService
         int? userUniversityId,
         DashboardFilterDto filters)
     {
+        var summary = await BuildDashboardSummaryAsync(userId, userRole, userUniversityId, filters);
+        var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId, filters.UniversityId);
+        if (scope.IsCourseRestricted)
+        {
+            WithholdAdminFigures(summary);
+        }
+        return summary;
+    }
+
+    /// <summary>Professors see their courses' activity, never costs or platform/university-wide figures.</summary>
+    private static void WithholdAdminFigures(DashboardSummaryDto summary)
+    {
+        summary.Overview.TotalCostUSD = 0;
+        summary.Overview.ActiveUniversities = 0;
+        summary.Growth.CostGrowth = 0;
+        summary.CostBreakdown = new CostBreakdownDto();
+        summary.TopPerformers.MostActiveUniversity = null;
+        summary.HealthIndicators = new HealthIndicatorsDto();
+    }
+
+    private async Task<DashboardSummaryDto> BuildDashboardSummaryAsync(
+        int userId,
+        string userRole,
+        int? userUniversityId,
+        DashboardFilterDto filters)
+    {
         try
         {
             var (startDate, endDate) = GetDateRangeFromPeriod(filters.Period);
@@ -1390,11 +1420,11 @@ public class AnalyticsService : IAnalyticsService
             var endUtc = (endDate ?? DateTime.UtcNow).ToUniversalTime();
 
             var topPerformers = await _gamificationStatsRepository.GetTopPerformersAsync(studentIds, TOP_N);
-            var mostImproved = await _gamificationStatsRepository.GetMostImprovedAsync(studentIds, startUtc, endUtc, TOP_N);
+            var mostImproved = await _gamificationStatsRepository.GetMostImprovedAsync(studentIds, startUtc, endUtc, TOP_N, courseIds);
             var longestStreaks = await _gamificationStatsRepository.GetLongestStreaksAsync(studentIds, TOP_N);
-            var mostActive = await _gamificationStatsRepository.GetMostActiveAsync(studentIds, startUtc, endUtc, TOP_N);
+            var mostActive = await _gamificationStatsRepository.GetMostActiveAsync(studentIds, startUtc, endUtc, TOP_N, courseIds);
             var mostBadges = await _gamificationStatsRepository.GetMostBadgesAsync(studentIds, TOP_N);
-            var engagement = await _gamificationStatsRepository.GetEngagementTotalsAsync(studentIds, startUtc, endUtc);
+            var engagement = await _gamificationStatsRepository.GetEngagementTotalsAsync(studentIds, startUtc, endUtc, courseIds);
 
             int rank;
 
@@ -1455,37 +1485,20 @@ public class AnalyticsService : IAnalyticsService
     #region Helper Methods
 
     /// <summary>
-    /// Course IDs the user may see: all (super_admin, optionally filtered by university)
-    /// or just their own university's courses (manager/professor). Mirrors
-    /// <see cref="GetAuthorizedModuleIdsAsync"/> but at course granularity.
+    /// Course IDs the caller may see — see <see cref="IAnalyticsScopeService"/>
+    /// (regular professors: only their assigned courses).
     /// </summary>
     private async Task<List<int>> GetAuthorizedCourseIdsAsync(
         int userId, string userRole, int? userUniversityId, int? universityId)
     {
-        var role = userRole.ToLower();
-
-        if (role == "super_admin")
-        {
-            if (universityId.HasValue)
-            {
-                return (await _courseRepository.GetByUniversityIdAsync(universityId.Value))
-                    .Select(c => c.Id).ToList();
-            }
-            return (await _courseRepository.GetAllAsync()).Select(c => c.Id).ToList();
-        }
-
-        // University-scoped staff (manager/professor) only see their own university.
-        if (userUniversityId.HasValue)
-        {
-            return (await _courseRepository.GetByUniversityIdAsync(userUniversityId.Value))
-                .Select(c => c.Id).ToList();
-        }
-
-        return new List<int>();
+        var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId, universityId);
+        return scope.CourseIds.ToList();
     }
 
     /// <summary>
-    /// Get authorized module IDs based on user role and filters
+    /// Module IDs the caller may see, narrowed by the request filters (ModuleId,
+    /// CourseId; UniversityId only for super admins). A module or course outside
+    /// the caller's scope yields an empty list, never an error that leaks existence.
     /// </summary>
     private async Task<List<int>> GetAuthorizedModuleIdsAsync(
         int userId,
@@ -1493,73 +1506,38 @@ public class AnalyticsService : IAnalyticsService
         int? userUniversityId,
         AnalyticsFilterDto filters)
     {
-        // If specific module is requested, verify access and return just that module
+        var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId, filters.UniversityId);
+
         if (filters.ModuleId.HasValue)
         {
             var module = await _moduleRepository.GetByIdAsync(filters.ModuleId.Value);
-            if (module == null) return new List<int>();
-
-            var hasAccess = await VerifyModuleAccess(userId, userRole, userUniversityId, module);
-            return hasAccess ? new List<int> { module.Id } : new List<int>();
+            return module != null && scope.CanSeeCourse(module.CourseId)
+                ? new List<int> { module.Id }
+                : new List<int>();
         }
 
-        // Get modules based on role
-        if (userRole.ToLower() == "super_admin")
+        var courseIds = scope.CourseIds.ToHashSet();
+        if (filters.CourseId.HasValue)
         {
-            // Super admin sees all modules (with optional filtering)
-            var modules = await _moduleRepository.GetAllAsync();
-
-            if (filters.UniversityId.HasValue)
-            {
-                var courseIds = (await _courseRepository.GetByUniversityIdAsync(filters.UniversityId.Value))
-                    .Select(c => c.Id)
-                    .ToList();
-                modules = modules.Where(m => courseIds.Contains(m.CourseId)).ToList();
-            }
-
-            if (filters.CourseId.HasValue)
-            {
-                modules = modules.Where(m => m.CourseId == filters.CourseId.Value).ToList();
-            }
-
-            return modules.Select(m => m.Id).ToList();
+            if (!courseIds.Contains(filters.CourseId.Value)) return new List<int>();
+            courseIds = new HashSet<int> { filters.CourseId.Value };
         }
-        else if (userRole.ToLower() == "professor" && userUniversityId.HasValue)
-        {
-            // Professor sees only their university's modules
-            var courses = await _courseRepository.GetByUniversityIdAsync(userUniversityId.Value);
-            var courseIds = courses.Select(c => c.Id).ToList();
+        if (courseIds.Count == 0) return new List<int>();
 
-            if (filters.CourseId.HasValue)
-            {
-                if (!courseIds.Contains(filters.CourseId.Value))
-                {
-                    return new List<int>(); // Requested course not in their university
-                }
-                courseIds = new List<int> { filters.CourseId.Value };
-            }
-
-            var modules = await _moduleRepository.GetAllAsync();
-            return modules.Where(m => courseIds.Contains(m.CourseId)).Select(m => m.Id).ToList();
-        }
-
-        return new List<int>();
+        var modules = await _moduleRepository.GetAllAsync();
+        return modules.Where(m => courseIds.Contains(m.CourseId)).Select(m => m.Id).ToList();
     }
 
     private async Task<bool> VerifyModuleAccess(int userId, string userRole, int? userUniversityId, TutoriaApi.Core.Entities.Module module)
     {
-        if (userRole.ToLower() == "super_admin")
-        {
-            return true;
-        }
+        var scope = await _analyticsScopeService.ResolveAsync(userId, userRole, userUniversityId);
+        return scope.CanSeeCourse(module.CourseId);
+    }
 
-        if (userRole.ToLower() == "professor" && userUniversityId.HasValue)
-        {
-            var course = await _courseRepository.GetByIdAsync(module.CourseId);
-            return course?.UniversityId == userUniversityId;
-        }
-
-        return false;
+    public async Task<bool> CanAccessModuleAsync(int userId, string userRole, int? userUniversityId, int moduleId)
+    {
+        var module = await _moduleRepository.GetByIdAsync(moduleId);
+        return module != null && await VerifyModuleAccess(userId, userRole, userUniversityId, module);
     }
 
     private async Task<Dictionary<int, int>> GetModuleToCourseMapping(List<int> moduleIds)

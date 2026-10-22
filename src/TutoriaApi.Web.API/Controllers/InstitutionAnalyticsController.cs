@@ -13,7 +13,7 @@ namespace TutoriaApi.Web.API.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/analytics")]
-[Authorize(Policy = "AnalyticsAccess")]
+[Authorize(Policy = "AnalyticsViewer")] // scoped per caller by IAnalyticsScopeService
 public class InstitutionAnalyticsController : ControllerBase
 {
     private readonly IInstitutionStatsService _statsService;
@@ -127,7 +127,9 @@ public class InstitutionAnalyticsController : ControllerBase
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var userRoleClaim = User.FindFirst(ClaimTypes.Role)?.Value;
-        var universityIdClaim = User.FindFirst("university_id")?.Value;
+        // The token carries "UniversityId" (UserTokenService); "university_id" never existed,
+        // which left every non-super-admin with no university (and no data).
+        var universityIdClaim = User.FindFirst("UniversityId")?.Value ?? User.FindFirst("university_id")?.Value;
 
         if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
             throw new UnauthorizedAccessException("Invalid user ID in token");

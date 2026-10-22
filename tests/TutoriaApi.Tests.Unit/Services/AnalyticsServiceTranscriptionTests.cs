@@ -50,6 +50,7 @@ public class AnalyticsServiceTranscriptionTests
             new Mock<IUserRepository>().Object,
             new Mock<IDailyAISummaryRepository>().Object,
             new Mock<IGamificationStatsRepository>().Object,
+            SuperAdminScope(),
             _loggerMock.Object
         );
     }
@@ -527,5 +528,13 @@ public class AnalyticsServiceTranscriptionTests
                 UpdatedAt = DateTime.UtcNow
             }
         };
+    }
+
+    private static IAnalyticsScopeService SuperAdminScope()
+    {
+        var scope = new Mock<IAnalyticsScopeService>();
+        scope.Setup(x => x.ResolveAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(new AnalyticsScope { IsSuperAdmin = true, CourseIds = new[] { 1 } });
+        return scope.Object;
     }
 }
