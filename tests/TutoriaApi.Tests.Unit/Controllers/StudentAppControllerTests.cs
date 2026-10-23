@@ -28,7 +28,7 @@ public class StudentAppControllerTests
     {
         _currentUser.Setup(c => c.GetUserId()).Returns(7);
         _controller = new StudentAppController(_service.Object, _billing.Object, _tokens.Object, _currentUser.Object,
-            Microsoft.Extensions.Options.Options.Create(new StudentAppOptions { PublicApiUrl = "https://api.test" }),
+            TutoriaApi.Tests.Unit.Services.StudentAppTestKit.Snapshot(new StudentAppOptions { PublicApiUrl = "https://api.test" }),
             Mock.Of<ILogger<StudentAppController>>())
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },

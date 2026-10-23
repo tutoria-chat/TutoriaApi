@@ -31,7 +31,7 @@ public class StudentPushServiceTests : IDisposable
             });
         var factory = new Mock<IHttpClientFactory>();
         factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler.Object));
-        _push = new StudentPushService(_kit.Repo, factory.Object, Microsoft.Extensions.Options.Options.Create(_kit.Options),
+        _push = new StudentPushService(_kit.Repo, factory.Object, StudentAppTestKit.Snapshot(_kit.Options),
             _kit.Clock, Mock.Of<ILogger<StudentPushService>>());
     }
 

@@ -36,7 +36,7 @@ public class StudentAppController : ControllerBase
         IStudentBillingService billing,
         IUserTokenService tokens,
         ICurrentUserService currentUser,
-        IOptions<StudentAppOptions> options,
+        IOptionsSnapshot<StudentAppOptions> options,
         ILogger<StudentAppController> logger)
     {
         _service = service;

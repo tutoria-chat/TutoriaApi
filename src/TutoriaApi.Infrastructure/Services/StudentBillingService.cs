@@ -31,7 +31,7 @@ public class StudentBillingService : IStudentBillingService
         IStudentAppRepository repo,
         IStudentAppService studentApp,
         IHttpClientFactory http,
-        IOptions<StudentAppOptions> options,
+        IOptionsSnapshot<StudentAppOptions> options,
         TimeProvider clock,
         ILogger<StudentBillingService> logger)
     {

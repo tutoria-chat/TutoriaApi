@@ -43,7 +43,7 @@ public class StudentBillingServiceTests : IDisposable
         factory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(() => new HttpClient(handler.Object));
 
         _billing = new StudentBillingService(_kit.Repo, _kit.Service, factory.Object,
-            Microsoft.Extensions.Options.Options.Create(_kit.Options), _kit.Clock, Mock.Of<ILogger<StudentBillingService>>());
+            StudentAppTestKit.Snapshot(_kit.Options), _kit.Clock, Mock.Of<ILogger<StudentBillingService>>());
     }
 
     public void Dispose() => _kit.Dispose();

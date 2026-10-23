@@ -21,7 +21,7 @@ public class StudentPushService : IStudentPushService
     public StudentPushService(
         IStudentAppRepository repo,
         IHttpClientFactory http,
-        IOptions<StudentAppOptions> options,
+        IOptionsSnapshot<StudentAppOptions> options,
         TimeProvider clock,
         ILogger<StudentPushService> logger)
     {

@@ -51,7 +51,7 @@ public class StudentAppService : IStudentAppService
         IBlobStorageService blobs,
         ISqsMessagingService sqs,
         IEmailService email,
-        IOptions<StudentAppOptions> options,
+        IOptionsSnapshot<StudentAppOptions> options,
         TimeProvider clock,
         ILogger<StudentAppService> logger)
     {

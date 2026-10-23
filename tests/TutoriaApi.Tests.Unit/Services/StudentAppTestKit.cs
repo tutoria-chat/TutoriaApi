@@ -63,7 +63,7 @@ public sealed class StudentAppTestKit : IDisposable
         Service = new StudentAppService(
             Repo, new UserRepository(Db), new UserUniversityRepository(Db), new StudentCourseRepository(Db),
             new ConsentRepository(Db), new CourseRepository(Db), new ModuleRepository(Db), new FileRepository(Db),
-            Blobs.Object, Sqs.Object, Email.Object, Microsoft.Extensions.Options.Options.Create(Options), Clock,
+            Blobs.Object, Sqs.Object, Email.Object, Snapshot(Options), Clock,
             Mock.Of<ILogger<StudentAppService>>());
     }
 
@@ -83,6 +83,10 @@ public sealed class StudentAppTestKit : IDisposable
         });
         await Service.EnsureDefaultAgentsAsync(userId);
     }
+
+    /// <summary>Options as the services receive them (IOptionsSnapshot re-reads SSM-reloaded config per request).</summary>
+    public static IOptionsSnapshot<StudentAppOptions> Snapshot(StudentAppOptions options)
+        => Mock.Of<IOptionsSnapshot<StudentAppOptions>>(o => o.Value == options);
 
     public void Dispose() => Db.Dispose();
 }
