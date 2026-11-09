@@ -1666,10 +1666,23 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.Property<string>("GradingCriteria")
                         .HasColumnType("text");
 
+                    b.Property<string>("GradingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("feedback")
+                        .HasColumnName("GradingMode");
+
                     b.Property<string>("InputS3Key")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)")
                         .HasColumnName("InputS3Key");
+
+                    b.Property<string>("ModelUsed")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("ModelUsed");
 
                     b.Property<string>("OriginalFilename")
                         .HasColumnType("text");
@@ -1683,6 +1696,11 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("ProcessedSubmissions");
+
+                    b.Property<string>("PromptVersion")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("PromptVersion");
 
                     b.Property<string>("ResultS3Key")
                         .HasMaxLength(500)
@@ -1722,6 +1740,8 @@ namespace TutoriaApi.Infrastructure.Migrations
 
                     b.ToTable("GradingJobs", null, t =>
                         {
+                            t.HasCheckConstraint("CK_GradingJobs_GradingMode", "\"GradingMode\" IN ('feedback', 'score')");
+
                             t.HasCheckConstraint("CK_GradingJobs_Status", "\"Status\" IN ('pending', 'processing', 'completed', 'failed')");
                         });
                 });
@@ -3823,6 +3843,27 @@ namespace TutoriaApi.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("Description");
 
+                    b.Property<string>("GradingMode")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("feedback")
+                        .HasColumnName("GradingMode");
+
+                    b.Property<DateTime?>("GradingModeChangedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("GradingModeChangedAt");
+
+                    b.Property<int?>("GradingModeChangedByUserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("GradingModeChangedByUserId");
+
+                    b.Property<string>("GradingModeContractRef")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("GradingModeContractRef");
+
                     b.Property<bool>("HasAIQuizzes")
                         .HasColumnType("boolean")
                         .HasColumnName("HasAIQuizzes");
@@ -3830,6 +3871,14 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.Property<bool>("HasAssignments")
                         .HasColumnType("boolean")
                         .HasColumnName("HasAssignments");
+
+                    b.Property<string>("InstitutionType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("university")
+                        .HasColumnName("InstitutionType");
 
                     b.Property<bool>("IsConsumer")
                         .ValueGeneratedOnAdd()
@@ -3904,7 +3953,12 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Universities", (string)null);
+                    b.ToTable("Universities", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Universities_GradingMode", "\"GradingMode\" = 'feedback' OR (\"GradingMode\" = 'score' AND \"InstitutionType\" = 'corporate')");
+
+                            t.HasCheckConstraint("CK_Universities_InstitutionType", "\"InstitutionType\" IN ('university', 'corporate')");
+                        });
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.UniversityApiKey", b =>

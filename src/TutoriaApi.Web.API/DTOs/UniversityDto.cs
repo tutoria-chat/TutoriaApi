@@ -35,6 +35,10 @@ public class UniversityDto
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
 
+    // Grading assistant mode (read-only here; changed via PUT {id}/grading-mode, super_admin).
+    public string InstitutionType { get; set; } = "university";
+    public string GradingMode { get; set; } = "feedback";
+
     public DateTime? CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
@@ -230,6 +234,8 @@ public class UniversityWithCoursesDto
     public bool IsEnterprise { get; set; }
     public bool HasAssignments { get; set; }
     public bool HasAIQuizzes { get; set; }
+    public string InstitutionType { get; set; } = "university";
+    public string GradingMode { get; set; } = "feedback";
     public int? MaxCourses { get; set; }
     public int? MaxModules { get; set; }
     public int? MaxStudents { get; set; }
@@ -258,4 +264,32 @@ public class PaginatedResponse<T>
     public int Page { get; set; }
     public int Size { get; set; }
     public int Pages { get; set; }
+}
+
+/// <summary>Super_admin request to change an institution's grading mode.</summary>
+public class GradingModeUpdateRequest
+{
+    /// <summary>"university" (under MEC/CNE) or "corporate" (internal training, outside MEC).</summary>
+    [Required]
+    [MaxLength(20)]
+    public string InstitutionType { get; set; } = "university";
+
+    /// <summary>"feedback" (never a grade) or "score" (AI suggests a grade; corporate only).</summary>
+    [Required]
+    [MaxLength(20)]
+    public string GradingMode { get; set; } = "feedback";
+
+    /// <summary>The signed contract that allows score mode (required for score).</summary>
+    [MaxLength(255)]
+    public string? ContractRef { get; set; }
+}
+
+public class GradingModeResponse
+{
+    public int UniversityId { get; set; }
+    public string InstitutionType { get; set; } = "university";
+    public string GradingMode { get; set; } = "feedback";
+    public DateTime? ChangedAt { get; set; }
+    public int? ChangedByUserId { get; set; }
+    public string? ContractRef { get; set; }
 }

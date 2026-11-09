@@ -34,6 +34,18 @@ public class GradingJob : BaseEntity
     /// </summary>
     public string? GradingCriteria { get; set; }
 
+    /// <summary>
+    /// The grading mode this job was created under ("feedback" or "score"), snapshotted
+    /// from the university at creation. The worker only scores when this is "score" AND
+    /// the university still allows it.
+    /// </summary>
+    public string GradingMode { get; set; } = Utilities.GradingModes.Feedback;
+
+    /// <summary>Audit, written by the worker: the AI model that produced the result
+    /// and the prompt version, so every suggested grade can be traced.</summary>
+    public string? ModelUsed { get; set; }
+    public string? PromptVersion { get; set; }
+
     // Navigation properties
     public Course Course { get; set; } = null!;
     public User? CreatedBy { get; set; }

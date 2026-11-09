@@ -113,4 +113,17 @@ public class UniversityRepository : Repository<University>, IUniversityRepositor
             .Where(u => u.Id == id)
             .ExecuteUpdateAsync(s => s.SetProperty(u => u.HasAIQuizzes, hasAIQuizzes));
     }
+
+    public async Task<int> SetGradingModeAsync(int id, string institutionType, string gradingMode,
+        string? contractRef, int changedByUserId, DateTime changedAt)
+    {
+        return await _context.Universities
+            .Where(u => u.Id == id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(u => u.InstitutionType, institutionType)
+                .SetProperty(u => u.GradingMode, gradingMode)
+                .SetProperty(u => u.GradingModeContractRef, contractRef)
+                .SetProperty(u => u.GradingModeChangedByUserId, changedByUserId)
+                .SetProperty(u => u.GradingModeChangedAt, changedAt));
+    }
 }

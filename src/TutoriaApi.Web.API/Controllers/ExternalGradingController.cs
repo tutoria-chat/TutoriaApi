@@ -15,14 +15,57 @@ namespace TutoriaApi.Web.API.Controllers;
 public class ExternalGradingController : ControllerBase
 {
     private readonly IGradingJobService _gradingService;
+    private readonly IGradingModeService _gradingModeService;
     private readonly ILogger<ExternalGradingController> _logger;
 
     private const long MaxBodyBytes = 10 * 1024 * 1024; // 10 MB
 
-    public ExternalGradingController(IGradingJobService gradingService, ILogger<ExternalGradingController> logger)
+    public ExternalGradingController(
+        IGradingJobService gradingService,
+        IGradingModeService gradingModeService,
+        ILogger<ExternalGradingController> logger)
     {
         _gradingService = gradingService;
+        _gradingModeService = gradingModeService;
         _logger = logger;
+    }
+
+    /// <summary>True when the caller authenticated with the institution's own key
+    /// (set by <see cref="ExternalApiKeyAttribute"/>), not the legacy shared key.</summary>
+    private bool UsedInstitutionKey()
+        => HttpContext?.Items.ContainsKey(ExternalApiKeyAttribute.UniversityIdItemKey) == true;
+
+    /// <summary>
+    /// What the grading assistant should do for this institution. <c>gradingMode</c> is
+    /// the mode that applies to jobs sent with THIS key: "feedback" (drafts only, never a
+    /// grade) or "score" (the AI also suggests a grade; corporate institutions only).
+    /// </summary>
+    [HttpGet("{universityId:int}/config")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult> GetConfig(int universityId)
+    {
+        try
+        {
+            var institutionKey = UsedInstitutionKey();
+            var state = await _gradingModeService.GetForExternalAsync(universityId, institutionKey);
+            return Ok(new
+            {
+                universityId = state.UniversityId,
+                institutionType = state.InstitutionType,
+                gradingMode = state.EffectiveMode,
+                // Score is configured but this key cannot use it — tell the admin why.
+                needsInstitutionKey = state.GradingMode == "score" && state.EffectiveMode != "score" && !institutionKey,
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "External grading config failed (university {U})", universityId);
+            return StatusCode(500, new { message = "An error occurred while reading the grading configuration" });
+        }
     }
 
     /// <summary>
@@ -50,12 +93,13 @@ public class ExternalGradingController : ControllerBase
             ms.Position = 0;
 
             var job = await _gradingService.CreateExternalJobAsync(
-                universityId, externalCourseId, ms, filename, criteria, coursename);
+                universityId, externalCourseId, ms, filename, criteria, coursename, UsedInstitutionKey());
 
             return Accepted(new
             {
                 jobId = job.Id,
                 status = job.Status,
+                gradingMode = job.GradingMode,
                 message = "Grading started. Poll the GET endpoint with this jobId until the CSV is ready.",
             });
         }

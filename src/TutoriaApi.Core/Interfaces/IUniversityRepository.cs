@@ -23,4 +23,9 @@ public interface IUniversityRepository : IRepository<University>
 
     /// <summary>Direct SQL update for HasAIQuizzes — bypasses EF Core change tracking.</summary>
     Task<int> SetHasAIQuizzesAsync(int id, bool hasAIQuizzes);
+
+    /// <summary>Direct SQL update of the grading-mode fields (one statement, so the
+    /// DB check constraint sees type and mode together).</summary>
+    Task<int> SetGradingModeAsync(int id, string institutionType, string gradingMode,
+        string? contractRef, int changedByUserId, DateTime changedAt);
 }

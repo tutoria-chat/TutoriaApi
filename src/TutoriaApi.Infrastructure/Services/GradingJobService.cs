@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Constants;
 using TutoriaApi.Core.Entities;
 using TutoriaApi.Core.Interfaces;
+using TutoriaApi.Core.Utilities;
 
 namespace TutoriaApi.Infrastructure.Services;
 
@@ -64,7 +65,9 @@ public class GradingJobService : IGradingJobService
             TotalSubmissions = 0,
             ProcessedSubmissions = 0,
             OriginalFilename = Path.GetFileName(fileName),
-            GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim()
+            GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim(),
+            // A signed-in dashboard user of the institution is a trusted caller.
+            GradingMode = GradingModes.Effective(university, trustedCaller: true),
         };
 
         var created = await _gradingJobRepository.AddAsync(job);
@@ -153,7 +156,7 @@ public class GradingJobService : IGradingJobService
 
     public async Task<GradingJob> CreateExternalJobAsync(
         int universityId, int externalCourseId, Stream jsonStream, string? fileName, string? gradingCriteria,
-        string? courseName = null)
+        string? courseName = null, bool institutionKey = false)
     {
         // Resolve the Tutoria course that mirrors this LMS course. Historically this
         // required an admin to hand-create a course and set its ExternalCourseId,
@@ -207,6 +210,9 @@ public class GradingJobService : IGradingJobService
             ProcessedSubmissions = 0,
             OriginalFilename = Path.GetFileName(fileName ?? "external-submissions.json"),
             GradingCriteria = string.IsNullOrWhiteSpace(gradingCriteria) ? null : gradingCriteria.Trim(),
+            // Score mode only for a corporate institution calling with its own key —
+            // never via the legacy shared key (see GradingModes.Effective).
+            GradingMode = GradingModes.Effective(university, institutionKey),
         };
 
         var created = await _gradingJobRepository.AddAsync(job);
@@ -233,8 +239,8 @@ public class GradingJobService : IGradingJobService
             _logger.LogWarning("SQS message not sent for external grading job {JobId}", created.Id);
 
         _logger.LogInformation(
-            "Created external grading job {JobId} for course {CourseId} (external {ExternalId}, university {UniversityId})",
-            created.Id, course.Id, externalCourseId, universityId);
+            "Created external grading job {JobId} for course {CourseId} (external {ExternalId}, university {UniversityId}, mode {Mode})",
+            created.Id, course.Id, externalCourseId, universityId, created.GradingMode);
 
         return created;
     }

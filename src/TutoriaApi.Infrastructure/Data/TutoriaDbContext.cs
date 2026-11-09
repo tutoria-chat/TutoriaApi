@@ -167,6 +167,19 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.MaxStudents).HasColumnName("MaxStudents");
             entity.Property(e => e.AllowedOrigins).HasColumnName("AllowedOrigins");
             entity.Property(e => e.IsConsumer).HasColumnName("IsConsumer").HasDefaultValue(false);
+            entity.Property(e => e.InstitutionType).HasColumnName("InstitutionType").HasMaxLength(20)
+                .IsRequired().HasDefaultValue("university");
+            entity.Property(e => e.GradingMode).HasColumnName("GradingMode").HasMaxLength(20)
+                .IsRequired().HasDefaultValue("feedback");
+            entity.Property(e => e.GradingModeChangedAt).HasColumnName("GradingModeChangedAt");
+            entity.Property(e => e.GradingModeChangedByUserId).HasColumnName("GradingModeChangedByUserId");
+            entity.Property(e => e.GradingModeContractRef).HasColumnName("GradingModeContractRef").HasMaxLength(255);
+            // CNE: an AI-suggested grade is forbidden for MEC institutions. The database
+            // itself refuses score mode on anything that is not a corporate institution.
+            entity.HasCheckConstraint("CK_Universities_InstitutionType",
+                "\"InstitutionType\" IN ('university', 'corporate')");
+            entity.HasCheckConstraint("CK_Universities_GradingMode",
+                "\"GradingMode\" = 'feedback' OR (\"GradingMode\" = 'score' AND \"InstitutionType\" = 'corporate')");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
 
@@ -1442,6 +1455,13 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
             entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt");
             entity.Property(e => e.UpdatedAt).HasColumnName("UpdatedAt");
+            entity.Property(e => e.GradingMode).HasColumnName("GradingMode").HasMaxLength(20)
+                .IsRequired().HasDefaultValue("feedback");
+            entity.Property(e => e.ModelUsed).HasColumnName("ModelUsed").HasMaxLength(200);
+            entity.Property(e => e.PromptVersion).HasColumnName("PromptVersion").HasMaxLength(50);
+
+            entity.HasCheckConstraint("CK_GradingJobs_GradingMode",
+                "\"GradingMode\" IN ('feedback', 'score')");
 
             entity.HasCheckConstraint("CK_GradingJobs_Status",
                 "\"Status\" IN ('pending', 'processing', 'completed', 'failed')");

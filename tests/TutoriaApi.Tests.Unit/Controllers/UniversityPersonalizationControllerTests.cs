@@ -38,6 +38,7 @@ public class UniversityPersonalizationControllerTests
             _currentUserServiceMock.Object,
             _personalizationServiceMock.Object,
             Mock.Of<IMajorService>(),
+            Mock.Of<IGradingModeService>(),
             _loggerMock.Object);
 
         SetupControllerContext();

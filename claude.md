@@ -837,6 +837,16 @@ students who sign up and log in themselves:
   "remove from list" = `DeletedAt` soft delete (only once inactive; hidden from lists/detail, code reusable).
 - tutoria-api (Python) reads `DeactivatedAt`/`DeletedAt` — deploy this migration before the Python side.
 
+### Grading modes (feedback vs score)
+- `University.InstitutionType` ("university" | "corporate") + `University.GradingMode` ("feedback" | "score").
+  Rules in `Core/Utilities/GradingModes.cs`. Score = the AI suggests a grade; it is FORBIDDEN for MEC/CNE
+  institutions, so it's only allowed on corporate institutions (DB check constraint `CK_Universities_GradingMode`),
+  only set by super_admin via `PUT api/universities/{id}/grading-mode` (needs a contract ref, audit-logged).
+- Each `GradingJob` snapshots the effective mode at creation. External jobs only get score when sent with the
+  institution's own key (`tgk_…`), never the legacy shared key. The Moodle plugin reads
+  `GET api/external/grading/{universityId}/config`. The worker re-checks the university before scoring and writes
+  `ModelUsed`/`PromptVersion`. Deploy this API migration before the worker and the plugin.
+
 ### Unified Users Table Strategy
 **Decision:** Use ONLY the `Users` table for all user types (student, professor, super_admin)
 

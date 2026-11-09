@@ -49,6 +49,24 @@ public class University : BaseEntity
     /// </summary>
     public bool IsConsumer { get; set; }
 
+    /// <summary>
+    /// "university" (default: under MEC/CNE) or "corporate" (internal training at a
+    /// company, outside the MEC system). See <see cref="Utilities.GradingModes"/>.
+    /// </summary>
+    public string InstitutionType { get; set; } = Utilities.GradingModes.InstitutionUniversity;
+
+    /// <summary>
+    /// "feedback" (default: AI writes feedback drafts, never a grade) or "score"
+    /// (AI also suggests a grade; corporate institutions only, super_admin sets it).
+    /// </summary>
+    public string GradingMode { get; set; } = Utilities.GradingModes.Feedback;
+
+    /// <summary>Audit: when and by whom the grading mode / institution type last changed,
+    /// and the contract that allowed score mode.</summary>
+    public DateTime? GradingModeChangedAt { get; set; }
+    public int? GradingModeChangedByUserId { get; set; }
+    public string? GradingModeContractRef { get; set; }
+
     // Navigation properties
     public UniversityPersonalization? Personalization { get; set; }
     public ICollection<Course> Courses { get; set; } = new List<Course>();

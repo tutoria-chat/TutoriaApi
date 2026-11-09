@@ -16,6 +16,7 @@ public class UniversitiesController : ControllerBase
     private readonly ICurrentUserService _currentUserService;
     private readonly IUniversityPersonalizationService _personalizationService;
     private readonly IMajorService _majorService;
+    private readonly IGradingModeService _gradingModeService;
     private readonly ILogger<UniversitiesController> _logger;
 
     public UniversitiesController(
@@ -24,6 +25,7 @@ public class UniversitiesController : ControllerBase
         ICurrentUserService currentUserService,
         IUniversityPersonalizationService personalizationService,
         IMajorService majorService,
+        IGradingModeService gradingModeService,
         ILogger<UniversitiesController> logger)
     {
         _universityService = universityService;
@@ -31,6 +33,7 @@ public class UniversitiesController : ControllerBase
         _currentUserService = currentUserService;
         _personalizationService = personalizationService;
         _majorService = majorService;
+        _gradingModeService = gradingModeService;
         _logger = logger;
     }
 
@@ -130,6 +133,8 @@ public class UniversitiesController : ControllerBase
             IsEnterprise = viewModel.University.IsEnterprise,
             HasAssignments = viewModel.University.HasAssignments,
             HasAIQuizzes = viewModel.University.HasAIQuizzes,
+            InstitutionType = viewModel.University.InstitutionType,
+            GradingMode = viewModel.University.GradingMode,
             MaxCourses = viewModel.University.MaxCourses,
             MaxModules = viewModel.University.MaxModules,
             MaxStudents = viewModel.University.MaxStudents,
@@ -296,6 +301,62 @@ public class UniversitiesController : ControllerBase
         }
     }
 
+    /// <summary>Get the institution's grading-assistant mode (super_admin).</summary>
+    [HttpGet("{id}/grading-mode")]
+    [Authorize(Policy = "SuperAdminOnly")]
+    public async Task<ActionResult<GradingModeResponse>> GetGradingMode(int id)
+    {
+        try
+        {
+            var state = await _gradingModeService.GetAsync(id, _currentUserService.GetCurrentUser());
+            return Ok(ToResponse(state));
+        }
+        catch (KeyNotFoundException) { return NotFound(new { message = "University not found" }); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting grading mode for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    /// <summary>
+    /// Change the institution's grading-assistant mode (super_admin, audit-logged).
+    /// Score mode (AI-suggested grades) is only accepted for corporate institutions
+    /// outside the MEC system, with a contract reference — never for universities.
+    /// </summary>
+    [HttpPut("{id}/grading-mode")]
+    [Authorize(Policy = "SuperAdminOnly")]
+    public async Task<ActionResult<GradingModeResponse>> UpdateGradingMode(int id, [FromBody] GradingModeUpdateRequest request)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+        try
+        {
+            var state = await _gradingModeService.SetAsync(
+                id, request.InstitutionType, request.GradingMode, request.ContractRef,
+                _currentUserService.GetCurrentUser());
+            return Ok(ToResponse(state));
+        }
+        catch (ArgumentException ex) { return BadRequest(new { message = ex.Message }); }
+        catch (KeyNotFoundException) { return NotFound(new { message = "University not found" }); }
+        catch (UnauthorizedAccessException) { return Forbid(); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating grading mode for university {Id}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    private static GradingModeResponse ToResponse(GradingModeState s) => new()
+    {
+        UniversityId = s.UniversityId,
+        InstitutionType = s.InstitutionType,
+        GradingMode = s.GradingMode,
+        ChangedAt = s.ChangedAt,
+        ChangedByUserId = s.ChangedByUserId,
+        ContractRef = s.ContractRef,
+    };
+
     /// <summary>Get the institution's trusted web addresses (CORS allowlist).</summary>
     [HttpGet("{id}/trusted-origins")]
     [Authorize(Policy = "AdminOrAbove")]
@@ -439,6 +500,8 @@ public class UniversitiesController : ControllerBase
             IsEnterprise = u.IsEnterprise,
             HasAssignments = u.HasAssignments,
             HasAIQuizzes = u.HasAIQuizzes,
+            InstitutionType = u.InstitutionType,
+            GradingMode = u.GradingMode,
             MaxCourses = u.MaxCourses,
             MaxModules = u.MaxModules,
             MaxStudents = u.MaxStudents,
