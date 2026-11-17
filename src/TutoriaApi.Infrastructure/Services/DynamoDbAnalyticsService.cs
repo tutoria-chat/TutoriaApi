@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Interfaces;
 using TutoriaApi.Core.DTOs;
+using TutoriaApi.Infrastructure.Data;
 
 namespace TutoriaApi.Infrastructure.Services;
 
@@ -15,15 +16,25 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
     private readonly string _tableName;
     private readonly bool _isEnabled;
     private readonly int _defaultQueryLimit;
+    // ChatStore=postgres: the same reads from "ChatHistory"; no DynamoDB client at all.
+    private readonly PostgresChatHistory? _pg;
 
     public DynamoDbAnalyticsService(
         IConfiguration configuration,
-        ILogger<DynamoDbAnalyticsService> logger)
+        ILogger<DynamoDbAnalyticsService> logger,
+        TutoriaDbContext db)
     {
         _logger = logger;
+        _defaultQueryLimit = configuration.GetValue("AWS:DynamoDb:DefaultQueryLimit", 10000);
+        if (PostgresStores.ChatInPostgres(configuration))
+        {
+            _pg = new PostgresChatHistory(db);
+            _tableName = "ChatHistory";
+            _dynamoDbClient = null!;
+            return;
+        }
         _tableName = configuration["AWS:DynamoDb:ChatTable"] ?? "ChatMessages";
         _isEnabled = bool.TryParse(configuration["AWS:DynamoDb:Enabled"], out var enabled) && enabled;
-        _defaultQueryLimit = configuration.GetValue("AWS:DynamoDb:DefaultQueryLimit", 10000);
 
         if (_isEnabled)
         {
@@ -55,6 +66,9 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
     public async Task<List<ChatMessageDto>> GetConversationHistoryAsync(string conversationId, int limit = 50)
     {
+        if (_pg != null)
+            return await PgAsync(PostgresChatHistory.By.Conversation, conversationId, null, null, limit);
+
         if (!_isEnabled || _dynamoDbClient == null)
         {
             _logger.LogWarning("DynamoDB not enabled, returning empty conversation history");
@@ -91,6 +105,9 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         DateTime? endDate = null,
         int limit = 1000)
     {
+        if (_pg != null)
+            return await PgAsync(PostgresChatHistory.By.Module, moduleId, startDate, endDate, limit, bothDates: true);
+
         if (!_isEnabled || _dynamoDbClient == null)
         {
             _logger.LogWarning("DynamoDB not enabled, returning empty module analytics");
@@ -162,6 +179,9 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         DateTime? endDate = null,
         int limit = 100)
     {
+        if (_pg != null)
+            return await PgAsync(PostgresChatHistory.By.Student, studentId, startDate, endDate, limit, bothDates: true);
+
         if (!_isEnabled || _dynamoDbClient == null)
         {
             _logger.LogWarning("DynamoDB not enabled, returning empty student activity");
@@ -233,6 +253,9 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         DateTime? endDate = null,
         int limit = 1000)
     {
+        if (_pg != null)
+            return await PgAsync(PostgresChatHistory.By.Provider, provider, startDate, endDate, limit, bothDates: true);
+
         if (!_isEnabled || _dynamoDbClient == null)
         {
             _logger.LogWarning("DynamoDB not enabled, returning empty provider usage");
@@ -715,6 +738,29 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
 
     #region Helper Methods
 
+    /// <summary>
+    /// The Postgres read. bothDates: the GSI queries only filter by date when both
+    /// ends are given, so the same rule here.
+    /// </summary>
+    private async Task<List<ChatMessageDto>> PgAsync(
+        PostgresChatHistory.By? by, object? key, DateTime? startDate, DateTime? endDate, int limit, bool bothDates = false)
+    {
+        if (bothDates && !(startDate.HasValue && endDate.HasValue))
+        {
+            startDate = null;
+            endDate = null;
+        }
+        try
+        {
+            return await _pg!.QueryAsync(by, key, startDate, endDate, limit);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error reading chat history ({By}) from Postgres", by?.ToString() ?? "all");
+            return new List<ChatMessageDto>();
+        }
+    }
+
     private async Task<List<ChatMessageDto>> GetFilteredMessagesAsync(
         DateTime? startDate,
         DateTime? endDate,
@@ -731,6 +777,9 @@ public class DynamoDbAnalyticsService : IDynamoDbAnalyticsService
         // Otherwise, we need to scan (not ideal, but necessary for university/course filtering)
         // In production, you'd want additional GSIs for university and course
         // For now, scan the table and filter in memory
+        if (_pg != null)
+            return await PgAsync(null, null, startDate, endDate, _defaultQueryLimit);
+
         if (!_isEnabled || _dynamoDbClient == null)
         {
             _logger.LogWarning("DynamoDB not enabled, returning empty results");

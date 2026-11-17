@@ -15,30 +15,12 @@ using TutoriaApi.Core.Interfaces;
 var builder = WebApplication.CreateBuilder(args);
 
 // =============================================================================
-// AWS Systems Manager Parameter Store — loads ALL config under /tutoria/{env}/
-// Add a param in SSM → app picks it up. No pipeline changes needed.
-// Local dev skips this (uses appsettings.Development.json as usual).
+// Deployed config: AWS SSM (AWS_SSM_PREFIX=/tutoria/{env}/, on AWS) or Azure Key
+// Vault (AZURE_KEYVAULT_URL, on Azure; "ConnectionStrings--TutoriaDb" is
+// ConnectionStrings:TutoriaDb). Both set refuses to start; neither = appsettings
+// (local dev). Either is re-read every 5 minutes.
 // =============================================================================
-var ssmPrefix = Environment.GetEnvironmentVariable("AWS_SSM_PREFIX");
-if (!string.IsNullOrEmpty(ssmPrefix))
-{
-    var ssmRegion = Environment.GetEnvironmentVariable("AWS_REGION") ?? "us-east-2";
-    builder.Configuration.AddSystemsManager(configSource =>
-    {
-        configSource.Path = ssmPrefix;
-        configSource.Optional = false;               // Crash loud if SSM is unreachable — don't hide config problems
-        configSource.ReloadAfter = TimeSpan.FromMinutes(5);  // Auto-refresh config every 5 min
-        configSource.AwsOptions = new Amazon.Extensions.NETCore.Setup.AWSOptions
-        {
-            Region = Amazon.RegionEndpoint.GetBySystemName(ssmRegion)
-        };
-    });
-    Console.WriteLine($"[Config] Loading from AWS SSM Parameter Store: {ssmPrefix} (region: {ssmRegion})");
-}
-else
-{
-    Console.WriteLine("[Config] AWS_SSM_PREFIX not set — using appsettings/env vars only (local dev mode)");
-}
+Console.WriteLine(TutoriaApi.Web.API.Configuration.ConfigSource.Apply(builder.Configuration, Environment.GetEnvironmentVariable));
 
 // Configure Kestrel to allow large file uploads (30MB)
 builder.WebHost.ConfigureKestrel(serverOptions =>
@@ -110,7 +92,11 @@ builder.Services.AddHealthChecks()
     .AddDbContextCheck<TutoriaApi.Infrastructure.Data.TutoriaDbContext>(
         name: "database",
         failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
-        tags: new[] { "db", "sql" });
+        tags: new[] { "db", "sql" })
+    .AddDbContextCheck<TutoriaApi.Infrastructure.Data.TutoriaDbContext>(
+        name: "database-ready",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+        tags: new[] { "ready" });
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -258,12 +244,22 @@ if (hangfireEnabled)
         .UsePostgreSqlStorage(options =>
             options.UseNpgsqlConnection(connectionString)));
 
-    // Add the processing server as IHostedService
-    builder.Services.AddHangfireServer(options =>
+    // The processing server, unless BackgroundJobs:Enabled=false: a warm standby
+    // (Azure while AWS is primary) must not send the daily emails a second time.
+    // Jobs enqueued meanwhile wait in storage for a server. Read at startup only:
+    // flipping it needs a restart (part of the failover steps).
+    if (builder.Configuration.GetValue("BackgroundJobs:Enabled", true))
     {
-        options.WorkerCount = 1; // One worker for background jobs
-        options.ServerName = $"TutoriaApi-{Environment.MachineName}";
-    });
+        builder.Services.AddHangfireServer(options =>
+        {
+            options.WorkerCount = 1; // One worker for background jobs
+            options.ServerName = $"TutoriaApi-{Environment.MachineName}";
+        });
+    }
+    else
+    {
+        Console.WriteLine("[Hangfire] BackgroundJobs:Enabled=false — no processing server (standby)");
+    }
 }
 else
 {
@@ -300,6 +296,16 @@ using (var migrationScope = app.Services.CreateScope())
 
     var seeder = migrationScope.ServiceProvider.GetRequiredService<TutoriaApi.Infrastructure.Services.DbSeederService>();
     await seeder.SeedEssentialDataAsync();
+
+    // ChatStore / Jobs:Queue = postgres: the tables shared with tutoria-api and the
+    // worker (tutoria-api docs/MULTICLOUD.md), created here too if this starts first.
+    var chatInPostgres = TutoriaApi.Infrastructure.Data.PostgresStores.ChatInPostgres(app.Configuration);
+    var jobsInPostgres = TutoriaApi.Infrastructure.Data.PostgresStores.JobsInPostgres(app.Configuration);
+    migrationLogger.LogInformation("[Stores] chat={Chat} jobs={Jobs} storage={Storage}",
+        chatInPostgres ? "postgres" : "dynamodb", jobsInPostgres ? "postgres" : "sqs",
+        TutoriaApi.Infrastructure.Services.StorageEndpoint.IsCustom(app.Configuration) ? "s3-compatible" : "aws-s3");
+    if (chatInPostgres || jobsInPostgres)
+        await TutoriaApi.Infrastructure.Data.PostgresStores.EnsureSchemaAsync(db);
 }
 
 // Seed database with default API clients in development
@@ -349,9 +355,14 @@ app.MapControllers();
 // Simple ping endpoint for load balancer
 app.MapGet("/ping", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
-// Detailed health checks (includes database)
+// /health: liveness (the database only degrades it, so a DB outage doesn't restart
+// the container). /health/ready: the database answers, else 503 — what a load
+// balancer, Cloudflare or Container Apps' readiness probe checks.
 app.MapHealthChecks("/health");
-app.MapHealthChecks("/health/ready");
+app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+});
 
 // Schedule recurring background jobs (only if Hangfire was configured)
 if (hangfireEnabled)

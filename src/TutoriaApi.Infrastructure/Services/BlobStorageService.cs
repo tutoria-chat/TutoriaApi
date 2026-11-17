@@ -12,6 +12,7 @@ public class BlobStorageService : IBlobStorageService
     private readonly IAmazonS3 _s3Client;
     private readonly string _bucketName;
     private readonly string _region;
+    private readonly string? _serviceUrl;
     private readonly ILogger<BlobStorageService> _logger;
 
     public BlobStorageService(IConfiguration configuration, ILogger<BlobStorageService> logger)
@@ -24,32 +25,47 @@ public class BlobStorageService : IBlobStorageService
             ?? configuration["AWS:Region"]
             ?? "us-east-2";
 
-        var accessKeyId = configuration["AWS:AccessKeyId"];
-        var secretAccessKey = configuration["AWS:SecretAccessKey"];
+        _serviceUrl = configuration[StorageEndpoint.ServiceUrlKey]?.Trim().TrimEnd('/');
 
         try
         {
-            if (!string.IsNullOrWhiteSpace(accessKeyId) && !string.IsNullOrWhiteSpace(secretAccessKey))
+            if (StorageEndpoint.IsCustom(configuration))
             {
-                _s3Client = new AmazonS3Client(
-                    accessKeyId,
-                    secretAccessKey,
-                    RegionEndpoint.GetBySystemName(_region));
-            }
-            else
-            {
-                // Fall back to default credential chain (IAM role, env vars, etc.)
-                _s3Client = new AmazonS3Client(RegionEndpoint.GetBySystemName(_region));
+                // S3-compatible store (R2 on Azure): its own keys, never the AWS chain.
+                _s3Client = StorageEndpoint.CreateCustomClient(configuration, TimeSpan.FromSeconds(30), 3);
+                return;
             }
 
-            EnsureBucketExistsAsync().Wait();
+            var accessKeyId = configuration["AWS:AccessKeyId"];
+            var secretAccessKey = configuration["AWS:SecretAccessKey"];
+            _s3Client = !string.IsNullOrWhiteSpace(accessKeyId) && !string.IsNullOrWhiteSpace(secretAccessKey)
+                ? new AmazonS3Client(accessKeyId, secretAccessKey, RegionEndpoint.GetBySystemName(_region))
+                // Default credential chain (IAM role, env vars, etc.)
+                : new AmazonS3Client(RegionEndpoint.GetBySystemName(_region));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to initialize S3 storage service");
             throw new InvalidOperationException($"Invalid S3 configuration: {ex.Message}", ex);
         }
+
+        // Once per process, not per request: this service is scoped, and a network
+        // call in its constructor used to run (and block) on every request using it.
+        if (CheckedBuckets.TryAdd(_bucketName, 0))
+        {
+            try
+            {
+                EnsureBucketExistsAsync().GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                CheckedBuckets.TryRemove(_bucketName, out _);
+                _logger.LogError(ex, "Could not check S3 bucket {BucketName}; file operations may fail", _bucketName);
+            }
+        }
     }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> CheckedBuckets = new();
 
     private async Task EnsureBucketExistsAsync()
     {
@@ -68,11 +84,6 @@ public class BlobStorageService : IBlobStorageService
                 BucketRegion = S3Region.FindValue(_region)
             });
             _logger.LogInformation("Created S3 bucket: {BucketName}", _bucketName);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to ensure S3 bucket exists: {BucketName}", _bucketName);
-            throw;
         }
     }
 
@@ -99,8 +110,7 @@ public class BlobStorageService : IBlobStorageService
 
             await _s3Client.PutObjectAsync(putRequest);
 
-            // Return the S3 object URL
-            return $"https://{_bucketName}.s3.{_region}.amazonaws.com/{blobPath}";
+            return ObjectUrl(blobPath);
         }
         catch (Exception ex)
         {
@@ -178,4 +188,9 @@ public class BlobStorageService : IBlobStorageService
             return null;
         }
     }
+
+    /// <summary>The URL stored next to an object (Files.BlobUrl): AWS virtual-hosted, or {S3:ServiceUrl}/{bucket}/{key}.</summary>
+    public string ObjectUrl(string blobPath) => string.IsNullOrEmpty(_serviceUrl)
+        ? $"https://{_bucketName}.s3.{_region}.amazonaws.com/{blobPath}"
+        : $"{_serviceUrl}/{_bucketName}/{blobPath}";
 }
