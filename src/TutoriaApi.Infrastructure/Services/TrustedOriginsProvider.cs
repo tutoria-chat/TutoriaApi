@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TutoriaApi.Core.Interfaces;
@@ -10,6 +11,8 @@ namespace TutoriaApi.Infrastructure.Services;
 /// localhost (always allowed) plus each institution's configured trusted origins,
 /// re-read from the DB at most once per <see cref="Ttl"/> so dashboard changes take
 /// effect without a redeploy. A DB read failure keeps the previous set (fail-safe).
+/// Cors:PlatformOrigins (comma-separated) adds the dashboards of the cloud this runs
+/// on, e.g. the Azure Container Apps URL of tutoria-ui; re-read with the rest.
 /// </summary>
 public class TrustedOriginsProvider : ITrustedOriginsProvider
 {
@@ -62,6 +65,8 @@ public class TrustedOriginsProvider : ITrustedOriginsProvider
                 var stored = repo.GetAllAllowedOriginsAsync().GetAwaiter().GetResult();
 
                 var set = new HashSet<string>(StaticOrigins, StringComparer.OrdinalIgnoreCase);
+                foreach (var origin in PlatformOrigins(scope.ServiceProvider.GetService<IConfiguration>()))
+                    set.Add(origin);
                 foreach (var raw in stored)
                     foreach (var origin in OriginNormalizer.NormalizeMany(raw))
                         set.Add(origin);
@@ -78,4 +83,10 @@ public class TrustedOriginsProvider : ITrustedOriginsProvider
             }
         }
     }
+
+    /// <summary>Cors:PlatformOrigins, normalized like the institutions' origins.</summary>
+    public static IEnumerable<string> PlatformOrigins(IConfiguration? configuration) =>
+        string.IsNullOrWhiteSpace(configuration?["Cors:PlatformOrigins"])
+            ? Enumerable.Empty<string>()
+            : OriginNormalizer.NormalizeMany(configuration!["Cors:PlatformOrigins"]!);
 }

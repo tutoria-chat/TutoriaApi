@@ -152,4 +152,14 @@ public class CloudPortabilityTests
 
     private static SortedSet<string> Identifiers(string sql) =>
         new(Regex.Matches(sql, "\"([A-Za-z_]+)\"").Select(m => m.Groups[1].Value));
+
+    [Fact]
+    public void PlatformOrigins_ComeFromConfig()
+    {
+        var config = Config(("Cors:PlatformOrigins", "https://tutoria-ui-dev.x.azurecontainerapps.io/, https://other.example"));
+        var origins = TrustedOriginsProvider.PlatformOrigins(config).ToList();
+        Assert.Contains("https://tutoria-ui-dev.x.azurecontainerapps.io", origins);
+        Assert.Contains("https://other.example", origins);
+        Assert.Empty(TrustedOriginsProvider.PlatformOrigins(Config()));
+    }
 }
