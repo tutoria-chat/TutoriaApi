@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using TutoriaApi.Infrastructure.Data;
@@ -130,25 +131,48 @@ public class CloudPortabilityTests
         Assert.DoesNotContain("@key", PostgresChatHistory.Sql(null, false, false));
     }
 
+    private static readonly string[] SharedTables = { "ChatHistory", "QuizAttemptAnswers", "WorkerJobs" };
+
     [Fact]
-    public void Ddl_MatchesTutoriaApi()
+    public void SharedStoresMigration_MatchesTheEfModel()
     {
-        // The same tables are created by tutoria-api and tutoria-worker: every quoted
-        // identifier (tables, columns, indexes) must match theirs.
+        // The migration creates the tables with SQL (they already existed): every table,
+        // column and index of the EF model must be in it, and nothing else.
+        using var db = new TutoriaDbContext(new DbContextOptionsBuilder<TutoriaDbContext>()
+            .UseNpgsql("Host=unused").Options);
+        var model = new SortedSet<string>();
+        foreach (var entity in db.Model.GetEntityTypes().Where(e => SharedTables.Contains(e.GetTableName())))
+        {
+            model.Add(entity.GetTableName()!);
+            var table = StoreObjectIdentifier.Table(entity.GetTableName()!, entity.GetSchema());
+            foreach (var property in entity.GetProperties())
+                model.Add(property.GetColumnName(table)!);
+            foreach (var index in entity.GetIndexes())
+                model.Add(index.GetDatabaseName()!);
+        }
+        Assert.Contains("IX_WorkerJobs_Waiting", model);
+        Assert.Equal(model, Identifiers(TutoriaApi.Infrastructure.Migrations.AddSharedPostgresStores.CreateIfMissing));
+
+        var fileName = db.Model.FindEntityType(typeof(TutoriaApi.Core.Entities.ChatHistoryEntry))!
+            .FindProperty(nameof(TutoriaApi.Core.Entities.ChatHistoryEntry.FileName))!;
+        Assert.Equal("text", fileName.GetColumnType());
+    }
+
+    [Fact]
+    public void SharedStoresMigration_MatchesThePythonTestTables()
+    {
+        // tutoria-api and tutoria-worker create the tables for their tests from
+        // tests/postgres_tables.sql: it must stay a copy of this migration's SQL.
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null && !Directory.Exists(Path.Combine(dir.FullName, "tutoria-api")))
             dir = dir.Parent;
         if (dir == null) return; // tutoria-api not checked out next to this repo (CI)
-        var python = File.ReadAllText(Path.Combine(dir.FullName, "tutoria-api", "app", "stores", "schema.py"));
-        var ddlStart = python.IndexOf("DDL = (", StringComparison.Ordinal);
-        var ddlEnd = python.IndexOf("_CLEANUP = (", StringComparison.Ordinal);
-        Assert.True(ddlStart >= 0 && ddlEnd > ddlStart, "schema.py layout changed");
-        var theirs = Identifiers(python[ddlStart..ddlEnd]);
-        var ours = Identifiers(string.Join("\n", PostgresStores.Ddl));
-        Assert.Equal(theirs, ours);
-        Assert.Contains("734_331_001", python);
-        Assert.Equal(734_331_001, PostgresStores.SchemaLock);
+        var python = File.ReadAllText(Path.Combine(dir.FullName, "tutoria-api", "tests", "postgres_tables.sql"));
+        Assert.Equal(Normalize(TutoriaApi.Infrastructure.Migrations.AddSharedPostgresStores.CreateIfMissing),
+            Normalize(string.Join("\n", python.Split('\n').Where(l => !l.TrimStart().StartsWith("--")))));
     }
+
+    private static string Normalize(string sql) => Regex.Replace(sql, @"\s+", " ").Trim();
 
     private static SortedSet<string> Identifiers(string sql) =>
         new(Regex.Matches(sql, "\"([A-Za-z_]+)\"").Select(m => m.Groups[1].Value));

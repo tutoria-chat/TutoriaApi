@@ -655,6 +655,120 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.ToTable("CalendarImportJobs", (string)null);
                 });
 
+            modelBuilder.Entity("TutoriaApi.Core.Entities.ChatHistoryEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ConversationId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("ConversationId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<string>("FileName")
+                        .HasColumnType("text")
+                        .HasColumnName("FileName");
+
+                    b.Property<bool>("HasFile")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("HasFile");
+
+                    b.Property<string>("Matricula")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Matricula");
+
+                    b.Property<string>("MessageId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("MessageId");
+
+                    b.Property<string>("ModelUsed")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("ModelUsed");
+
+                    b.Property<int>("ModuleId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ModuleId");
+
+                    b.Property<string>("Provider")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Provider");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("Question");
+
+                    b.Property<string>("Response")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("Response");
+
+                    b.Property<int?>("ResponseTime")
+                        .HasColumnType("integer")
+                        .HasColumnName("ResponseTime");
+
+                    b.Property<int>("StudentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("StudentId");
+
+                    b.Property<int?>("TokenCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("TokenCount");
+
+                    b.Property<long>("Ts")
+                        .HasColumnType("bigint")
+                        .HasColumnName("Ts");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_ChatHistory_ExpiresAt");
+
+                    b.HasIndex("ConversationId", "Ts")
+                        .HasDatabaseName("IX_ChatHistory_Conversation");
+
+                    b.HasIndex("ModuleId", "Ts")
+                        .HasDatabaseName("IX_ChatHistory_Module");
+
+                    b.HasIndex("Provider", "Ts")
+                        .HasDatabaseName("IX_ChatHistory_Provider");
+
+                    b.HasIndex("StudentId", "Ts")
+                        .HasDatabaseName("IX_ChatHistory_Student");
+
+                    b.ToTable("ChatHistory", (string)null);
+                });
+
             modelBuilder.Entity("TutoriaApi.Core.Entities.Consent", b =>
                 {
                     b.Property<int>("Id")
@@ -2806,6 +2920,104 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.ToTable("QuizAnalytics", (string)null);
                 });
 
+            modelBuilder.Entity("TutoriaApi.Core.Entities.QuizAttemptAnswer", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AttemptId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("AttemptId");
+
+                    b.Property<string>("ConceptsCovered")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("ConceptsCovered");
+
+                    b.Property<string>("CorrectAnswer")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("CorrectAnswer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Difficulty")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("medium")
+                        .HasColumnName("Difficulty");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<bool>("IsCorrect")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsCorrect");
+
+                    b.Property<int>("ModuleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ModuleId");
+
+                    b.Property<int>("QuestionNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("QuestionNumber");
+
+                    b.Property<int?>("QuizId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizId");
+
+                    b.Property<string>("SelectedAnswer")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("")
+                        .HasColumnName("SelectedAnswer");
+
+                    b.Property<int>("StudentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("StudentId");
+
+                    b.Property<long>("Ts")
+                        .HasColumnType("bigint")
+                        .HasColumnName("Ts");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("IX_QuizAttemptAnswers_ExpiresAt");
+
+                    b.HasIndex("ModuleId", "Ts")
+                        .HasDatabaseName("IX_QuizAttemptAnswers_Module");
+
+                    b.HasIndex("StudentId", "Ts")
+                        .HasDatabaseName("IX_QuizAttemptAnswers_Student");
+
+                    b.ToTable("QuizAttemptAnswers", (string)null);
+                });
+
             modelBuilder.Entity("TutoriaApi.Core.Entities.QuizUploadJob", b =>
                 {
                     b.Property<int>("Id")
@@ -4389,6 +4601,86 @@ namespace TutoriaApi.Infrastructure.Migrations
                     b.HasIndex("UniversityId", "ExternalId");
 
                     b.ToTable("UserUniversities", (string)null);
+                });
+
+            modelBuilder.Entity("TutoriaApi.Core.Entities.WorkerJob", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("Id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("Attempts");
+
+                    b.Property<DateTime>("AvailableAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AvailableAt")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("ClaimedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ClaimedAt");
+
+                    b.Property<string>("ClaimedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ClaimedBy");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("FinishedAt");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("Kind");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("LastError");
+
+                    b.Property<DateTime?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LeaseUntil");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("text")
+                        .HasColumnName("Payload");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("queued")
+                        .HasColumnName("State");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AvailableAt")
+                        .HasDatabaseName("IX_WorkerJobs_Waiting")
+                        .HasFilter("\"State\" IN ('queued', 'processing')");
+
+                    b.HasIndex("FinishedAt")
+                        .HasDatabaseName("IX_WorkerJobs_Finished")
+                        .HasFilter("\"FinishedAt\" IS NOT NULL");
+
+                    b.ToTable("WorkerJobs", (string)null);
                 });
 
             modelBuilder.Entity("TutoriaApi.Core.Entities.AnalyticsDailySummary", b =>

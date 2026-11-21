@@ -298,14 +298,12 @@ using (var migrationScope = app.Services.CreateScope())
     await seeder.SeedEssentialDataAsync();
 
     // ChatStore / Jobs:Queue = postgres: the tables shared with tutoria-api and the
-    // worker (tutoria-api docs/MULTICLOUD.md), created here too if this starts first.
+    // worker (tutoria-api docs/MULTICLOUD.md) come from the migrations above.
     var chatInPostgres = TutoriaApi.Infrastructure.Data.PostgresStores.ChatInPostgres(app.Configuration);
     var jobsInPostgres = TutoriaApi.Infrastructure.Data.PostgresStores.JobsInPostgres(app.Configuration);
     migrationLogger.LogInformation("[Stores] chat={Chat} jobs={Jobs} storage={Storage}",
         chatInPostgres ? "postgres" : "dynamodb", jobsInPostgres ? "postgres" : "sqs",
         TutoriaApi.Infrastructure.Services.StorageEndpoint.IsCustom(app.Configuration) ? "s3-compatible" : "aws-s3");
-    if (chatInPostgres || jobsInPostgres)
-        await TutoriaApi.Infrastructure.Data.PostgresStores.EnsureSchemaAsync(db);
 }
 
 // Seed database with default API clients in development

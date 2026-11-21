@@ -1788,6 +1788,8 @@ public class TutoriaDbContext : DbContext
             entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        ConfigureSharedStores(modelBuilder);
+
         modelBuilder.Entity<StudentDailyUsage>(entity =>
         {
             entity.ToTable("StudentDailyUsage");
@@ -1799,6 +1801,88 @@ public class TutoriaDbContext : DbContext
             entity.Property(e => e.Decks).HasColumnName("Decks");
             entity.Property(e => e.Uploads).HasColumnName("Uploads");
             entity.HasOne<User>().WithMany().HasForeignKey(e => e.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    /// <summary>
+    /// "ChatHistory", "QuizAttemptAnswers" and "WorkerJobs": written and read with plain SQL by
+    /// tutoria-api and tutoria-worker (and Data/PostgresStores, PostgresChatHistory here), so
+    /// column names and types must stay exactly as the migration that created them
+    /// (Migrations/SharedStoresSql.cs).
+    /// </summary>
+    private static void ConfigureSharedStores(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<ChatHistoryEntry>(entity =>
+        {
+            entity.ToTable("ChatHistory");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id").UseIdentityByDefaultColumn();
+            entity.Property(e => e.ConversationId).HasColumnName("ConversationId").HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Ts).HasColumnName("Ts");
+            entity.Property(e => e.MessageId).HasColumnName("MessageId").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.StudentId).HasColumnName("StudentId").HasDefaultValue(0);
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId").HasDefaultValue(0);
+            entity.Property(e => e.Question).HasColumnName("Question").HasColumnType("text").HasDefaultValue("");
+            entity.Property(e => e.Response).HasColumnName("Response").HasColumnType("text").HasDefaultValue("");
+            entity.Property(e => e.ModelUsed).HasColumnName("ModelUsed").HasMaxLength(200);
+            entity.Property(e => e.Provider).HasColumnName("Provider").HasMaxLength(100);
+            entity.Property(e => e.HasFile).HasColumnName("HasFile").HasDefaultValue(false);
+            entity.Property(e => e.FileName).HasColumnName("FileName").HasColumnType("text");
+            entity.Property(e => e.TokenCount).HasColumnName("TokenCount");
+            entity.Property(e => e.ResponseTime).HasColumnName("ResponseTime");
+            entity.Property(e => e.Matricula).HasColumnName("Matricula").HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.Property(e => e.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.HasIndex(e => new { e.ConversationId, e.Ts }).HasDatabaseName("IX_ChatHistory_Conversation");
+            entity.HasIndex(e => new { e.StudentId, e.Ts }).HasDatabaseName("IX_ChatHistory_Student");
+            entity.HasIndex(e => new { e.ModuleId, e.Ts }).HasDatabaseName("IX_ChatHistory_Module");
+            entity.HasIndex(e => new { e.Provider, e.Ts }).HasDatabaseName("IX_ChatHistory_Provider");
+            entity.HasIndex(e => e.ExpiresAt).HasDatabaseName("IX_ChatHistory_ExpiresAt");
+        });
+
+        modelBuilder.Entity<QuizAttemptAnswer>(entity =>
+        {
+            entity.ToTable("QuizAttemptAnswers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id").UseIdentityByDefaultColumn();
+            entity.Property(e => e.AttemptId).HasColumnName("AttemptId").HasMaxLength(64).IsRequired();
+            entity.Property(e => e.ModuleId).HasColumnName("ModuleId");
+            entity.Property(e => e.Ts).HasColumnName("Ts");
+            entity.Property(e => e.StudentId).HasColumnName("StudentId").HasDefaultValue(0);
+            entity.Property(e => e.QuizId).HasColumnName("QuizId");
+            entity.Property(e => e.QuestionNumber).HasColumnName("QuestionNumber").HasDefaultValue(0);
+            entity.Property(e => e.SelectedAnswer).HasColumnName("SelectedAnswer").HasColumnType("text").HasDefaultValue("");
+            entity.Property(e => e.CorrectAnswer).HasColumnName("CorrectAnswer").HasColumnType("text").HasDefaultValue("");
+            entity.Property(e => e.IsCorrect).HasColumnName("IsCorrect").HasDefaultValue(false);
+            entity.Property(e => e.ConceptsCovered).HasColumnName("ConceptsCovered").HasColumnType("text").HasDefaultValue("");
+            entity.Property(e => e.Difficulty).HasColumnName("Difficulty").HasMaxLength(30).HasDefaultValue("medium");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.Property(e => e.ExpiresAt).HasColumnName("ExpiresAt");
+            entity.HasIndex(e => new { e.StudentId, e.Ts }).HasDatabaseName("IX_QuizAttemptAnswers_Student");
+            entity.HasIndex(e => new { e.ModuleId, e.Ts }).HasDatabaseName("IX_QuizAttemptAnswers_Module");
+            entity.HasIndex(e => e.ExpiresAt).HasDatabaseName("IX_QuizAttemptAnswers_ExpiresAt");
+        });
+
+        modelBuilder.Entity<WorkerJob>(entity =>
+        {
+            entity.ToTable("WorkerJobs");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("Id").UseIdentityByDefaultColumn();
+            entity.Property(e => e.Kind).HasColumnName("Kind").HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Payload).HasColumnName("Payload").HasColumnType("text");
+            entity.Property(e => e.State).HasColumnName("State").HasMaxLength(20).HasDefaultValue("queued");
+            entity.Property(e => e.Attempts).HasColumnName("Attempts").HasDefaultValue(0);
+            entity.Property(e => e.AvailableAt).HasColumnName("AvailableAt").HasDefaultValueSql("now()");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.Property(e => e.ClaimedBy).HasColumnName("ClaimedBy").HasMaxLength(100);
+            entity.Property(e => e.ClaimedAt).HasColumnName("ClaimedAt");
+            entity.Property(e => e.LeaseUntil).HasColumnName("LeaseUntil");
+            entity.Property(e => e.FinishedAt).HasColumnName("FinishedAt");
+            entity.Property(e => e.LastError).HasColumnName("LastError").HasMaxLength(1000);
+            entity.HasIndex(e => e.AvailableAt).HasDatabaseName("IX_WorkerJobs_Waiting")
+                .HasFilter("\"State\" IN ('queued', 'processing')");
+            entity.HasIndex(e => e.FinishedAt).HasDatabaseName("IX_WorkerJobs_Finished")
+                .HasFilter("\"FinishedAt\" IS NOT NULL");
         });
     }
 }
